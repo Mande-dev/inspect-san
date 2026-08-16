@@ -1,0 +1,145 @@
+@model List<Utilisateur>
+@{
+    ViewData["Title"] = "Utilisateurs";
+    ViewBag.PageKey = "utilisateurs";
+    var roles = new[] { "Administrateur système", "Directeur Provincial", "Contrôleur", "Agent du Secrétariat", "Chef d'établissement" };
+    var ecolesUser = (IEnumerable<Ecole>)(ViewBag.Ecoles ?? new List<Ecole>());
+}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">Utilisateurs</h2>
+        <p class="text-secondary mb-0">Création de comptes, activation et désactivation. Les coordonnées se gèrent dans Mon profil.</p>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#userModal" id="btnNewUser">
+        <i class="ti ti-plus me-1"></i> Nouvel utilisateur
+    </button>
+</div>
+<div class="card card-lg">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 js-paginated-table">
+            <thead class="table-light">
+                <tr><th>Nom</th><th>E-mail</th><th>Rôle</th><th>Équipe</th><th>Statut</th><th></th></tr>
+            </thead>
+            <tbody id="usersTbody">
+            @foreach (var u in Model)
+            {
+                <tr>
+                    <td class="fw-semibold">@u.Nom</td>
+                    <td>@u.Contact</td>
+                    <td>@u.Role</td>
+                    <td>@(u.Equipe ?? "—")</td>
+                    <td>@(string.Equals(u.Statut, "actif", StringComparison.OrdinalIgnoreCase) ? Html.Raw("<span class='badge bg-success-subtle text-success-emphasis'>Actif</span>") : Html.Raw("<span class='badge bg-secondary'>Inactif</span>"))</td>
+                    <td class="text-end text-nowrap">
+                        @if (string.Equals(u.Statut, "actif", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <form asp-action="SetUtilisateurStatut" method="post" class="d-inline js-set-statut"
+                                  data-id="@u.Id" data-statut="inactif">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@u.Id" />
+                                <input type="hidden" name="statut" value="inactif" />
+                                <button type="submit"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        title="Désactiver ce compte"
+                                        aria-label="Désactiver ce compte">
+                                    <i class="ti ti-user-off me-1" aria-hidden="true"></i>Désactiver
+                                </button>
+                            </form>
+                        }
+                        else
+                        {
+                            <form asp-action="SetUtilisateurStatut" method="post" class="d-inline js-set-statut"
+                                  data-id="@u.Id" data-statut="actif">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@u.Id" />
+                                <input type="hidden" name="statut" value="actif" />
+                                <button type="submit"
+                                        class="btn btn-sm btn-outline-success"
+                                        title="Activer ce compte"
+                                        aria-label="Activer ce compte">
+                                    <i class="ti ti-user-check me-1" aria-hidden="true"></i>Activer
+                                </button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade isp-modal" id="userModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <form asp-action="SaveUtilisateur" method="post" class="modal-content" id="userForm">
+            @Html.AntiForgeryToken()
+            <div class="modal-header">
+                <div class="isp-modal-heading">
+                    <span class="isp-modal-icon" aria-hidden="true"><i class="ti ti-users"></i></span>
+                    <div>
+                        <p class="isp-modal-kicker">Compte</p>
+                        <h5 class="modal-title" id="userModalTitle">Nouvel utilisateur</h5>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body">
+                <div class="isp-modal-section mb-0">
+                    <h6 class="isp-modal-section-title"><i class="ti ti-id"></i> Identité &amp; accès</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="userNom">Nom complet <span class="text-danger">*</span></label>
+                            <input name="Nom" id="userNom" class="form-control" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="userContact">E-mail <span class="text-danger">*</span></label>
+                            <input name="Contact" id="userContact" type="email" class="form-control" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="userRole">Rôle <span class="text-danger">*</span></label>
+                            <select name="Role" id="userRole" class="form-select">
+                                @foreach (var r in roles) { <option value="@r">@r</option> }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="userStatut">Statut initial</label>
+                            <select name="Statut" id="userStatut" class="form-select">
+                                <option value="actif">Actif</option>
+                                <option value="inactif">Inactif</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 d-none" id="equipeBox">
+                            <label class="form-label" for="userControleurId">Chef d’équipe <span class="text-danger">*</span></label>
+                            <select name="ControleurId" id="userControleurId" class="form-select">
+                                <option value="">— Sélectionner —</option>
+                            </select>
+                            <div class="form-text">Uniquement les chefs d’équipe sans compte.</div>
+                        </div>
+                        <div class="col-md-6 d-none" id="ecoleBox">
+                            <label class="form-label" for="userEcoleId">École liée <span class="text-danger">*</span></label>
+                            <select name="EcoleId" id="userEcoleId" class="form-select">
+                                <option value="">— Sélectionner —</option>
+                                @foreach (var e in ecolesUser) { <option value="@e.Id">@e.Denomination</option> }
+                            </select>
+                        </div>
+                        <div class="col-md-6" id="pwdBox">
+                            <label class="form-label" for="userPwd">Mot de passe <span class="text-danger">*</span></label>
+                            <input name="MotDePasse" id="userPwd" type="password" class="form-control" required autocomplete="new-password" />
+                        </div>
+                        <div class="col-md-6" id="pwdConfirmBox">
+                            <label class="form-label" for="userPwdConfirm">Confirmer le mot de passe <span class="text-danger">*</span></label>
+                            <input name="ConfirmationMotDePasse" id="userPwdConfirm" type="password" class="form-control" required autocomplete="new-password" />
+                            <div class="form-text text-danger d-none" id="pwdMismatch">Les mots de passe ne correspondent pas.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button class="btn btn-primary" type="submit">Créer le compte</button>
+            </div>
+        </form>
+    </div>
+</div>
+@section Scripts {
+<script src="~/js/pages/utilisateurs.js" asp-append-version="true"></script>
+}

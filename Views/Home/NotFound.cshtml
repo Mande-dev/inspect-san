@@ -1,0 +1,29 @@
+@{
+    Layout = "_PublicLayout";
+    ViewData["Title"] = "Page introuvable";
+    ViewData["BodyClass"] = "isp-public--sys";
+    var isAuth = User.Identity?.IsAuthenticated == true;
+    var espaceUrl = ViewBag.EspaceUrl as string ?? (isAuth ? Url.Action("Index", "Home") : Url.Action("Index", "Landing"));
+    var espaceLabel = ViewBag.EspaceLabel as string ?? (isAuth ? "Mon espace" : "Accueil");
+}
+
+<main class="isp-sys">
+    <div class="isp-sys-panel">
+        <p class="isp-sys-brand" aria-label="Inspect-San">
+            <span>Inspect</span>-<span>San</span>
+        </p>
+        <p class="isp-sys-code">404</p>
+        <h1>Page introuvable</h1>
+        <p>
+            L’adresse demandée n’existe pas ou a été déplacée.
+            Vérifiez l’URL ou revenez à une page connue.
+        </p>
+        <div class="isp-sys-actions">
+            <a class="isp-btn isp-btn-navy" href="@espaceUrl">@espaceLabel</a>
+            @if (!isAuth)
+            {
+                <a class="isp-btn isp-btn-ghost" style="color:var(--isp-navy);border-color:var(--isp-navy);" asp-controller="Auth" asp-action="Login">Connexion</a>
+            }
+        </div>
+    </div>
+</main>

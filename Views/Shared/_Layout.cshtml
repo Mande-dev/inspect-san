@@ -1,0 +1,263 @@
+﻿@using System.Security.Claims
+@using inspect_san.Services
+@using inspect_san.Services.Mock
+@inject MockUserStore Store
+@{
+    var isAuth = User.Identity?.IsAuthenticated == true;
+    var pageKey = ViewBag.PageKey as string ?? "";
+    var role = User.FindFirstValue(ClaimTypes.Role);
+    var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+    var userName = User.Identity?.Name ?? "";
+    var notifs = isAuth ? Store.NotificationsForUser(userId).Take(12).ToList() : new List<NotificationItem>();
+    var unread = isAuth ? Store.NotificationsForUser(userId).Count(n => !n.Lu) : 0;
+    var year = DateTime.Now.Year;
+}
+<!DOCTYPE html>
+<html lang="fr" class="expanded">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>@(ViewData["Title"] ?? "Inspect-San") — Contrôle sanitaire scolaire</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="~/assets/images/favicon/favicon-32x32.png" />
+    <script src="~/assets/js/vendors/color-modes.js"></script>
+    <script>
+      if (localStorage.getItem('sidebarExpanded') === 'false') {
+        document.documentElement.classList.add('collapsed');
+        document.documentElement.classList.remove('expanded');
+      } else {
+        document.documentElement.classList.remove('collapsed');
+        document.documentElement.classList.add('expanded');
+      }
+    </script>
+    <link rel="stylesheet" href="~/css/fonts.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/assets/libs/simplebar/dist/simplebar.min.css" />
+    <link rel="stylesheet" href="~/assets/libs/@@tabler/icons-webfont/tabler-icons.min.css" />
+    <link rel="stylesheet" href="~/assets/libs/apexcharts/dist/apexcharts.css" />
+    <link rel="stylesheet" href="~/assets/css/theme.min.css" />
+    <link rel="stylesheet" href="~/assets/libs/sweetalert2/dist/sweetalert2.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+<body>
+@if (isAuth)
+{
+    <!-- Sidebar -->
+    <div id="miniSidebar">
+        <div class="brand-logo">
+            @{ ViewData["ExtraClass"] = " d-none d-md-inline-flex"; }
+            <partial name="_AppLogo" model='"sidebar"' />
+        </div>
+        <ul class="navbar-nav flex-column">
+            <li class="nav-item">
+                <div class="nav-heading">Navigation</div>
+                <hr class="mx-5 nav-line mb-1" />
+            </li>
+            @foreach (var item in AccessControl.Nav)
+            {
+                if (!AccessControl.CanAccess(role, item.Key)) { continue; }
+                var active = pageKey == item.Key ? "active" : "";
+                <li class="nav-item">
+                    <a class="nav-link @active" href="@item.Path">
+                        <span class="nav-icon"><i class="ti @item.Icon" style="font-size: 20px;"></i></span>
+                        <span class="text">@item.Label</span>
+                    </a>
+                </li>
+            }
+            <li>
+                <div class="text-center py-5 upgrade-ui">
+                    <span class="isp-user-avatar isp-user-avatar--md" aria-hidden="true">
+                        <i class="ti ti-user"></i>
+                    </span>
+                    <div class="my-3">
+                        <h5 class="mb-1 fs-6">@userName</h5>
+                        <span class="text-secondary">@role</span>
+                    </div>
+                </div>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Offcanvas mobile -->
+    <div class="offcanvasNav offcanvas offcanvas-start" tabindex="-1" id="offcanvasExample">
+        <div class="offcanvas-header">
+            @{ ViewData["ExtraClass"] = ""; }
+            <partial name="_AppLogo" model='"offcanvas"' />
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body p-0">
+            <ul class="navbar-nav flex-column">
+                <li class="nav-item">
+                    <div class="nav-heading">Navigation</div>
+                    <hr class="mx-5 nav-line mb-1" />
+                </li>
+                @foreach (var item in AccessControl.Nav)
+                {
+                    if (!AccessControl.CanAccess(role, item.Key)) { continue; }
+                    var active = pageKey == item.Key ? "active" : "";
+                    <li class="nav-item">
+                        <a class="nav-link @active" href="@item.Path">
+                            <span class="nav-icon"><i class="ti @item.Icon" style="font-size: 20px;"></i></span>
+                            <span class="text">@item.Label</span>
+                        </a>
+                    </li>
+                }
+            </ul>
+        </div>
+    </div>
+
+    <div id="content" class="position-relative">
+        <!-- Header -->
+        <div class="navbar-glass navbar navbar-expand-lg px-0 px-lg-4">
+            <div class="container-fluid px-lg-0">
+                <div class="d-flex align-items-center gap-4">
+                    <div class="d-block d-lg-none">
+                        <a class="text-inherit" data-bs-toggle="offcanvas" href="#offcanvasExample" role="button">
+                            <i class="ti ti-menu-2 fs-4"></i>
+                        </a>
+                    </div>
+                    <div class="d-none d-lg-block">
+                        <a class="sidebar-toggle d-flex texttooltip p-3" id="sidebarToggleBtn" href="#!">
+                            <span class="collapse-mini"><i class="ti ti-arrow-bar-left text-secondary"></i></span>
+                            <span class="collapse-expanded"><i class="ti ti-arrow-bar-right text-secondary"></i></span>
+                        </a>
+                    </div>
+                    <div class="d-none d-md-block">
+                        <span class="text-secondary small">Province Éducationnelle</span>
+                        <div class="fw-semibold">Kinshasa / Mont-Amba</div>
+                    </div>
+                </div>
+
+                <ul class="list-unstyled d-flex align-items-center mb-0 gap-2 gap-lg-3">
+                    <li class="dropdown">
+                        <a class="text-inherit position-relative" href="#!" data-bs-toggle="dropdown">
+                            <i class="ti ti-bell fs-4"></i>
+                            @if (unread > 0)
+                            {
+                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">@unread</span>
+                            }
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end" style="width: 360px; max-height: 420px; overflow: auto;">
+                            <div class="px-3 py-2 d-flex justify-content-between align-items-center">
+                                <span class="fw-semibold">Notifications</span>
+                                @if (unread > 0)
+                                {
+                                    <form asp-controller="Home" asp-action="MarkAllNotificationsRead" method="post" class="m-0">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-link btn-sm p-0">Tout marquer lu</button>
+                                    </form>
+                                }
+                            </div>
+                            <div class="dropdown-divider"></div>
+                            @if (!notifs.Any())
+                            {
+                                <div class="p-3 text-secondary">Aucune notification</div>
+                            }
+                            else
+                            {
+                                foreach (var n in notifs)
+                                {
+                                    <form asp-controller="Home" asp-action="MarkNotificationRead" method="post" class="m-0">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@n.Id" />
+                                        <button type="submit" class="dropdown-item text-wrap py-3 text-start @(n.Lu ? "" : "bg-light")">
+                                            <div class="fw-semibold">@n.Titre</div>
+                                            <div class="small text-secondary">@n.Message</div>
+                                        </button>
+                                    </form>
+                                }
+                            }
+                        </div>
+                    </li>
+                    <li class="dropdown">
+                        <button type="button" class="theme-switcher-btn" data-bs-toggle="dropdown" aria-expanded="false" title="Thème">
+                            <i class="ti ti-sun theme-icon-active"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end theme-switcher-menu">
+                            <li class="theme-switcher-header">Thème</li>
+                            <li><button type="button" class="dropdown-item theme-switcher-item d-flex align-items-center" data-bs-theme-value="light"><span class="theme-switcher-item-icon"><i class="ti ti-sun"></i></span><span class="theme-switcher-item-text"><span class="theme-switcher-item-label">Clair</span></span></button></li>
+                            <li><button type="button" class="dropdown-item theme-switcher-item d-flex align-items-center" data-bs-theme-value="dark"><span class="theme-switcher-item-icon"><i class="ti ti-moon"></i></span><span class="theme-switcher-item-text"><span class="theme-switcher-item-label">Sombre</span></span></button></li>
+                            <li><button type="button" class="dropdown-item theme-switcher-item d-flex align-items-center" data-bs-theme-value="auto"><span class="theme-switcher-item-icon"><i class="ti ti-device-desktop"></i></span><span class="theme-switcher-item-text"><span class="theme-switcher-item-label">Système</span></span></button></li>
+                        </ul>
+                    </li>
+                    <li class="dropdown">
+                        <a href="#!" class="d-flex align-items-center gap-2 text-inherit" data-bs-toggle="dropdown" aria-label="Menu utilisateur">
+                            <span class="isp-user-avatar" aria-hidden="true">
+                                <i class="ti ti-user"></i>
+                            </span>
+                            <span class="d-none d-lg-inline fw-semibold">@userName</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><span class="dropdown-item-text small text-secondary">@role</span></li>
+                            <li><hr class="dropdown-divider" /></li>
+                            <li>
+                                <a class="dropdown-item" asp-controller="Auth" asp-action="Profil">Mon profil</a>
+                            </li>
+                            <li>
+                                <form asp-controller="Auth" asp-action="Logout" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="dropdown-item text-danger">Déconnexion</button>
+                                </form>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Contenu page -->
+        <div class="custom-container py-6 px-4 px-lg-6 flex-grow-1" id="pageContainer">
+            @RenderBody()
+        </div>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <div class="app-footer-inner custom-container px-4 px-lg-6">
+                <div class="app-footer-brand">
+                    <span class="app-footer-mark" aria-hidden="true"></span>
+                    <div class="app-footer-brand-text">
+                        <strong>Inspect-San</strong>
+                        <span>Plateforme d'inspection sanitaire</span>
+                    </div>
+                </div>
+                <p class="app-footer-meta mb-0">
+                    Contrôle sanitaire scolaire — Province Éducationnelle de Kinshasa / Mont-Amba
+                </p>
+                <div class="app-footer-copy">
+                    <span>&copy; @year Inspect-San</span>
+                    <span class="app-footer-dot" aria-hidden="true"></span>
+                    <span>Tous droits réservés</span>
+                </div>
+            </div>
+        </footer>
+    </div>
+}
+else
+{
+    <div class="auth-shell">
+        @RenderBody()
+    </div>
+}
+
+@if (TempData["Toast"] != null)
+{
+    <script type="application/json" id="isp-flash-toast">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { message = TempData["Toast"]?.ToString(), type = (TempData["ToastType"] ?? "success").ToString() }))</script>
+}
+
+<script src="~/lib/jquery/dist/jquery.min.js" asp-append-version="true"></script>
+<script src="~/assets/libs/@@popperjs/core/dist/umd/popper.min.js"></script>
+<script src="~/assets/libs/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+<script src="~/assets/libs/simplebar/dist/simplebar.min.js"></script>
+<script src="~/assets/libs/apexcharts/dist/apexcharts.min.js"></script>
+<script src="~/assets/libs/sweetalert2/dist/sweetalert2.all.min.js"></script>
+<script>
+  // Alias UMD Sweetalert2 → Swal (certains builds n'exposent que Sweetalert2)
+  window.Swal = window.Swal || window.Sweetalert2 || window.SweetAlert2;
+</script>
+<script src="~/js/swal-theme.js" asp-append-version="true"></script>
+<script src="~/js/api.js" asp-append-version="true"></script>
+<script src="~/js/password-toggle.js" asp-append-version="true"></script>
+<script src="~/js/site.js" asp-append-version="true"></script>
+<script src="~/js/pages/notifications.js" asp-append-version="true"></script>
+@await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

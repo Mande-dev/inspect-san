@@ -1,0 +1,113 @@
+@model inspect_san.ViewModels.ProfilViewModel
+@{
+    ViewData["Title"] = "Mon profil";
+    ViewBag.PageKey = "profil";
+    var showEquipe = string.Equals(Model.Role, "Contrôleur", StringComparison.Ordinal);
+    var showEcole = string.Equals(Model.Role, "Chef d'établissement", StringComparison.Ordinal);
+}
+<div class="isp-profil">
+    <header class="isp-profil-hero">
+        <span class="isp-user-avatar isp-user-avatar--lg" aria-hidden="true">
+            <i class="ti ti-user"></i>
+        </span>
+        <div class="isp-profil-hero-text">
+            <h1>Mon profil</h1>
+            <p>
+                Mettez à jour vos coordonnées et votre mot de passe.
+                Les affectations métier (rôle, équipe, école) sont définies uniquement par l’administrateur à la création du compte.
+            </p>
+        </div>
+    </header>
+
+    <div class="isp-profil-card">
+        @if (!string.IsNullOrEmpty(Model.Error))
+        {
+            <div class="alert alert-danger m-3 mb-0" role="alert">@Model.Error</div>
+        }
+        <form asp-controller="Auth" asp-action="Profil" method="post" novalidate>
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="Id" />
+
+            <section class="isp-profil-section" aria-labelledby="profil-coords">
+                <h2 class="isp-profil-section-title" id="profil-coords">
+                    <i class="ti ti-id" aria-hidden="true"></i>
+                    Coordonnées
+                </h2>
+                <p class="isp-profil-section-hint">Informations personnelles utilisées pour la connexion et les notifications.</p>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label asp-for="Nom" class="form-label"></label>
+                        <input asp-for="Nom" class="form-control" autocomplete="name" />
+                        <span asp-validation-for="Nom" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="Contact" class="form-label"></label>
+                        <input asp-for="Contact" class="form-control" autocomplete="email" />
+                        <span asp-validation-for="Contact" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="Telephone" class="form-label"></label>
+                        <input asp-for="Telephone" class="form-control" autocomplete="tel" />
+                    </div>
+                </div>
+            </section>
+
+            <section class="isp-profil-section" aria-labelledby="profil-aff">
+                <h2 class="isp-profil-section-title" id="profil-aff">
+                    <i class="ti ti-briefcase" aria-hidden="true"></i>
+                    Affectation
+                </h2>
+                <p class="isp-profil-section-hint">Lecture seule — seul l’administrateur peut attribuer ces éléments.</p>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Rôle</label>
+                        <input class="form-control isp-profil-readonly" value="@Model.Role" readonly tabindex="-1" />
+                    </div>
+                    @if (showEquipe)
+                    {
+                        <div class="col-md-6">
+                            <label class="form-label">Équipe</label>
+                            <input class="form-control isp-profil-readonly" value="@(string.IsNullOrWhiteSpace(Model.Equipe) ? "—" : Model.Equipe)" readonly tabindex="-1" />
+                        </div>
+                    }
+                    @if (showEcole)
+                    {
+                        <div class="col-md-6">
+                            <label class="form-label">École</label>
+                            <input class="form-control isp-profil-readonly" value="@(string.IsNullOrWhiteSpace(Model.EcoleNom) ? "—" : Model.EcoleNom)" readonly tabindex="-1" />
+                        </div>
+                    }
+                </div>
+            </section>
+
+            <section class="isp-profil-section" aria-labelledby="profil-pwd">
+                <h2 class="isp-profil-section-title" id="profil-pwd">
+                    <i class="ti ti-lock" aria-hidden="true"></i>
+                    Mot de passe
+                </h2>
+                <p class="isp-profil-section-hint">Laissez vide pour conserver le mot de passe actuel. Utilisez l’œil pour afficher la saisie.</p>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label asp-for="MotDePasseActuel" class="form-label"></label>
+                        <input asp-for="MotDePasseActuel" class="form-control" type="password" autocomplete="current-password" />
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="NouveauMotDePasse" class="form-label"></label>
+                        <input asp-for="NouveauMotDePasse" class="form-control" type="password" autocomplete="new-password" />
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="ConfirmationMotDePasse" class="form-label"></label>
+                        <input asp-for="ConfirmationMotDePasse" class="form-control" type="password" autocomplete="new-password" />
+                    </div>
+                </div>
+            </section>
+
+            <div class="isp-profil-actions">
+                <button type="submit" class="btn btn-primary">
+                    <i class="ti ti-device-floppy me-1" aria-hidden="true"></i>
+                    Enregistrer
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

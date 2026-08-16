@@ -1,0 +1,110 @@
+@model List<Chef>
+@using System.Text.Json
+@using inspect_san.Helpers
+@{
+    ViewData["Title"] = "Chefs d'établissement";
+    var ecoles = (List<Ecole>)ViewBag.Ecoles;
+}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">Chefs d'établissement</h2>
+        <p class="text-secondary mb-0">Responsables des établissements scolaires.</p>
+    </div>
+    <button type="button" class="btn btn-primary" id="newChef" data-bs-toggle="modal" data-bs-target="#chefModal">
+        <i class="ti ti-plus me-1"></i>Nouveau chef
+    </button>
+</div>
+<form method="get" class="row g-2 mb-4" id="chefsFilter">
+    <div class="col-md-5"><input name="q" value="@ViewBag.Q" class="form-control" placeholder="Nom ou DINACOPE…" /></div>
+    <div class="col-md-4">
+        <select name="ecoleId" class="form-select">
+            <option value="">Toutes les écoles</option>
+            @foreach (var e in ecoles)
+            {
+                <option value="@e.Id" selected="@(ViewBag.EcoleId as string == e.Id)">@e.Denomination</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2"><button class="btn btn-outline-primary w-100">Filtrer</button></div>
+</form>
+<div class="card card-lg">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 js-paginated-table">
+            <thead class="table-light">
+                <tr><th>Nom</th><th>DINACOPE</th><th>Téléphone</th><th>École</th><th>Anciennetés</th><th></th></tr>
+            </thead>
+            <tbody id="chefsTbody">
+            @foreach (var chef in Model)
+            {
+                var ecole = ecoles.FirstOrDefault(e => e.Id == chef.EcoleId);
+                <tr>
+                    <td class="fw-semibold">@chef.NomComplet</td>
+                    <td>@chef.IdDinacope</td>
+                    <td>@chef.Telephone</td>
+                    <td>@(ecole?.Denomination ?? "—")</td>
+                    <td class="small">Ens. @(chef.AncienneteEnseignement ?? 0) · Chef @(chef.AncienneteChef ?? 0) · École @(chef.AncienneteEcole ?? 0)</td>
+                    <td class="text-end text-nowrap">
+                        <button type="button" class="btn btn-sm btn-outline-secondary chef-open" data-mode="view" data-json="@JsonUi.Serialize(chef)" data-bs-toggle="modal" data-bs-target="#chefModal"><i class="ti ti-eye"></i></button>
+                        <button type="button" class="btn btn-sm btn-outline-primary chef-open" data-mode="edit" data-json="@JsonUi.Serialize(chef)" data-bs-toggle="modal" data-bs-target="#chefModal"><i class="ti ti-edit"></i></button>
+                        <form class="d-inline js-delete-chef" data-id="@chef.Id">
+                            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="ti ti-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade isp-modal" id="chefModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <form asp-action="SaveChef" method="post" class="modal-content" id="chefForm">
+            @Html.AntiForgeryToken()
+            <div class="modal-header">
+                <div class="isp-modal-heading">
+                    <span class="isp-modal-icon" aria-hidden="true"><i class="ti ti-user-star"></i></span>
+                    <div>
+                        <p class="isp-modal-kicker">Chef d'établissement</p>
+                        <h5 class="modal-title" id="chefModalTitle">Nouveau chef</h5>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="Id" id="chefId" />
+                <div class="isp-modal-section">
+                    <h6 class="isp-modal-section-title"><i class="ti ti-user"></i> Identité</h6>
+                    <div class="row g-3">
+                        <div class="col-12"><label class="form-label">Nom complet <span class="text-danger">*</span></label><input name="NomComplet" id="chefNom" class="form-control" required /></div>
+                        <div class="col-md-6"><label class="form-label">ID DINACOPE <span class="text-danger">*</span></label><input name="IdDinacope" id="chefDinacope" class="form-control" required /></div>
+                        <div class="col-md-6"><label class="form-label">Téléphone</label><input name="Telephone" id="chefTel" class="form-control" /></div>
+                        <div class="col-12">
+                            <label class="form-label">École <span class="text-danger">*</span></label>
+                            <select name="EcoleId" id="chefEcole" class="form-select" required>
+                                <option value="">Sélectionner…</option>
+                                @foreach (var e in ecoles) { <option value="@e.Id">@e.Denomination</option> }
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="isp-modal-section mb-0">
+                    <h6 class="isp-modal-section-title"><i class="ti ti-calendar-stats"></i> Ancienneté (années)</h6>
+                    <div class="row g-3">
+                        <div class="col-md-4"><label class="form-label">Enseignement</label><input type="number" min="0" name="AncienneteEnseignement" id="chefAncEns" class="form-control" /></div>
+                        <div class="col-md-4"><label class="form-label">En tant que chef</label><input type="number" min="0" name="AncienneteChef" id="chefAncChef" class="form-control" /></div>
+                        <div class="col-md-4"><label class="form-label">Dans cette école</label><input type="number" min="0" name="AncienneteEcole" id="chefAncEcole" class="form-control" /></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="submit" class="btn btn-primary" id="chefSave">Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+<script src="~/js/pages/chefs.js" asp-append-version="true"></script>
+}

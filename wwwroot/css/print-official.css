@@ -1,0 +1,493 @@
+/* Documents officiels Inspect-San — style build.js (MINEDU navy/or) */
+:root {
+  --navy: #1f3864;
+  --gold: #b08d2b;
+  --lightblue: #eaf1f8;
+  --lightgold: #fbf4e3;
+  --grey-text: #3b3b3b;
+  --border-grey: #bfbfbf;
+  --vert: #1f7a3d;
+  --footer-grey: #808080;
+  --font-head: 'Cambria', 'Times New Roman', Times, serif;
+  --font-body: 'Calibri', 'Segoe UI', Arial, sans-serif;
+  --preview-bg: #e8edf3;
+  --preview-toolbar: #1f3864;
+}
+
+@page {
+  size: A4;
+  margin: 1.74cm;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  color: var(--grey-text);
+  font-family: var(--font-body);
+  font-size: 10pt;
+  line-height: 1.4;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ===== Studio d’aperçu (écran uniquement) ===== */
+body.isp-preview-screen {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse at top, #f4f7fb 0%, var(--preview-bg) 55%, #d9e1ec 100%);
+  color: var(--grey-text);
+}
+
+.isp-preview-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.85rem 1.35rem;
+  background: linear-gradient(180deg, #243f72 0%, var(--preview-toolbar) 100%);
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(31, 56, 100, 0.28);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+.isp-preview-toolbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.isp-preview-toolbar-mark {
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 0.45rem;
+  object-fit: contain;
+  background: #fff;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.isp-preview-toolbar-text {
+  min-width: 0;
+}
+
+.isp-preview-toolbar-kicker {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #d6b35a;
+}
+
+.isp-preview-toolbar-title {
+  margin: 0.1rem 0 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.isp-preview-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.isp-preview-btn {
+  appearance: none;
+  border: 0;
+  border-radius: 0.45rem;
+  padding: 0.55rem 1rem;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+
+.isp-preview-btn:hover {
+  transform: translateY(-1px);
+}
+
+.isp-preview-btn-primary {
+  background: var(--gold);
+  color: #1a1a1a;
+  box-shadow: 0 4px 12px rgba(176, 141, 43, 0.35);
+}
+
+.isp-preview-btn-primary:hover {
+  background: #c49d3a;
+}
+
+.isp-preview-btn-ghost {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.isp-preview-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.isp-preview-hint {
+  width: 100%;
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.isp-preview-stage {
+  padding: 1.75rem 1rem 2.5rem;
+  display: flex;
+  justify-content: center;
+}
+
+.isp-preview-sheet {
+  width: 210mm;
+  max-width: 100%;
+  min-height: 297mm;
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgba(28, 37, 46, 0.06),
+    0 18px 48px rgba(28, 37, 46, 0.16);
+  border: 1px solid rgba(31, 56, 100, 0.08);
+  border-radius: 2px;
+  padding: 1.74cm;
+  box-sizing: border-box;
+}
+
+.isp-preview-sheet .isp-print-doc {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Fallback barre simple (docs non officiels) */
+.no-print {
+  font-family: system-ui, sans-serif;
+  padding: 12px 16px;
+  border-bottom: 1px solid #ddd;
+  background: #f7f7f7;
+}
+
+.no-print button {
+  font: inherit;
+  padding: 0.45rem 1rem;
+  border: 1px solid #333;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.no-print-hint {
+  margin-left: 0.75rem;
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.isp-print-doc {
+  max-width: 176mm;
+  margin: 0 auto;
+  padding: 4mm 2mm 8mm;
+}
+
+/* ===== En-tête ===== */
+.isp-print-header {
+  text-align: center;
+  margin-bottom: 0;
+}
+
+.isp-print-logo {
+  display: block;
+  width: 78pt;
+  height: 78pt;
+  object-fit: contain;
+  margin: 0 auto 6pt;
+}
+
+.isp-print-state {
+  margin: 0 0 2pt;
+  font-family: var(--font-head);
+  font-size: 13pt;
+  font-weight: 700;
+  color: var(--navy);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.isp-print-ministry {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 10.5pt;
+  font-weight: 700;
+  color: var(--grey-text);
+  line-height: 1.25;
+}
+
+.isp-print-province {
+  margin: 2pt 0 0;
+  font-family: var(--font-head);
+  font-size: 10pt;
+  font-style: italic;
+  font-weight: 400;
+  color: var(--gold);
+}
+
+.isp-print-rule-navy {
+  border: 0;
+  border-bottom: 2.5pt solid var(--navy);
+  margin: 10pt 0 12pt;
+}
+
+/* Réf. / date */
+.isp-print-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12pt;
+  margin: 0 0 4pt;
+  font-family: var(--font-body);
+  font-size: 10pt;
+  color: var(--grey-text);
+}
+
+.isp-print-meta-ref-label {
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.isp-print-meta-date {
+  font-style: italic;
+  color: var(--grey-text);
+  white-space: nowrap;
+}
+
+/* Bandeau titre */
+.isp-print-banner {
+  margin: 12pt 0 4pt;
+  padding: 8pt 10pt;
+  background: var(--navy);
+  text-align: center;
+}
+
+.isp-print-banner-title {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 17pt;
+  font-weight: 700;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.isp-print-subtitle {
+  margin: 0 0 14pt;
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: 10pt;
+  font-style: italic;
+  color: var(--gold);
+}
+
+.isp-print-body {
+  margin-top: 0;
+}
+
+/* Sections */
+.isp-print-section {
+  margin: 14pt 0 6pt;
+  padding-bottom: 3pt;
+  border-bottom: 1.4pt solid var(--gold);
+  font-family: var(--font-head);
+  font-size: 12pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--navy);
+  page-break-after: avoid;
+}
+
+.isp-print-section-num {
+  color: var(--gold);
+  margin-right: 0.35em;
+}
+
+/* Tableaux label / valeur */
+.isp-print-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 10pt;
+  table-layout: fixed;
+  font-family: var(--font-body);
+  font-size: 10pt;
+}
+
+.isp-print-table th,
+.isp-print-table td {
+  border: 0.7pt solid var(--border-grey);
+  padding: 5pt 7pt;
+  vertical-align: middle;
+  text-align: left;
+  word-wrap: break-word;
+}
+
+.isp-print-table th {
+  width: 32%;
+  background: var(--lightblue);
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.isp-print-table td {
+  width: 68%;
+  background: #fff;
+  color: var(--grey-text);
+  font-weight: 400;
+}
+
+.isp-print-table td.is-empty {
+  font-style: italic;
+}
+
+.isp-print-table td.is-ok {
+  color: var(--vert);
+  font-weight: 700;
+}
+
+.isp-print-table td.is-warn {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.isp-print-table--data thead th {
+  width: auto;
+  background: var(--lightblue);
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.isp-print-table--data td {
+  width: auto;
+}
+
+/* Encadrés */
+.isp-print-box {
+  margin: 0 0 10pt;
+  padding: 10pt 12pt;
+  font-family: var(--font-body);
+  font-size: 10pt;
+  color: var(--grey-text);
+}
+
+.isp-print-box-obs {
+  background: var(--lightgold);
+  border: 0.7pt solid var(--gold);
+}
+
+.isp-print-box-valid {
+  background: var(--lightblue);
+  border: 0.7pt solid var(--navy);
+}
+
+.isp-print-box p {
+  margin: 0 0 6pt;
+}
+
+.isp-print-box p:last-child {
+  margin-bottom: 0;
+}
+
+.isp-print-box-label {
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.isp-print-box-sign {
+  margin-top: 14pt !important;
+  text-align: right;
+  font-family: var(--font-head);
+  font-size: 10pt;
+  font-weight: 700;
+  color: var(--navy);
+  text-transform: uppercase;
+}
+
+.isp-print-box-sign-nom {
+  margin-top: 4pt !important;
+  text-align: right;
+  font-family: var(--font-body);
+  font-size: 10pt;
+  color: var(--grey-text);
+}
+
+/* Pied */
+.isp-print-footer {
+  margin-top: 22pt;
+  padding-top: 8pt;
+  border-top: 1pt solid var(--border-grey);
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: 8pt;
+  font-style: italic;
+  color: var(--footer-grey);
+}
+
+@media (max-width: 900px) {
+  .isp-preview-stage {
+    padding: 1rem 0.65rem 1.5rem;
+  }
+
+  .isp-preview-sheet {
+    padding: 12mm 10mm;
+    min-height: auto;
+  }
+}
+
+@media print {
+  body.isp-preview-screen {
+    background: #fff !important;
+  }
+
+  .no-print,
+  .isp-preview-toolbar {
+    display: none !important;
+  }
+
+  .isp-preview-stage {
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  .isp-preview-sheet {
+    width: auto !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .isp-print-doc {
+    max-width: none;
+    padding: 0;
+  }
+
+  .isp-print-banner,
+  .isp-print-table th,
+  .isp-print-table td,
+  .isp-print-box,
+  .isp-print-logo {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

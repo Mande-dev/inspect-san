@@ -1,0 +1,224 @@
+@model List<Ecole>
+@{
+    ViewData["Title"] = "Écoles";
+    ViewBag.PageKey = "ecoles";
+    var communes = (IEnumerable<RefItem>)ViewBag.Communes;
+    var regimes = (IEnumerable<RefItem>)ViewBag.Regimes;
+    var suggestId = TempData["SuggestDeactivateId"] as string;
+    var canGerer = ViewBag.CanGererEcole as bool? == true;
+}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <h2 class="mb-1">Écoles</h2>
+        <p class="text-secondary mb-0">@(canGerer ? "Gestion des établissements scolaires contrôlés." : "Consultation des établissements scolaires.")</p>
+    </div>
+    @if (canGerer)
+    {
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#ecoleModal" id="btnNewEcole">
+            <i class="ti ti-plus me-1"></i> Nouvelle école
+        </button>
+    }
+</div>
+
+<form method="get" class="row g-2 mb-4" id="ecolesFilter">
+    <div class="col-md-3"><input name="q" value="@ViewBag.Q" class="form-control" placeholder="Recherche…" /></div>
+    <div class="col-md-2">
+        <select name="commune" class="form-select">
+            <option value="">Toutes communes</option>
+            @foreach (var c in communes) { <option value="@c.Nom" selected="@(ViewBag.Commune as string == c.Nom)">@c.Nom</option> }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select name="regime" class="form-select">
+            <option value="">Tous régimes</option>
+            @foreach (var r in regimes) { <option value="@r.Nom" selected="@(ViewBag.Regime as string == r.Nom)">@r.Nom</option> }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select name="statut" class="form-select">
+            <option value="">Tous statuts</option>
+            <option value="active" selected="@(ViewBag.Statut as string == "active")">Active</option>
+            <option value="fermeture_temporaire" selected="@(ViewBag.Statut as string == "fermeture_temporaire")">Fermeture temporaire</option>
+        </select>
+    </div>
+    <div class="col-md-2"><button class="btn btn-outline-primary w-100" type="submit">Filtrer</button></div>
+</form>
+
+@if (canGerer)
+{
+    <div id="suggestDeactivateBox" class="alert alert-warning mt-0 mb-3 d-flex justify-content-between align-items-center @(string.IsNullOrEmpty(suggestId) ? "d-none" : "")">
+        <span>Souhaitez-vous désactiver l'école à la place ?</span>
+        <button type="button" class="btn btn-sm btn-warning js-deactivate-ecole" data-ecole-id="@suggestId">Désactiver</button>
+    </div>
+}
+
+<div class="card card-lg">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 js-paginated-table" id="ecolesTable" data-can-gerer="@(canGerer ? "1" : "0")">
+                <thead class="table-light">
+                    <tr>
+                        <th>Dénomination</th>
+                        <th>DINACOPE</th>
+                        <th>Régime</th>
+                        <th>Commune</th>
+                        <th>Statut</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="ecolesTbody">
+                @foreach (var e in Model)
+                {
+                    <tr>
+                        <td class="fw-semibold">@e.Denomination</td>
+                        <td>@e.IdDinacope</td>
+                        <td>@(e.Regime?.Nom ?? "—")</td>
+                        <td>@(e.Commune?.Nom ?? "—")</td>
+                        <td>
+                            @if (e.Statut == "active")
+                            { <span class="badge bg-success-subtle text-success-emphasis">Active</span> }
+                            else
+                            { <span class="badge bg-warning-subtle text-warning-emphasis">Fermeture temp.</span> }
+                        </td>
+                        <td class="text-end text-nowrap">
+                            <button type="button" class="btn btn-sm btn-outline-secondary btn-voir-ecole"
+                                    data-id="@e.Id"
+                                    data-denomination="@e.Denomination"
+                                    data-regime="@e.RegimeId"
+                                    data-dinacope="@e.IdDinacope"
+                                    data-agrement="@e.NumAgrement"
+                                    data-notif="@e.NumNotification"
+                                    data-commune="@e.CommuneId"
+                                    data-quartier="@e.Adresse.Quartier"
+                                    data-avenue="@e.Adresse.Avenue"
+                                    data-numero="@e.Adresse.Numero"
+                                    data-statut="@e.Statut"
+                                    data-docs="@System.Text.Json.JsonSerializer.Serialize(e.Documents)"
+                                    data-readonly="1"
+                                    data-bs-toggle="modal" data-bs-target="#ecoleModal" title="Voir">
+                                <i class="ti ti-eye"></i>
+                            </button>
+                            @if (canGerer)
+                            {
+                                <button type="button" class="btn btn-sm btn-outline-primary btn-edit-ecole"
+                                        data-id="@e.Id"
+                                        data-denomination="@e.Denomination"
+                                        data-regime="@e.RegimeId"
+                                        data-dinacope="@e.IdDinacope"
+                                        data-agrement="@e.NumAgrement"
+                                        data-notif="@e.NumNotification"
+                                        data-commune="@e.CommuneId"
+                                        data-quartier="@e.Adresse.Quartier"
+                                        data-avenue="@e.Adresse.Avenue"
+                                        data-numero="@e.Adresse.Numero"
+                                        data-statut="@e.Statut"
+                                        data-docs="@System.Text.Json.JsonSerializer.Serialize(e.Documents)"
+                                        data-readonly="0"
+                                        data-bs-toggle="modal" data-bs-target="#ecoleModal" title="Modifier">
+                                    <i class="ti ti-edit"></i>
+                                </button>
+                                <form class="d-inline js-delete-ecole" data-id="@e.Id">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="ti ti-trash"></i></button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade isp-modal" id="ecoleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
+        <form asp-action="SaveEcole" method="post" class="modal-content">
+            @Html.AntiForgeryToken()
+            <div class="modal-header">
+                <div class="isp-modal-heading">
+                    <span class="isp-modal-icon" aria-hidden="true"><i class="ti ti-building-community"></i></span>
+                    <div>
+                        <p class="isp-modal-kicker">Établissement</p>
+                        <h5 class="modal-title" id="ecoleModalTitle">Nouvelle école</h5>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="Id" id="formId" />
+                <div class="isp-modal-section">
+                    <h6 class="isp-modal-section-title"><i class="ti ti-building"></i> Identification</h6>
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label">Dénomination</label>
+                            <input name="Denomination" id="formDenomination" class="form-control" required />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Statut</label>
+                            <select name="Statut" id="formStatut" class="form-select">
+                                <option value="active">Active</option>
+                                <option value="fermeture_temporaire">Fermeture temporaire</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Régime</label>
+                            <select name="RegimeId" id="formRegime" class="form-select" required>
+                                @foreach (var r in regimes) { <option value="@r.Id">@r.Nom</option> }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">ID DINACOPE</label>
+                            <input name="IdDinacope" id="formDinacope" class="form-control" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">N° agrément</label>
+                            <input name="NumAgrement" id="formAgrement" class="form-control" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">N° notification</label>
+                            <input name="NumNotification" id="formNotif" class="form-control" />
+                        </div>
+                    </div>
+                </div>
+                <div class="isp-modal-section">
+                    <h6 class="isp-modal-section-title"><i class="ti ti-map-pin"></i> Adresse</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Commune</label>
+                            <select name="CommuneId" id="formCommune" class="form-select" required>
+                                @foreach (var c in communes) { <option value="@c.Id">@c.Nom</option> }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Quartier</label>
+                            <input name="Quartier" id="formQuartier" class="form-control" />
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">Avenue</label>
+                            <input name="Avenue" id="formAvenue" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">N°</label>
+                            <input name="Numero" id="formNumero" class="form-control" />
+                        </div>
+                    </div>
+                </div>
+                <div class="isp-modal-section mb-0">
+                    <h6 class="isp-modal-section-title"><i class="ti ti-files"></i> Documents</h6>
+                    <input type="file" class="form-control mb-2" id="docFileInput" />
+                    <input type="hidden" name="DocumentsJson" id="documentsJson" value="[]" />
+                    <ul class="list-group list-group-flush" id="docList"></ul>
+                    <p class="small text-secondary mb-0 mt-1">Fichiers enregistrés sur le serveur après sauvegarde de l’école (PDF, images, Word — max 5 Mo).</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="submit" class="btn btn-primary" id="ecoleSave">Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+<script src="~/js/pages/ecoles.js" asp-append-version="true"></script>
+}

@@ -1,0 +1,49 @@
+@model List<JournalEntry>
+@{
+    ViewData["Title"] = "Journal d'activité";
+    var users = (List<Utilisateur>)ViewBag.Users;
+    var modules = Model.Select(j => j.Module).Distinct().OrderBy(x => x).ToList();
+}
+<div class="mb-4">
+    <h2 class="mb-1">Journal d'activité</h2>
+    <p class="text-secondary mb-0">Trace des actions réalisées dans le système.</p>
+</div>
+<form method="get" class="row g-2 mb-4" id="journalFilter">
+    <div class="col-md-3"><input name="q" value="@ViewBag.Q" class="form-control" placeholder="Recherche…" /></div>
+    <div class="col-md-3">
+        <select name="userId" class="form-select">
+            <option value="">Tous les utilisateurs</option>
+            @foreach (var u in users) { <option value="@u.Id" selected="@(ViewBag.UserId as string == u.Id)">@u.Nom</option> }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select name="module" class="form-select">
+            <option value="">Tous les modules</option>
+            @foreach (var m in modules) { <option value="@m" selected="@(ViewBag.Module as string == m)">@m</option> }
+        </select>
+    </div>
+    <div class="col-md-2"><button class="btn btn-outline-primary w-100">Filtrer</button></div>
+</form>
+<div class="card card-lg">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 js-paginated-table">
+            <thead class="table-light"><tr><th>Date</th><th>Utilisateur</th><th>Module</th><th>Action</th><th>Détail</th></tr></thead>
+            <tbody id="journalTbody">
+            @foreach (var j in Model)
+            {
+                var u = users.FirstOrDefault(x => x.Id == j.UtilisateurId);
+                <tr>
+                    <td class="small text-nowrap">@j.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                    <td>@(u?.Nom ?? j.UtilisateurId)</td>
+                    <td>@j.Module</td>
+                    <td>@j.Action</td>
+                    <td>@j.Detail</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+@section Scripts {
+<script src="~/js/pages/journal.js" asp-append-version="true"></script>
+}

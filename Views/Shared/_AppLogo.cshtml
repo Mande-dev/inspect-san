@@ -1,0 +1,84 @@
+@*
+  Logo Inspect-San en SVG inline (pas de dépendance à un fichier externe).
+  Model = variant : "sidebar" | "login" | "offcanvas"
+*@
+@model string
+@{
+    var variant = string.IsNullOrWhiteSpace(Model) ? "sidebar" : Model;
+    var extraClass = ViewData["ExtraClass"] as string ?? "";
+    var linkClass = variant switch
+    {
+        "login" => $"app-logo app-logo--login{extraClass}",
+        "offcanvas" => $"app-logo app-logo--offcanvas{extraClass}",
+        _ => $"app-logo app-logo--sidebar{extraClass}"
+    };
+}
+
+<a class="@linkClass" asp-controller="Home" asp-action="Index" aria-label="Inspect-San">
+    <svg class="app-logo-svg app-logo-svg--full" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 140" width="520" height="140" role="img" aria-label="Inspect-San" focusable="false">
+        <g transform="translate(8, 12)">
+            <path d="M58 4C78 10 98 12 112 12C112 48 108 78 96 100C84 118 70 128 58 132C46 128 32 118 20 100C8 78 4 48 4 12C18 12 38 10 58 4Z" fill="none" stroke="#1A4B8B" stroke-width="7" stroke-linejoin="round"/>
+            <g fill="#1A4B8B">
+                <rect x="28" y="58" width="22" height="42" rx="1.5"/>
+                <rect x="66" y="58" width="22" height="42" rx="1.5"/>
+                <rect x="44" y="48" width="28" height="52" rx="1.5"/>
+                <path d="M40 48 L58 28 L76 48 Z"/>
+                <rect x="56.5" y="14" width="2.5" height="16"/>
+                <path d="M59 15 L74 19 L59 24 Z"/>
+                <rect x="33" y="66" width="5" height="6" fill="#fff"/>
+                <rect x="40" y="66" width="5" height="6" fill="#fff"/>
+                <rect x="33" y="78" width="5" height="6" fill="#fff"/>
+                <rect x="40" y="78" width="5" height="6" fill="#fff"/>
+                <rect x="71" y="66" width="5" height="6" fill="#fff"/>
+                <rect x="78" y="66" width="5" height="6" fill="#fff"/>
+                <rect x="71" y="78" width="5" height="6" fill="#fff"/>
+                <rect x="78" y="78" width="5" height="6" fill="#fff"/>
+                <rect x="52" y="78" width="12" height="22" rx="1" fill="#143A6E"/>
+                <circle cx="58" cy="58" r="5.5" fill="#fff"/>
+                <circle cx="58" cy="58" r="2.2" fill="#1A4B8B"/>
+                <rect x="57.2" y="53.2" width="1.6" height="9.6" fill="#1A4B8B"/>
+                <rect x="53.2" y="57.2" width="9.6" height="1.6" fill="#1A4B8B"/>
+            </g>
+            <path d="M62 98 L78 114 L112 68" fill="none" stroke="#5A9E32" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M62 98 L78 114 L112 68" fill="none" stroke="#6DB33F" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+        <text x="140" y="62" font-family="Public Sans, Arial, Helvetica, sans-serif" font-size="36" font-weight="800" letter-spacing="0.5">
+            <tspan fill="#1A4B8B">INSPECT-</tspan><tspan fill="#6DB33F">SAN</tspan>
+        </text>
+        <line x1="140" y1="76" x2="430" y2="76" stroke="#1A4B8B" stroke-width="2.5"/>
+        <circle cx="438" cy="76" r="5" fill="#6DB33F"/>
+        <text x="140" y="98" font-family="Public Sans, Arial, Helvetica, sans-serif" font-size="10.5" font-weight="600" letter-spacing="0.6" fill="#333333">PLATEFORME D'INSPECTION SANITAIRE</text>
+        <text x="140" y="114" font-family="Public Sans, Arial, Helvetica, sans-serif" font-size="10.5" font-weight="600" letter-spacing="0.6" fill="#333333">DES ETABLISSEMENTS SCOLAIRES</text>
+    </svg>
+@if (variant == "sidebar")
+{
+    <svg class="app-logo-svg app-logo-svg--icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 140" width="120" height="140" role="img" aria-hidden="true" focusable="false">
+        <g transform="translate(4, 4)">
+            <path d="M58 4C78 10 98 12 112 12C112 48 108 78 96 100C84 118 70 128 58 132C46 128 32 118 20 100C8 78 4 48 4 12C18 12 38 10 58 4Z" fill="none" stroke="#1A4B8B" stroke-width="7" stroke-linejoin="round"/>
+            <g fill="#1A4B8B">
+                <rect x="28" y="58" width="22" height="42" rx="1.5"/>
+                <rect x="66" y="58" width="22" height="42" rx="1.5"/>
+                <rect x="44" y="48" width="28" height="52" rx="1.5"/>
+                <path d="M40 48 L58 28 L76 48 Z"/>
+                <rect x="56.5" y="14" width="2.5" height="16"/>
+                <path d="M59 15 L74 19 L59 24 Z"/>
+                <rect x="33" y="66" width="5" height="6" fill="#fff"/>
+                <rect x="40" y="66" width="5" height="6" fill="#fff"/>
+                <rect x="33" y="78" width="5" height="6" fill="#fff"/>
+                <rect x="40" y="78" width="5" height="6" fill="#fff"/>
+                <rect x="71" y="66" width="5" height="6" fill="#fff"/>
+                <rect x="78" y="66" width="5" height="6" fill="#fff"/>
+                <rect x="71" y="78" width="5" height="6" fill="#fff"/>
+                <rect x="78" y="78" width="5" height="6" fill="#fff"/>
+                <rect x="52" y="78" width="12" height="22" rx="1" fill="#143A6E"/>
+                <circle cx="58" cy="58" r="5.5" fill="#fff"/>
+                <circle cx="58" cy="58" r="2.2" fill="#1A4B8B"/>
+                <rect x="57.2" y="53.2" width="1.6" height="9.6" fill="#1A4B8B"/>
+                <rect x="53.2" y="57.2" width="9.6" height="1.6" fill="#1A4B8B"/>
+            </g>
+            <path d="M62 98 L78 114 L112 68" fill="none" stroke="#5A9E32" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M62 98 L78 114 L112 68" fill="none" stroke="#6DB33F" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+    </svg>
+}
+</a>

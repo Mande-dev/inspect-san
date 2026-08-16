@@ -1,9 +1,9 @@
 @echo off
-title Inspect-San Launcher
+title Inspect-San MVC
 echo ===================================================
-echo     Demarrage de l'application Inspect-San
+echo     Demarrage Inspect-San (ASP.NET MVC)
 echo ===================================================
 echo.
 cd /d "%~dp0"
-npm run dev
+dotnet run
 pause

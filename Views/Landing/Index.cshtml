@@ -1,0 +1,125 @@
+@{
+    Layout = "_PublicLayout";
+    ViewData["Title"] = "Accueil";
+    ViewData["BodyClass"] = "isp-public--landing";
+}
+
+<a class="isp-skip" href="#contenu">Aller au contenu</a>
+
+<div class="isp-land">
+    <nav class="isp-land-nav" aria-label="Navigation principale">
+        <a asp-controller="Auth" asp-action="Login">Connexion</a>
+    </nav>
+
+    <header class="isp-land-hero">
+        <div class="isp-land-hero-pattern" aria-hidden="true"></div>
+        <svg class="isp-land-hero-visual" viewBox="0 0 640 420" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+            <defs>
+                <linearGradient id="ispWall" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#ffffff" stop-opacity="0.28" />
+                    <stop offset="100%" stop-color="#ffffff" stop-opacity="0.1" />
+                </linearGradient>
+            </defs>
+            <ellipse cx="320" cy="390" rx="240" ry="18" fill="#000" opacity="0.18" />
+            <rect x="120" y="150" width="400" height="220" rx="6" fill="url(#ispWall)" stroke="#fff" stroke-opacity="0.35" />
+            <rect x="160" y="190" width="70" height="55" fill="#1f3864" opacity="0.45" />
+            <rect x="250" y="190" width="70" height="55" fill="#1f3864" opacity="0.45" />
+            <rect x="340" y="190" width="70" height="55" fill="#1f3864" opacity="0.45" />
+            <rect x="430" y="190" width="50" height="55" fill="#1f3864" opacity="0.45" />
+            <rect x="280" y="280" width="80" height="90" fill="#b08d2b" opacity="0.55" />
+            <path d="M320 70 L390 150 H250 Z" fill="#b08d2b" opacity="0.75" />
+            <circle cx="480" cy="120" r="42" fill="none" stroke="#b08d2b" stroke-width="4" opacity="0.8" />
+            <path d="M480 95 v50 M455 120 h50" stroke="#fff" stroke-width="3" opacity="0.7" />
+        </svg>
+
+        <div class="isp-land-hero-inner" id="contenu">
+            <p class="isp-land-brand">
+                <span class="isp-land-brand-inspect">Inspect</span><span class="isp-land-brand-dash">-</span><span class="isp-land-brand-san">San</span>
+            </p>
+            <h1 class="isp-land-headline">Le contrôle sanitaire scolaire, centralisé et sécurisé.</h1>
+            <p class="isp-land-lead">
+                Plateforme de mission, de constat et de décision pour les établissements de la Province Éducationnelle de Kinshasa / Mont-Amba.
+            </p>
+            <div class="isp-land-cta">
+                <a class="isp-btn isp-btn-primary" asp-controller="Auth" asp-action="Login">Se connecter</a>
+            </div>
+            <p class="isp-land-place">Ministère de l’Éducation nationale — RDC</p>
+        </div>
+    </header>
+
+    <section class="isp-land-section" aria-labelledby="mission-title">
+        <h2 id="mission-title">Un circuit administratif clair</h2>
+        <p>De l’ordre de mission à la décision provinciale, chaque étape est tracée et accessible aux acteurs concernés.</p>
+        <div class="isp-land-flow">
+            <div class="isp-land-flow-step">
+                <span class="isp-land-flow-num" aria-hidden="true">01</span>
+                <div>
+                    <h3>Ordres de mission</h3>
+                    <p>Émission, signature et suivi des missions d’inspection sur le terrain.</p>
+                </div>
+            </div>
+            <div class="isp-land-flow-step">
+                <span class="isp-land-flow-num" aria-hidden="true">02</span>
+                <div>
+                    <h3>Fiches de contrôle</h3>
+                    <p>Constat sanitaire, validation « Lu et approuvé » par le chef d’établissement.</p>
+                </div>
+            </div>
+            <div class="isp-land-flow-step">
+                <span class="isp-land-flow-num" aria-hidden="true">03</span>
+                <div>
+                    <h3>Rapports &amp; accusés</h3>
+                    <p>Dépôt au secrétariat, accusé de réception, transmission au Directeur Provincial.</p>
+                </div>
+            </div>
+            <div class="isp-land-flow-step">
+                <span class="isp-land-flow-num" aria-hidden="true">04</span>
+                <div>
+                    <h3>Décisions</h3>
+                    <p>Mesures provinciales et suivi d’exécution pour chaque établissement.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="isp-land-section" aria-labelledby="acteurs-title">
+        <h2 id="acteurs-title">Pour chaque acteur du contrôle</h2>
+        <p>Des espaces adaptés aux responsabilités, sans exposer les données hors périmètre.</p>
+        <div class="isp-land-roles">
+            <div class="isp-land-role">
+                <h3>Directeur Provincial</h3>
+                <p>Consulte les rapports transmis et statue sur les décisions.</p>
+            </div>
+            <div class="isp-land-role">
+                <h3>Contrôleurs</h3>
+                <p>Mènent les missions, rédigent les fiches et déposent les rapports.</p>
+            </div>
+            <div class="isp-land-role">
+                <h3>Secrétariat</h3>
+                <p>Accuse réception et transmet les dossiers au niveau provincial.</p>
+            </div>
+            <div class="isp-land-role">
+                <h3>Chefs d’établissement</h3>
+                <p>Valident les constats et suivent les décisions concernant leur école.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="isp-land-trust" aria-labelledby="trust-title">
+        <div class="isp-land-trust-inner">
+            <img src="~/assets/images/brand/logo/logo-minedu.png" alt="Logo Ministère de l’Éducation nationale" width="72" height="72" />
+            <div>
+                <h2 id="trust-title">Province Éducationnelle — Kinshasa Mont-Amba</h2>
+                <p>
+                    Inspect-San accompagne le Ministère de l’Éducation nationale et Nouvelle Citoyenneté
+                    dans le suivi sanitaire des établissements scolaires.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <footer class="isp-land-footer">
+        <span>© @DateTime.Now.Year Inspect-San</span>
+        <a asp-controller="Auth" asp-action="Login">Accéder à la connexion</a>
+    </footer>
+</div>

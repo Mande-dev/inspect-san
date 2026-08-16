@@ -1,0 +1,418 @@
+@model inspect_san.ViewModels.ChefEspaceViewModel
+@using inspect_san.Helpers
+@{
+    ViewData["Title"] = "Mon établissement";
+    ViewBag.PageKey = "espace-chef";
+}
+<div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+    <div>
+        <h2 class="mb-1">Mon établissement</h2>
+        <p class="text-secondary mb-0">Espace réservé au chef d’établissement — informations de votre école.</p>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.WarningMessage))
+{
+    <div class="alert alert-warning">@Model.WarningMessage</div>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card card-lg h-100">
+                <div class="card-body">
+                    <p class="text-secondary small mb-1">Fiches à traiter</p>
+                    <p class="display-6 mb-0">@Model.FichesBrouillonCount</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-lg h-100">
+                <div class="card-body">
+                    <p class="text-secondary small mb-1">Fiches validées</p>
+                    <p class="display-6 mb-0">@Model.FichesValideesCount</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-lg h-100">
+                <div class="card-body">
+                    <p class="text-secondary small mb-1">Décisions en attente</p>
+                    <p class="display-6 mb-0">@Model.DecisionsEnAttenteCount</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-lg-6">
+            <div class="card card-lg h-100">
+                <div class="card-header bg-transparent">
+                    <h5 class="mb-0">Profil chef</h5>
+                </div>
+                <div class="card-body">
+                    @if (Model.Profil == null)
+                    {
+                        <p class="text-secondary mb-0">Aucun profil chef métier trouvé pour cet établissement.</p>
+                    }
+                    else
+                    {
+                        <dl class="row mb-0">
+                            <dt class="col-sm-5">Nom</dt>
+                            <dd class="col-sm-7">@Model.Profil.NomComplet</dd>
+                            <dt class="col-sm-5">Téléphone</dt>
+                            <dd class="col-sm-7">@(Model.Profil.Telephone ?? "—")</dd>
+                            <dt class="col-sm-5">DINACOPE</dt>
+                            <dd class="col-sm-7">@(Model.Profil.IdDinacope ?? "—")</dd>
+                            <dt class="col-sm-5">Anc. enseignement</dt>
+                            <dd class="col-sm-7">@(Model.Profil.AncienneteEnseignement?.ToString() ?? "—") ans</dd>
+                            <dt class="col-sm-5">Anc. chef</dt>
+                            <dd class="col-sm-7">@(Model.Profil.AncienneteChef?.ToString() ?? "—") ans</dd>
+                            <dt class="col-sm-5">Anc. école</dt>
+                            <dd class="col-sm-7">@(Model.Profil.AncienneteEcole?.ToString() ?? "—") ans</dd>
+                        </dl>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card card-lg h-100">
+                <div class="card-header bg-transparent">
+                    <h5 class="mb-0">École</h5>
+                </div>
+                <div class="card-body">
+                    @if (Model.Ecole == null)
+                    {
+                        <p class="text-secondary mb-0">École introuvable.</p>
+                    }
+                    else
+                    {
+                        <dl class="row mb-0">
+                            <dt class="col-sm-5">Dénomination</dt>
+                            <dd class="col-sm-7 fw-semibold">@Model.Ecole.Denomination</dd>
+                            <dt class="col-sm-5">Régime</dt>
+                            <dd class="col-sm-7">@(Model.Ecole.Regime ?? "—")</dd>
+                            <dt class="col-sm-5">Commune</dt>
+                            <dd class="col-sm-7">@(Model.Ecole.Commune ?? "—")</dd>
+                            <dt class="col-sm-5">Adresse</dt>
+                            <dd class="col-sm-7">
+                                @{
+                                    var parts = new[] { Model.Ecole.Avenue, Model.Ecole.Numero, Model.Ecole.Quartier }
+                                        .Where(x => !string.IsNullOrWhiteSpace(x));
+                                }
+                                @(parts.Any() ? string.Join(", ", parts) : "—")
+                            </dd>
+                            <dt class="col-sm-5">Statut</dt>
+                            <dd class="col-sm-7">@Model.Ecole.Statut</dd>
+                            <dt class="col-sm-5">DINACOPE</dt>
+                            <dd class="col-sm-7">@Model.Ecole.IdDinacope</dd>
+                            <dt class="col-sm-5">Agrément</dt>
+                            <dd class="col-sm-7">@(Model.Ecole.NumAgrement ?? "—")</dd>
+                            <dt class="col-sm-5">Notification</dt>
+                            <dd class="col-sm-7">@(Model.Ecole.NumNotification ?? "—")</dd>
+                        </dl>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card card-lg mb-4">
+        <div class="card-header bg-transparent">
+            <h5 class="mb-0">Fiches de contrôle</h5>
+            <p class="text-secondary small mb-0">Ouvrez le document officiel pour consulter / imprimer. Approuvez par « Lu et approuvé » si la fiche est en attente.</p>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr><th>N°</th><th>État</th><th>Statut</th><th>Date</th><th></th></tr>
+                </thead>
+                <tbody>
+                @if (Model.Fiches.Count == 0)
+                {
+                    <tr><td colspan="5" class="text-secondary text-center py-4">Aucune fiche pour votre établissement.</td></tr>
+                }
+                else
+                {
+                    foreach (var f in Model.Fiches)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@f.Numero</td>
+                            <td>@(f.EtatGeneral ?? "—")</td>
+                            <td><span class="badge @(f.Statut == "validee" ? "bg-success-subtle text-success" : f.Statut == "en_attente_validation" ? "bg-warning-subtle text-warning" : "bg-secondary-subtle text-dark")">@f.Statut</span></td>
+                            <td>@(f.CreatedAt?.ToString("dd/MM/yyyy") ?? "—")</td>
+                            <td class="text-end text-nowrap">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-primary btn-print-fiche-chef"
+                                        data-json="@JsonUi.Serialize(f)"
+                                        title="Voir / Imprimer la fiche">
+                                    <i class="ti ti-printer"></i> Voir / Imprimer
+                                </button>
+                                @if (f.PeutValider)
+                                {
+                                    <button type="button"
+                                            class="btn btn-sm btn-success btn-voir-fiche-chef"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#ficheChefModal"
+                                            data-json="@JsonUi.Serialize(f)"
+                                            title="Valider la fiche">
+                                        <i class="ti ti-check"></i> Approuver
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card card-lg mb-4">
+        <div class="card-header bg-transparent">
+            <h5 class="mb-0">Décisions</h5>
+            <p class="text-secondary small mb-0">Consultez et imprimez les mesures correctives concernant votre établissement.</p>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr><th>N°</th><th>Type</th><th>Statut</th><th>Décidée le</th><th></th></tr>
+                </thead>
+                <tbody>
+                @if (Model.Decisions.Count == 0)
+                {
+                    <tr><td colspan="5" class="text-secondary text-center py-4">Aucune décision pour votre établissement.</td></tr>
+                }
+                else
+                {
+                    foreach (var d in Model.Decisions)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@d.Numero</td>
+                            <td>@(d.Type ?? "—")</td>
+                            <td>@d.StatutExecution.Replace("_", " ")</td>
+                            <td>@(d.DecideLe?.ToString("dd/MM/yyyy") ?? "—")</td>
+                            <td class="text-end text-nowrap">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-primary btn-print-decision-chef"
+                                        data-json="@JsonUi.Serialize(d)"
+                                        title="Voir / Imprimer la décision">
+                                    <i class="ti ti-printer"></i> Voir / Imprimer
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="modal fade isp-modal" id="ficheChefModal" tabindex="-1" aria-labelledby="ficheChefTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="isp-modal-heading">
+                        <span class="isp-modal-icon" aria-hidden="true"><i class="ti ti-clipboard-check"></i></span>
+                        <div>
+                            <p class="isp-modal-kicker">Fiche de contrôle</p>
+                            <h5 class="modal-title" id="ficheChefTitle">Détail</h5>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="isp-modal-section mb-3">
+                        <h6 class="isp-modal-section-title"><i class="ti ti-info-circle"></i> Généralités</h6>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <span class="text-secondary small d-block">Statut</span>
+                                <strong id="fcStatut">—</strong>
+                            </div>
+                            <div class="col-md-4">
+                                <span class="text-secondary small d-block">Ordre de mission</span>
+                                <strong id="fcOm">—</strong>
+                            </div>
+                            <div class="col-md-4">
+                                <span class="text-secondary small d-block">Date</span>
+                                <strong id="fcDate">—</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="isp-modal-section mb-3">
+                        <h6 class="isp-modal-section-title"><i class="ti ti-building"></i> Bâtiments &amp; infrastructures</h6>
+                        <dl class="row mb-0">
+                            <dt class="col-sm-5">Nombre de bâtiments</dt><dd class="col-sm-7" id="fcBatiments">—</dd>
+                            <dt class="col-sm-5">État général</dt><dd class="col-sm-7" id="fcEtat">—</dd>
+                            <dt class="col-sm-5">Nombre d’élèves</dt><dd class="col-sm-7" id="fcEleves">—</dd>
+                            <dt class="col-sm-5">Toilettes filles</dt><dd class="col-sm-7" id="fcFilles">—</dd>
+                            <dt class="col-sm-5">Toilettes garçons</dt><dd class="col-sm-7" id="fcGarcons">—</dd>
+                        </dl>
+                    </div>
+
+                    <div class="isp-modal-section mb-3">
+                        <h6 class="isp-modal-section-title"><i class="ti ti-coin"></i> Impact 7&nbsp;%</h6>
+                        <dl class="row mb-0">
+                            <dt class="col-sm-5">Montant perçu</dt><dd class="col-sm-7" id="fcMontant">—</dd>
+                            <dt class="col-sm-5">Quantité</dt><dd class="col-sm-7" id="fcQuantite">—</dd>
+                            <dt class="col-sm-5">Produits de nettoyage</dt><dd class="col-sm-7" id="fcProduits">—</dd>
+                            <dt class="col-sm-5">Autres produits</dt><dd class="col-sm-7" id="fcAutres">—</dd>
+                        </dl>
+                    </div>
+
+                    <div class="isp-modal-section mb-3">
+                        <h6 class="isp-modal-section-title"><i class="ti ti-notes"></i> Constat</h6>
+                        <p class="mb-2"><span class="text-secondary small d-block">Observations</span><span id="fcObs">—</span></p>
+                        <p class="mb-0"><span class="text-secondary small d-block">Recommandation préliminaire</span><strong id="fcReco">—</strong></p>
+                    </div>
+
+                    <div class="isp-modal-section mb-0">
+                        <h6 class="isp-modal-section-title"><i class="ti ti-photo"></i> Photos</h6>
+                        <div id="fcPhotos" class="text-secondary small">Aucune photo.</div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fermer</button>
+                    <form asp-action="ValiderFiche" method="post" id="fcValiderForm" class="d-none">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" id="fcValiderId" value="" />
+                        <button type="submit" class="btn btn-success">
+                            <i class="ti ti-check me-1"></i> Lu et approuvé
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+<script>
+(function () {
+  'use strict';
+  var ecoleCtx = @Html.Raw(JsonUi.Serialize(Model.Ecole) ?? "null");
+  var chefCtx = @Html.Raw(JsonUi.Serialize(Model.Profil) ?? "null");
+
+  function text(id, value) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var v = (value === null || value === undefined || String(value).trim() === '') ? '—' : String(value);
+    el.textContent = v;
+  }
+
+  function parseJson(btn) {
+    var raw = btn.getAttribute('data-json') || '{}';
+    try { return JSON.parse(raw); } catch (e) { return {}; }
+  }
+
+  function toEcolePrint(e) {
+    if (!e) return null;
+    return {
+      Denomination: e.denomination || e.Denomination || '',
+      Adresse: {
+        Avenue: e.avenue || e.Avenue || '',
+        Numero: e.numero || e.Numero || '',
+        Quartier: e.quartier || e.Quartier || '',
+        Commune: e.commune || e.Commune || ''
+      },
+      commune: e.commune || e.Commune || ''
+    };
+  }
+
+  function toChefPrint(c) {
+    if (!c) return null;
+    return { NomComplet: c.nomComplet || c.NomComplet || '' };
+  }
+
+  document.querySelectorAll('.btn-print-fiche-chef').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var f = parseJson(btn);
+      var html = window.buildFichePrintHtml
+        ? window.buildFichePrintHtml(f, toEcolePrint(ecoleCtx), toChefPrint(chefCtx), null)
+        : null;
+      if (window.openPrintPreview) {
+        window.openPrintPreview('Fiche ' + (f.Numero || f.numero || ''), html);
+      }
+    });
+  });
+
+  document.querySelectorAll('.btn-print-decision-chef').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var d = parseJson(btn);
+      var html = window.buildDecisionPrintHtml
+        ? window.buildDecisionPrintHtml(d, toEcolePrint(ecoleCtx))
+        : null;
+      if (window.openPrintPreview) {
+        window.openPrintPreview('Décision ' + (d.Numero || d.numero || ''), html);
+      }
+    });
+  });
+
+  document.querySelectorAll('.btn-voir-fiche-chef').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var f = parseJson(btn);
+      var numero = f.numero || f.Numero || 'Fiche';
+      var statut = f.statut || f.Statut || '';
+      var peutValider = !!(f.peutValider !== undefined ? f.peutValider : f.PeutValider);
+      var created = f.createdAt || f.CreatedAt;
+      var dateStr = '—';
+      if (created) {
+        try {
+          var d = new Date(created);
+          if (!isNaN(d.getTime())) dateStr = d.toLocaleDateString('fr-FR');
+        } catch (e) { /* ignore */ }
+      }
+
+      document.getElementById('ficheChefTitle').textContent = numero;
+      text('fcStatut', statut);
+      text('fcOm', f.ordreMissionNumero || f.OrdreMissionNumero);
+      text('fcDate', dateStr);
+      text('fcBatiments', f.nombreBatiments ?? f.NombreBatiments);
+      text('fcEtat', f.etatGeneral || f.EtatGeneral);
+      text('fcEleves', f.nombreEleves ?? f.NombreEleves);
+      text('fcFilles', f.toilettesFilles || f.ToilettesFilles);
+      text('fcGarcons', f.toilettesGarcons || f.ToilettesGarcons);
+      text('fcMontant', f.montantPercu || f.MontantPercu);
+      text('fcQuantite', f.quantite || f.Quantite);
+      text('fcAutres', f.produitsAutres || f.ProduitsAutres);
+      text('fcObs', f.observations || f.Observations);
+      text('fcReco', f.recommandationPreliminaire || f.RecommandationPreliminaire);
+
+      var produits = f.produitsNettoyage || f.ProduitsNettoyage || [];
+      text('fcProduits', Array.isArray(produits) && produits.length ? produits.join(', ') : '');
+
+      var photos = f.photos || f.Photos || [];
+      var photosEl = document.getElementById('fcPhotos');
+      if (!photos.length) {
+        photosEl.className = 'text-secondary small';
+        photosEl.textContent = 'Aucune photo.';
+      } else {
+        photosEl.className = 'row g-2';
+        photosEl.innerHTML = photos.map(function (p) {
+          var nom = p.nom || p.Nom || 'Photo';
+          var legende = p.legende || p.Legende || '';
+          var url = p.url || p.Url || '';
+          var img = url
+            ? '<img src="' + url.replace(/"/g, '&quot;') + '" alt="' + nom.replace(/"/g, '&quot;') + '" class="img-fluid rounded border" style="max-height:140px;object-fit:cover" onerror="this.replaceWith(document.createTextNode(\'' + nom.replace(/'/g, "\\'") + '\'))" />'
+            : '<span class="small">' + nom + (legende ? ' — ' + legende : '') + '</span>';
+          return '<div class="col-md-4"><div class="border rounded p-2 h-100">' + img +
+            (legende ? '<div class="small text-secondary mt-1">' + legende + '</div>' : '') +
+            '</div></div>';
+        }).join('');
+      }
+
+      var form = document.getElementById('fcValiderForm');
+      var idInput = document.getElementById('fcValiderId');
+      if (peutValider && (f.id || f.Id)) {
+        idInput.value = f.id || f.Id;
+        form.classList.remove('d-none');
+      } else {
+        idInput.value = '';
+        form.classList.add('d-none');
+      }
+    });
+  });
+})();
+</script>
+}

@@ -1,0 +1,29 @@
+@{
+    Layout = "_PublicLayout";
+    ViewData["Title"] = "Accès refusé";
+    ViewData["BodyClass"] = "isp-public--sys";
+    var isAuth = User.Identity?.IsAuthenticated == true;
+    var espaceUrl = ViewBag.EspaceUrl as string ?? (isAuth ? Url.Action("Index", "Home") : Url.Action("Login", "Auth"));
+    var espaceLabel = ViewBag.EspaceLabel as string ?? (isAuth ? "Retour à mon espace" : "Se connecter");
+}
+
+<main class="isp-sys">
+    <div class="isp-sys-panel">
+        <p class="isp-sys-brand" aria-label="Inspect-San">
+            <span>Inspect</span>-<span>San</span>
+        </p>
+        <p class="isp-sys-code">403</p>
+        <h1>Accès refusé</h1>
+        <p>
+            Vous n’avez pas l’autorisation d’ouvrir cette ressource.
+            Si vous pensez qu’il s’agit d’une erreur, contactez l’administrateur système.
+        </p>
+        <div class="isp-sys-actions">
+            <a class="isp-btn isp-btn-navy" href="@espaceUrl">@espaceLabel</a>
+            @if (!isAuth)
+            {
+                <a class="isp-btn isp-btn-ghost" style="color:var(--isp-navy);border-color:var(--isp-navy);" asp-controller="Landing" asp-action="Index">Accueil</a>
+            }
+        </div>
+    </div>
+</main>

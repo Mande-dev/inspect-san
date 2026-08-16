@@ -1,0 +1,114 @@
+@model LoginViewModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Connexion";
+}
+
+<main class="isp-login">
+    <aside class="isp-login-visual" aria-label="Présentation Inspect-San">
+        <div class="isp-login-visual-glow" aria-hidden="true"></div>
+        <div class="isp-login-visual-grid" aria-hidden="true"></div>
+
+        <div class="isp-login-visual-copy">
+            <p class="isp-login-brand">
+                <span class="isp-login-brand-inspect">Inspect</span><span class="isp-login-brand-dash">-</span><span class="isp-login-brand-san">San</span>
+            </p>
+            <p class="isp-login-lead">Le contrôle sanitaire des établissements scolaires, centralisé et sécurisé.</p>
+            <p class="isp-login-place">Province Éducationnelle de Kinshasa / Mont-Amba</p>
+        </div>
+
+        <svg class="isp-login-scene" viewBox="0 0 640 420" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+            <defs>
+                <linearGradient id="ispSchoolWall" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#ffffff" stop-opacity="0.22" />
+                    <stop offset="100%" stop-color="#ffffff" stop-opacity="0.08" />
+                </linearGradient>
+                <linearGradient id="ispShield" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#8fd15a" />
+                    <stop offset="100%" stop-color="#6db33f" />
+                </linearGradient>
+            </defs>
+            <ellipse cx="320" cy="360" rx="240" ry="28" fill="#0a2248" opacity="0.35" />
+            <path d="M90 250 L320 110 L550 250 V340 H90 Z" fill="url(#ispSchoolWall)" />
+            <path d="M90 250 L320 110 L550 250" fill="none" stroke="#9ec0ea" stroke-width="3" opacity="0.7" />
+            <rect x="150" y="250" width="340" height="90" rx="4" fill="#ffffff" opacity="0.12" />
+            <rect x="190" y="270" width="48" height="48" rx="4" fill="#0f2d5c" opacity="0.55" />
+            <rect x="260" y="270" width="48" height="48" rx="4" fill="#0f2d5c" opacity="0.55" />
+            <rect x="330" y="270" width="48" height="48" rx="4" fill="#0f2d5c" opacity="0.55" />
+            <rect x="400" y="270" width="48" height="48" rx="4" fill="#0f2d5c" opacity="0.55" />
+            <rect x="296" y="278" width="48" height="62" rx="3" fill="#1a4b8b" opacity="0.85" />
+            <circle cx="500" cy="170" r="54" fill="#0a2248" opacity="0.35" />
+            <path d="M500 128c22 6 40 8 48 8 0 28-3 50-12 66-9 14-20 22-36 26-16-4-27-12-36-26-9-16-12-38-12-66 10 0 26-2 48-8z" fill="url(#ispShield)" opacity="0.95" />
+            <path d="M478 168 l16 16 28-32" fill="none" stroke="#0a2248" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+    </aside>
+
+    <section class="isp-login-panel">
+        <div class="isp-login-panel-top">
+            <ul class="list-unstyled mb-0">
+                <li class="dropdown">
+                    <button type="button" class="theme-switcher-btn" data-bs-toggle="dropdown" aria-label="Thème">
+                        <i class="ti ti-sun theme-icon-active"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end theme-switcher-menu">
+                        <li class="theme-switcher-header">Thème</li>
+                        <li><button type="button" class="dropdown-item theme-switcher-item" data-bs-theme-value="light">Clair</button></li>
+                        <li><button type="button" class="dropdown-item theme-switcher-item" data-bs-theme-value="dark">Sombre</button></li>
+                        <li><button type="button" class="dropdown-item theme-switcher-item" data-bs-theme-value="auto">Système</button></li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+
+        <div class="isp-login-panel-inner">
+            <div class="isp-login-logo-wrap">
+                @{ ViewData["ExtraClass"] = ""; }
+                <partial name="_AppLogo" model='"login"' />
+            </div>
+
+            <header class="isp-login-header">
+                <h1 class="isp-login-title">Connexion</h1>
+                <p class="isp-login-subtitle">Accédez à votre espace de travail.</p>
+            </header>
+
+            <form asp-action="Login" method="post" class="isp-login-form" autocomplete="on">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="ReturnUrl" />
+
+                <div class="isp-login-field">
+                    <label asp-for="Email" class="form-label">E-mail</label>
+                    <div class="isp-login-input">
+                        <i class="ti ti-mail" aria-hidden="true"></i>
+                        <input asp-for="Email" type="email" class="form-control" placeholder="ex. admin@inspect-san.cd" autofocus autocomplete="username" />
+                    </div>
+                </div>
+
+                <div class="isp-login-field">
+                    <label asp-for="MotDePasse" class="form-label">Mot de passe</label>
+                    <div class="isp-login-input">
+                        <i class="ti ti-lock" aria-hidden="true"></i>
+                        <input asp-for="MotDePasse" type="password" class="form-control" placeholder="••••••••" autocomplete="current-password" />
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(Model.Error))
+                {
+                    <div class="isp-login-error" role="alert">@Model.Error</div>
+                }
+
+                <div class="isp-login-meta">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="remember" />
+                        <label class="form-check-label" for="remember">Se souvenir de moi</label>
+                    </div>
+                    <a class="isp-login-forgot" asp-action="ForgotPassword">Mot de passe oublié ?</a>
+                </div>
+
+                <button class="btn isp-login-submit" type="submit">
+                    Se connecter
+                    <i class="ti ti-arrow-right" aria-hidden="true"></i>
+                </button>
+            </form>
+        </div>
+    </section>
+</main>

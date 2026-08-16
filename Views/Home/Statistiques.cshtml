@@ -1,0 +1,71 @@
+@{
+    ViewData["Title"] = "Statistiques";
+    var communes = (List<RefItem>)(ViewBag.Communes ?? new List<RefItem>());
+    var regimes = (List<RefItem>)(ViewBag.Regimes ?? new List<RefItem>());
+}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">Statistiques</h2>
+        <p class="text-secondary mb-0">Indicateurs de conformité, de contrôle et d'utilisation des ressources.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-secondary" id="exportCsv"><i class="ti ti-file-spreadsheet me-1"></i>CSV</button>
+        <button type="button" class="btn btn-outline-primary" id="exportPdf"><i class="ti ti-printer me-1"></i>PDF</button>
+    </div>
+</div>
+
+<div class="card card-lg mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-2"><label class="form-label">Du</label><input type="date" class="form-control" id="filterDateFrom" /></div>
+            <div class="col-md-2"><label class="form-label">Au</label><input type="date" class="form-control" id="filterDateTo" /></div>
+            <div class="col-md-3">
+                <label class="form-label">Commune</label>
+                <select class="form-select" id="filterCommune">
+                    <option value="">Toutes les communes</option>
+                    @foreach (var c in communes) { <option value="@c.Nom">@c.Nom</option> }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Régime</label>
+                <select class="form-select" id="filterRegime">
+                    <option value="">Tous</option>
+                    @foreach (var r in regimes) { <option value="@r.Nom">@r.Nom</option> }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Statut école</label>
+                <select class="form-select" id="filterStatut">
+                    <option value="">Tous</option>
+                    <option value="active">Active</option>
+                    <option value="fermeture_temporaire">Fermeture temporaire</option>
+                    <option value="rehabilitation">Réhabilitation</option>
+                    <option value="fermeture_definitive">Fermeture définitive</option>
+                </select>
+            </div>
+            <div class="col-md-1">
+                <button type="button" class="btn btn-outline-secondary w-100" id="resetFilters" title="Réinitialiser"><i class="ti ti-refresh"></i></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-3"><div class="card card-lg"><div class="card-body"><div class="text-secondary small">Écoles concernées</div><div class="fs-3 fw-bold" id="kpiEcoles">—</div></div></div></div>
+    <div class="col-md-3"><div class="card card-lg"><div class="card-body"><div class="text-secondary small">Fiches de contrôle</div><div class="fs-3 fw-bold" id="kpiFiches">—</div></div></div></div>
+    <div class="col-md-3"><div class="card card-lg"><div class="card-body"><div class="text-secondary small">Taux de conformité</div><div class="fs-3 fw-bold" id="kpiConformite">—</div></div></div></div>
+    <div class="col-md-3"><div class="card card-lg"><div class="card-body"><div class="text-secondary small">Décisions prises</div><div class="fs-3 fw-bold" id="kpiDecisions">—</div></div></div></div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-lg-4"><div class="card card-lg h-100"><div class="card-header">Conformité (état bâtiments)</div><div class="card-body"><div id="chartConformite" style="min-height:280px"></div></div></div></div>
+    <div class="col-lg-4"><div class="card card-lg h-100"><div class="card-header">Répartition des décisions</div><div class="card-body"><div id="chartDecisions" style="min-height:280px"></div></div></div></div>
+    <div class="col-lg-4"><div class="card card-lg h-100"><div class="card-header">Utilisation des 7 %</div><div class="card-body"><div id="chartImpact7" style="min-height:280px"></div></div></div></div>
+</div>
+<div class="row g-4">
+    <div class="col-12"><div class="card card-lg"><div class="card-header">Évolution des contrôles</div><div class="card-body"><div id="chartEvolution" style="min-height:300px"></div></div></div></div>
+</div>
+
+@section Scripts {
+<script src="~/js/pages/statistiques.js" asp-append-version="true"></script>
+}
