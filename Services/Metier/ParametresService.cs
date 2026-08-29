@@ -21,10 +21,9 @@ public class ParametresService : IParametresService
 
     private static string NormalizeTab(string tab) => tab switch
     {
-        RefCategories.Communes or "communes" => RefCategories.Communes,
-        RefCategories.Regimes or "regimes" => RefCategories.Regimes,
-        RefCategories.TypesDecision or "typesDecision" => RefCategories.TypesDecision,
-        RefCategories.Equipes or "equipes" => RefCategories.Equipes,
+        RefCategories.Categories or "categories" => RefCategories.Categories,
+        RefCategories.Produits or "produits" => RefCategories.Produits,
+        RefCategories.Outils or "outils" => RefCategories.Outils,
         _ => tab
     };
 
@@ -33,48 +32,32 @@ public class ParametresService : IParametresService
         var cat = NormalizeTab(tab);
         return cat switch
         {
-            RefCategories.Communes => await _db.Communes.AsNoTracking()
-                .OrderBy(x => x.Nom)
+            RefCategories.Categories => await _db.Categories.AsNoTracking()
+                .OrderBy(x => x.Designation)
                 .Select(x => new RefItem
                 {
-                    Id = x.Id,
-                    Categorie = RefCategories.Communes,
-                    Nom = x.Nom,
-                    Code = x.Code,
-                    Actif = x.Actif
+                    Code = x.CodeCategories.ToString(),
+                    Categorie = RefCategories.Categories,
+                    Nom = x.Designation,
+                    Libelle = x.Designation
                 }).ToListAsync(),
-            RefCategories.Regimes => await _db.Regimes.AsNoTracking()
-                .OrderBy(x => x.Nom)
+            RefCategories.Produits => await _db.Produits.AsNoTracking()
+                .OrderBy(x => x.LibeleProduit)
                 .Select(x => new RefItem
                 {
-                    Id = x.Id,
-                    Categorie = RefCategories.Regimes,
-                    Nom = x.Nom,
-                    Code = x.Code,
-                    Actif = x.Actif
+                    Code = x.CodeProduit.ToString(),
+                    Categorie = RefCategories.Produits,
+                    Nom = x.LibeleProduit,
+                    Libelle = x.LibeleProduit
                 }).ToListAsync(),
-            RefCategories.TypesDecision => await _db.TypesDecision.AsNoTracking()
-                .OrderBy(x => x.Nom)
+            RefCategories.Outils => await _db.Outils.AsNoTracking()
+                .OrderBy(x => x.LibelleOutile)
                 .Select(x => new RefItem
                 {
-                    Id = x.Id,
-                    Categorie = RefCategories.TypesDecision,
-                    Nom = x.Nom,
-                    Code = x.Code,
-                    Libelle = x.Libelle,
-                    Actif = x.Actif
-                }).ToListAsync(),
-            RefCategories.Equipes => await _db.Equipes.AsNoTracking()
-                .Include(x => x.ChefControleur)
-                .OrderBy(x => x.Nom)
-                .Select(x => new RefItem
-                {
-                    Id = x.Id,
-                    Categorie = RefCategories.Equipes,
-                    Nom = x.Nom,
-                    Actif = x.Actif,
-                    ChefControleurId = x.ChefControleurId,
-                    ChefNom = x.ChefControleur != null ? x.ChefControleur.NomComplet : null
+                    Code = x.CodeOutile.ToString(),
+                    Categorie = RefCategories.Outils,
+                    Nom = x.LibelleOutile,
+                    Libelle = x.LibelleOutile
                 }).ToListAsync(),
             _ => []
         };
@@ -85,14 +68,10 @@ public class ParametresService : IParametresService
         var list = await QueryEntitiesAsync(tab);
         return list.Select(i => new RefItemDto
         {
-            Id = i.Id,
+            Code = int.TryParse(i.Code, out var c) ? c : 0,
             Categorie = i.Categorie,
             Nom = i.Nom,
-            Code = i.Code,
-            Libelle = i.Libelle,
-            Actif = i.Actif,
-            ChefControleurId = i.ChefControleurId,
-            ChefNom = i.ChefNom
+            Libelle = i.Libelle
         }).ToList();
     }
 
@@ -101,252 +80,143 @@ public class ParametresService : IParametresService
         var cat = NormalizeTab(tab);
         return cat switch
         {
-            RefCategories.Communes => await SaveCommuneAsync(dto),
-            RefCategories.Regimes => await SaveRegimeAsync(dto),
-            RefCategories.TypesDecision => await SaveTypeDecisionAsync(dto),
-            RefCategories.Equipes => ApiResultDto.Fail("Utilisez SaveEquipeJson pour les équipes."),
+            RefCategories.Categories => await SaveCategorieAsync(dto),
+            RefCategories.Produits => await SaveProduitAsync(dto),
+            RefCategories.Outils => await SaveOutilAsync(dto),
             _ => ApiResultDto.Fail("Onglet paramètres inconnu.")
         };
     }
 
-    private async Task<ApiResultDto> SaveCommuneAsync(SaveRefItemDto dto)
+    private async Task<ApiResultDto> SaveCategorieAsync(SaveRefItemDto dto)
     {
-        var nom = (dto.Nom ?? "").Trim();
-        if (string.IsNullOrEmpty(nom)) return ApiResultDto.Fail("Nom obligatoire.");
+        var designation = (dto.Nom ?? dto.Libelle ?? "").Trim();
+        if (string.IsNullOrEmpty(designation))
+            return ApiResultDto.Fail("Libellé obligatoire.");
 
-        if (!string.IsNullOrEmpty(dto.Id))
+        if (dto.Code > 0)
         {
-            var existing = await _db.Communes.FirstOrDefaultAsync(r => r.Id == dto.Id);
-            if (existing == null) return ApiResultDto.Fail("Référence introuvable.");
-            existing.Nom = nom;
-            existing.Code = dto.Code;
-            existing.Actif = dto.Actif;
+            var existing = await _db.Categories.FirstOrDefaultAsync(c => c.CodeCategories == dto.Code);
+            if (existing == null)
+                return ApiResultDto.Fail("Catégorie introuvable.");
+            existing.Designation = designation;
             await _db.SaveChangesAsync();
-            _users.AddJournal("Paramètres", "modification", $"Commune {existing.Nom}");
+            _users.AddJournal("Paramètres", "modification", $"Catégorie {existing.Designation}");
         }
         else
         {
-            var item = new Commune
-            {
-                Id = NewId("com"),
-                Nom = nom,
-                Code = dto.Code,
-                Actif = dto.Actif
-            };
-            _db.Communes.Add(item);
+            _db.Categories.Add(new Categorie { Designation = designation });
             await _db.SaveChangesAsync();
-            _users.AddJournal("Paramètres", "création", $"Commune {item.Nom}");
+            _users.AddJournal("Paramètres", "création", $"Catégorie {designation}");
         }
         return ApiResultDto.Ok("Référence enregistrée.");
     }
 
-    private async Task<ApiResultDto> SaveRegimeAsync(SaveRefItemDto dto)
+    private async Task<ApiResultDto> SaveProduitAsync(SaveRefItemDto dto)
     {
-        var nom = (dto.Nom ?? "").Trim();
-        if (string.IsNullOrEmpty(nom)) return ApiResultDto.Fail("Nom obligatoire.");
+        var libelle = (dto.Nom ?? dto.Libelle ?? "").Trim();
+        if (string.IsNullOrEmpty(libelle))
+            return ApiResultDto.Fail("Libellé obligatoire.");
 
-        if (!string.IsNullOrEmpty(dto.Id))
+        if (dto.Code > 0)
         {
-            var existing = await _db.Regimes.FirstOrDefaultAsync(r => r.Id == dto.Id);
-            if (existing == null) return ApiResultDto.Fail("Référence introuvable.");
-            existing.Nom = nom;
-            existing.Code = dto.Code;
-            existing.Actif = dto.Actif;
+            var existing = await _db.Produits.FirstOrDefaultAsync(p => p.CodeProduit == dto.Code);
+            if (existing == null)
+                return ApiResultDto.Fail("Produit introuvable.");
+            existing.LibeleProduit = libelle;
             await _db.SaveChangesAsync();
-            _users.AddJournal("Paramètres", "modification", $"Régime {existing.Nom}");
+            _users.AddJournal("Paramètres", "modification", $"Produit {existing.LibeleProduit}");
         }
         else
         {
-            var item = new Regime
-            {
-                Id = NewId("reg"),
-                Nom = nom,
-                Code = dto.Code,
-                Actif = dto.Actif
-            };
-            _db.Regimes.Add(item);
+            _db.Produits.Add(new Produit { LibeleProduit = libelle });
             await _db.SaveChangesAsync();
-            _users.AddJournal("Paramètres", "création", $"Régime {item.Nom}");
+            _users.AddJournal("Paramètres", "création", $"Produit {libelle}");
         }
         return ApiResultDto.Ok("Référence enregistrée.");
     }
 
-    private async Task<ApiResultDto> SaveTypeDecisionAsync(SaveRefItemDto dto)
+    private async Task<ApiResultDto> SaveOutilAsync(SaveRefItemDto dto)
     {
-        var nom = (dto.Libelle ?? dto.Nom ?? "").Trim();
-        if (string.IsNullOrEmpty(nom)) return ApiResultDto.Fail("Libellé obligatoire.");
+        var libelle = (dto.Nom ?? dto.Libelle ?? "").Trim();
+        if (string.IsNullOrEmpty(libelle))
+            return ApiResultDto.Fail("Libellé obligatoire.");
 
-        if (!string.IsNullOrEmpty(dto.Id))
+        if (dto.Code > 0)
         {
-            var existing = await _db.TypesDecision.FirstOrDefaultAsync(r => r.Id == dto.Id);
-            if (existing == null) return ApiResultDto.Fail("Référence introuvable.");
-            existing.Nom = nom;
-            existing.Libelle = dto.Libelle ?? nom;
-            existing.Code = dto.Code;
-            existing.Actif = dto.Actif;
+            var existing = await _db.Outils.FirstOrDefaultAsync(o => o.CodeOutile == dto.Code);
+            if (existing == null)
+                return ApiResultDto.Fail("Outil introuvable.");
+            existing.LibelleOutile = libelle;
             await _db.SaveChangesAsync();
-            _users.AddJournal("Paramètres", "modification", $"Type décision {existing.Nom}");
+            _users.AddJournal("Paramètres", "modification", $"Outil {existing.LibelleOutile}");
         }
         else
         {
-            var item = new TypeDecision
-            {
-                Id = NewId("td"),
-                Nom = nom,
-                Libelle = dto.Libelle ?? nom,
-                Code = dto.Code,
-                Actif = dto.Actif
-            };
-            _db.TypesDecision.Add(item);
+            _db.Outils.Add(new Outil { LibelleOutile = libelle });
             await _db.SaveChangesAsync();
-            _users.AddJournal("Paramètres", "création", $"Type décision {item.Nom}");
+            _users.AddJournal("Paramètres", "création", $"Outil {libelle}");
         }
         return ApiResultDto.Ok("Référence enregistrée.");
-    }
-
-    public async Task<ApiResultDto> SaveEquipeAsync(SaveEquipeDto dto)
-    {
-        var nom = (dto.Nom ?? "").Trim();
-        if (string.IsNullOrEmpty(nom)) return ApiResultDto.Fail("Nom obligatoire.");
-
-        var chefId = (dto.ChefControleurId ?? "").Trim();
-
-        if (!string.IsNullOrEmpty(dto.Id))
-        {
-            var existing = await _db.Equipes.FirstOrDefaultAsync(r => r.Id == dto.Id);
-            if (existing == null) return ApiResultDto.Fail("Équipe introuvable.");
-
-            if (!string.IsNullOrEmpty(chefId))
-            {
-                var assign = await AssignChefToEquipeAsync(existing.Id, chefId);
-                if (!assign.Success) return ApiResultDto.Fail(assign.Message);
-                existing.ChefControleurId = assign.ChefId;
-            }
-            else
-            {
-                existing.ChefControleurId = null;
-            }
-
-            existing.Nom = nom;
-            existing.Actif = dto.Actif;
-            await _db.SaveChangesAsync();
-            _users.AddJournal("Paramètres", "modification",
-                string.IsNullOrEmpty(existing.ChefControleurId)
-                    ? $"Équipe {existing.Nom}"
-                    : $"Équipe {existing.Nom} (chef {existing.ChefControleurId})");
-            return ApiResultDto.Ok("Équipe enregistrée.");
-        }
-
-        var item = new Equipe
-        {
-            Id = NewId("eq"),
-            Nom = nom,
-            Actif = dto.Actif,
-            CreatedAt = DateTime.UtcNow,
-            ChefControleurId = null
-        };
-        _db.Equipes.Add(item);
-        await _db.SaveChangesAsync();
-
-        if (!string.IsNullOrEmpty(chefId))
-        {
-            var assigned = await AssignChefToEquipeAsync(item.Id, chefId);
-            if (!assigned.Success)
-            {
-                _db.Equipes.Remove(item);
-                await _db.SaveChangesAsync();
-                return ApiResultDto.Fail(assigned.Message);
-            }
-            item.ChefControleurId = assigned.ChefId;
-            await _db.SaveChangesAsync();
-        }
-
-        _users.AddJournal("Paramètres", "création",
-            string.IsNullOrEmpty(item.ChefControleurId)
-                ? $"Équipe {item.Nom}"
-                : $"Équipe {item.Nom} (chef {item.ChefControleurId})");
-        return ApiResultDto.Ok("Équipe enregistrée.");
-    }
-
-    private async Task<(bool Success, string Message, string? ChefId)> AssignChefToEquipeAsync(
-        string equipeId, string chefId)
-    {
-        var chef = await _db.Controleurs.FirstOrDefaultAsync(c => c.Id == chefId);
-        if (chef == null)
-            return (false, "Chef d’équipe invalide.", null);
-
-        if (!string.Equals(chef.EquipeId, equipeId, StringComparison.Ordinal))
-            return (false, "Le chef doit être un membre de cette équipe.", null);
-
-        var otherTeam = await _db.Equipes.AsNoTracking()
-            .AnyAsync(e => e.ChefControleurId == chef.Id && e.Id != equipeId);
-        if (otherTeam)
-            return (false, "Ce contrôleur est déjà chef d’une autre équipe.", null);
-
-        await _db.SaveChangesAsync();
-        return (true, "OK", chef.Id);
     }
 
     public async Task<ApiResultDto> DeleteAsync(string tab, string id)
     {
         var cat = NormalizeTab(tab);
+        if (!int.TryParse(id.Trim(), out var code) || code <= 0)
+            return ApiResultDto.Fail("Identifiant invalide.");
+
         switch (cat)
         {
-            case RefCategories.Communes:
+            case RefCategories.Categories:
             {
-                var item = await _db.Communes.FirstOrDefaultAsync(r => r.Id == id);
+                var item = await _db.Categories.FirstOrDefaultAsync(c => c.CodeCategories == code);
                 if (item != null)
                 {
-                    if (await _db.Ecoles.AnyAsync(e => e.CommuneId == id))
-                        return ApiResultDto.Fail("Commune utilisée par des écoles.");
-                    _db.Communes.Remove(item);
+                    if (await _db.Ecoles.AnyAsync(e => e.CodeCategories == code))
+                        return ApiResultDto.FailBlocked(
+                            "Suppression non autorisée",
+                            "Cette catégorie ne peut pas être retirée.",
+                            "Elle est encore utilisée par un ou plusieurs établissements scolaires.\n\n" +
+                            "Modifiez d'abord la catégorie de ces établissements, puis réessayez.");
+                    _db.Categories.Remove(item);
                     await _db.SaveChangesAsync();
-                    _users.AddJournal("Paramètres", "suppression", $"Commune {id} supprimée");
+                    _users.AddJournal("Paramètres", "suppression", $"Catégorie {code} supprimée");
                 }
                 break;
             }
-            case RefCategories.Regimes:
+            case RefCategories.Produits:
             {
-                var item = await _db.Regimes.FirstOrDefaultAsync(r => r.Id == id);
+                var item = await _db.Produits.FirstOrDefaultAsync(p => p.CodeProduit == code);
                 if (item != null)
                 {
-                    if (await _db.Ecoles.AnyAsync(e => e.RegimeId == id))
-                        return ApiResultDto.Fail("Régime utilisé par des écoles.");
-                    _db.Regimes.Remove(item);
+                    if (await _db.MissionProduits.AnyAsync(mp => mp.CodeProduit == code)
+                        || await _db.Missions.AnyAsync(m => m.CodeProduit == code))
+                        return ApiResultDto.FailBlocked(
+                            "Suppression non autorisée",
+                            "Ce produit ne peut pas être retiré du référentiel.",
+                            "Il a déjà été saisi dans des missions ou fiches de contrôle.\n\n" +
+                            "Le référentiel doit conserver cet élément pour la traçabilité des inspections.");
+                    _db.Produits.Remove(item);
                     await _db.SaveChangesAsync();
-                    _users.AddJournal("Paramètres", "suppression", $"Régime {id} supprimé");
+                    _users.AddJournal("Paramètres", "suppression", $"Produit {code} supprimé");
                 }
                 break;
             }
-            case RefCategories.TypesDecision:
+            case RefCategories.Outils:
             {
-                var item = await _db.TypesDecision.FirstOrDefaultAsync(r => r.Id == id);
+                var item = await _db.Outils.FirstOrDefaultAsync(o => o.CodeOutile == code);
                 if (item != null)
                 {
-                    if (await _db.Decisions.AnyAsync(d => d.TypeDecisionId == id))
-                        return ApiResultDto.Fail("Type utilisé par des décisions.");
-                    _db.TypesDecision.Remove(item);
+                    if (await _db.MissionOutils.AnyAsync(mo => mo.CodeOutil == code)
+                        || await _db.Missions.AnyAsync(m => m.CodeOutil == code))
+                        return ApiResultDto.FailBlocked(
+                            "Suppression non autorisée",
+                            "Cet outil ne peut pas être retiré du référentiel.",
+                            "Il a déjà été saisi dans des missions ou fiches de contrôle.\n\n" +
+                            "Le référentiel doit conserver cet élément pour la traçabilité des inspections.");
+                    _db.Outils.Remove(item);
                     await _db.SaveChangesAsync();
-                    _users.AddJournal("Paramètres", "suppression", $"Type décision {id} supprimé");
-                }
-                break;
-            }
-            case RefCategories.Equipes:
-            {
-                var item = await _db.Equipes.FirstOrDefaultAsync(r => r.Id == id);
-                if (item != null)
-                {
-                    if (await _db.OrdresMission.AnyAsync(o => o.EquipeId == id)
-                        || await _db.Controleurs.AnyAsync(c => c.EquipeId == id))
-                        return ApiResultDto.Fail("Équipe liée à des ordres ou contrôleurs.");
-                    if (await _db.Users.AnyAsync(u => u.EquipeId == id))
-                        return ApiResultDto.Fail("Équipe liée à un compte utilisateur.");
-                    // Détacher le chef avant suppression (FK Restrict)
-                    item.ChefControleurId = null;
-                    await _db.SaveChangesAsync();
-                    _db.Equipes.Remove(item);
-                    await _db.SaveChangesAsync();
-                    _users.AddJournal("Paramètres", "suppression", $"Équipe {id} supprimée");
+                    _users.AddJournal("Paramètres", "suppression", $"Outil {code} supprimé");
                 }
                 break;
             }
@@ -355,7 +225,4 @@ public class ParametresService : IParametresService
         }
         return ApiResultDto.Ok("Référence supprimée.");
     }
-
-    private static string NewId(string prefix)
-        => $"{prefix}-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..32];
 }

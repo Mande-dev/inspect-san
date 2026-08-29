@@ -5,7 +5,7 @@ namespace inspect_san.Helpers;
 
 /// <summary>
 /// Sérialisation JSON pour attributs data-* des vues.
-/// IgnoreCycles évite Ecole↔Regime, Equipe↔Controleur, etc.
+/// IgnoreCycles évite Ecole↔Regime, Mission↔Participations, etc.
 /// </summary>
 public static class JsonUi
 {

@@ -1,6 +1,6 @@
 /**
- * SweetAlert2 — popups centrés (modèle officiel https://sweetalert2.github.io/).
- * Plus de toasts en coin : succès / info / warning / erreur / confirm = modale centre.
+ * SweetAlert2 — popups centrés Inspect-San.
+ * Succès / info / warning / erreur / confirm = modale centre (pas de toast coin).
  */
 (function (global) {
   'use strict';
@@ -36,6 +36,31 @@
     question: 'Confirmation'
   };
 
+  var confirmBtnClass = {
+    success: 'isp-swal-btn isp-swal-btn--success',
+    error: 'isp-swal-btn isp-swal-btn--danger',
+    warning: 'isp-swal-btn isp-swal-btn--warning',
+    info: 'isp-swal-btn isp-swal-btn--primary',
+    question: 'isp-swal-btn isp-swal-btn--primary'
+  };
+
+  function blocked(message, opts) {
+    opts = opts || {};
+    var detail = opts.detail || '';
+    var html =
+      (message
+        ? '<p class="isp-swal-msg"><strong>' + escapeHtml(message) + '</strong></p>'
+        : '') +
+      (detail
+        ? '<p class="isp-swal-msg isp-swal-msg--detail">' + escapeHtml(detail) + '</p>'
+        : '');
+    return fireCentered(null, 'warning', {
+      title: opts.title || 'Suppression non autorisée',
+      confirmText: opts.confirmText || 'J\'ai compris',
+      htmlOverride: html || undefined
+    });
+  }
+
   function fireCentered(message, type, opts) {
     opts = opts || {};
     var Swal = resolveSwal();
@@ -43,15 +68,20 @@
       console.warn('[IspAlert]', type, message);
       return Promise.resolve({ isConfirmed: true });
     }
-    type = normalizeType(type);
+    type = normalizeType(opts.icon || type);
+    var popupTone = 'isp-swal-popup--' + type;
+    var bodyHtml = opts.htmlOverride;
+    if (!bodyHtml && message) {
+      bodyHtml = '<p class="isp-swal-msg">' + escapeHtml(message) + '</p>';
+    }
     return Swal.fire({
       icon: type,
       title: opts.title || titles[type] || 'Information',
-      html: message ? '<p class="mb-0">' + escapeHtml(message) + '</p>' : undefined,
+      html: bodyHtml,
       text: message && opts.asText ? String(message) : undefined,
       position: 'center',
       backdrop: true,
-      allowOutsideClick: true,
+      allowOutsideClick: opts.allowOutsideClick !== false,
       allowEscapeKey: true,
       showConfirmButton: true,
       confirmButtonText: opts.confirmText || 'OK',
@@ -60,11 +90,20 @@
       focusConfirm: !opts.showCancel,
       focusCancel: !!opts.showCancel,
       reverseButtons: !!opts.showCancel,
-      buttonsStyling: true,
+      buttonsStyling: false,
       heightAuto: true,
+      showClass: { popup: 'swal2-show isp-swal-enter' },
+      hideClass: { popup: 'swal2-hide' },
       customClass: {
         container: 'isp-swal-container',
-        popup: 'isp-swal-popup'
+        popup: 'isp-swal-popup ' + popupTone,
+        title: 'isp-swal-title',
+        htmlContainer: 'isp-swal-html',
+        icon: 'isp-swal-icon',
+        actions: 'isp-swal-actions',
+        confirmButton: confirmBtnClass[type] || 'isp-swal-btn isp-swal-btn--primary',
+        cancelButton: 'isp-swal-btn isp-swal-btn--ghost',
+        closeButton: 'isp-swal-close'
       }
     });
   }
@@ -92,11 +131,13 @@
 
   function confirm(message, opts) {
     opts = opts || {};
-    return fireCentered(message || 'Confirmer cette action ?', 'warning', {
+    return fireCentered(message || 'Confirmer cette action ?', opts.icon || 'question', {
       title: opts.title || 'Confirmation',
       showCancel: true,
-      confirmText: opts.confirmText || 'Oui',
-      cancelText: opts.cancelText || 'Annuler'
+      confirmText: opts.confirmText || 'Confirmer',
+      cancelText: opts.cancelText || 'Annuler',
+      allowOutsideClick: opts.allowOutsideClick !== false,
+      icon: opts.icon || 'question'
     }).then(function (r) {
       return !!(r && r.isConfirmed);
     });
@@ -110,8 +151,18 @@
       form.addEventListener('submit', function (e) {
         if (form.dataset.swalConfirmed === '1') return;
         e.preventDefault();
-        var msg = form.getAttribute('data-confirm-message') || 'Confirmer cette action ?';
-        confirm(msg, { title: 'Confirmation' }).then(function (ok) {
+        var msg =
+          form.getAttribute('data-confirm-message') || 'Confirmer cette action ?';
+        var title = form.getAttribute('data-confirm-title') || 'Confirmation';
+        var confirmText = form.getAttribute('data-confirm-ok') || 'Confirmer';
+        var cancelText = form.getAttribute('data-confirm-cancel') || 'Annuler';
+        var icon = form.getAttribute('data-confirm-icon') || 'question';
+        confirm(msg, {
+          title: title,
+          confirmText: confirmText,
+          cancelText: cancelText,
+          icon: icon
+        }).then(function (ok) {
           if (!ok) return;
           form.dataset.swalConfirmed = '1';
           HTMLFormElement.prototype.submit.call(form);
@@ -125,8 +176,19 @@
     if (!el) return;
     try {
       var data = JSON.parse(el.textContent || '{}');
-      if (data && data.message) notify(data.message, data.type || 'success');
-    } catch (e) { /* ignore */ }
+      if (data && data.message) {
+        if (data.blocked || data.detail) {
+          blocked(data.message, {
+            title: data.title || 'Suppression non autorisée',
+            detail: data.detail || ''
+          });
+        } else {
+          notify(data.message, data.type || 'success');
+        }
+      }
+    } catch (e) {
+      /* ignore */
+    }
     el.remove();
   }
 
@@ -137,6 +199,7 @@
     warning: warning,
     info: info,
     notify: notify,
+    blocked: blocked,
     confirm: confirm,
     alertSuccess: success,
     alertError: error,

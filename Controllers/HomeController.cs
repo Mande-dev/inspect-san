@@ -19,17 +19,16 @@ public class HomeController : Controller
     private readonly IDashboardService _dashboard;
     private readonly IEcolesService _ecoles;
     private readonly IChefsService _chefs;
-    private readonly IControleursService _controleurs;
+    private readonly IAgentsService _agents;
     private readonly IUtilisateursService _utilisateurs;
-    private readonly IOrdresMissionService _ordres;
+    private readonly IMissionsService _missions;
     private readonly IFichesControleService _fiches;
-    private readonly IRapportsService _rapports;
-    private readonly IAccusesService _accuses;
     private readonly IDecisionsService _decisions;
     private readonly IStatistiquesService _statistiques;
     private readonly IParametresService _parametres;
     private readonly IJournalService _journal;
     private readonly INotificationsService _notifications;
+    private readonly IMissionAccessService _missionAccess;
     private readonly UserManager<ApplicationUser> _userManager;
 
     private UserDataScope? _scopeCache;
@@ -38,33 +37,31 @@ public class HomeController : Controller
         IDashboardService dashboard,
         IEcolesService ecoles,
         IChefsService chefs,
-        IControleursService controleurs,
+        IAgentsService agents,
         IUtilisateursService utilisateurs,
-        IOrdresMissionService ordres,
+        IMissionsService missions,
         IFichesControleService fiches,
-        IRapportsService rapports,
-        IAccusesService accuses,
         IDecisionsService decisions,
         IStatistiquesService statistiques,
         IParametresService parametres,
         IJournalService journal,
         INotificationsService notifications,
+        IMissionAccessService missionAccess,
         UserManager<ApplicationUser> userManager)
     {
         _dashboard = dashboard;
         _ecoles = ecoles;
         _chefs = chefs;
-        _controleurs = controleurs;
+        _agents = agents;
         _utilisateurs = utilisateurs;
-        _ordres = ordres;
+        _missions = missions;
         _fiches = fiches;
-        _rapports = rapports;
-        _accuses = accuses;
         _decisions = decisions;
         _statistiques = statistiques;
         _parametres = parametres;
         _journal = journal;
         _notifications = notifications;
+        _missionAccess = missionAccess;
         _userManager = userManager;
     }
 
@@ -76,26 +73,40 @@ public class HomeController : Controller
     private async Task<UserDataScope> ScopeAsync()
     {
         if (_scopeCache != null) return _scopeCache;
-        string? ecoleId = null;
-        string? equipeId = null;
-        if (!string.IsNullOrEmpty(UserId) && (Role == DataScope.RoleChef || Role == DataScope.RoleControleur))
+        string? agentId = null;
+        if (!string.IsNullOrEmpty(UserId) && Role == DataScope.RoleControleur)
         {
             var user = await _userManager.FindByIdAsync(UserId);
-            if (Role == DataScope.RoleChef) ecoleId = user?.EcoleId;
-            if (Role == DataScope.RoleControleur) equipeId = user?.EquipeId;
+            agentId = user?.AgentId;
         }
-        _scopeCache = DataScope.Resolve(Role, UserId, ecoleId, equipeId);
+        _scopeCache = DataScope.Resolve(Role, UserId, null, agentId);
         return _scopeCache;
     }
 
-    private async Task<HashSet<string>> AllowedOrdreIdsAsync(UserDataScope scope)
+    private async Task<IReadOnlyList<MissionListDto>> MissionsScopedAsync(MissionFilterDto? filter = null)
     {
-        if (scope.Unrestricted || string.IsNullOrEmpty(scope.EquipeId))
-            return new HashSet<string>();
-        var list = await _ordres.QueryEntitiesAsync(new OrdreFilterDto());
-        return list.Where(o => o.EquipeId == scope.EquipeId)
-            .Select(o => o.Id).ToHashSet();
+        filter ??= new MissionFilterDto();
+        var list = await _missions.ListAsync(filter);
+        var scope = await ScopeAsync();
+        if (scope.Unrestricted) return list;
+        return list.Where(m =>
+            scope.AllowsMission(m.Participations.Select(p => p.AgentId), m.EcoleId)).ToList();
     }
+
+    private async Task<HashSet<string>> AllowedMissionIdsAsync(UserDataScope scope)
+    {
+        if (scope.Unrestricted || string.IsNullOrEmpty(scope.AgentId))
+            return new HashSet<string>();
+        var list = await _missions.ListAsync(new MissionFilterDto());
+        return list
+            .Where(m => m.Participations.Any(p =>
+                string.Equals(p.AgentId, scope.AgentId, StringComparison.Ordinal)))
+            .Select(m => m.Id)
+            .ToHashSet();
+    }
+
+    private static IEnumerable<string> AgentIdsOf(MissionListDto? m)
+        => m?.Participations.Select(p => p.AgentId) ?? Enumerable.Empty<string>();
 
     private IActionResult? DenyPage(string action)
     {
@@ -132,13 +143,12 @@ public class HomeController : Controller
     public async Task<IActionResult> Index()
     {
         var scope = await ScopeAsync();
-        var dto = await _dashboard.GetDashboardAsync(Role, UserId, scope.EcoleId, scope.EquipeId);
+        var dto = await _dashboard.GetDashboardAsync(Role, UserId, scope.EcoleId, scope.AgentId);
         ViewBag.Role = dto.Role;
         ViewBag.RoleTip = dto.RoleTip;
         ViewBag.EcolesCount = dto.EcolesCount;
         ViewBag.MissionsEnCours = dto.MissionsEnCours;
         ViewBag.FichesEnAttente = dto.FichesEnAttente;
-        ViewBag.RapportsDeposes = dto.RapportsDeposes;
         ViewBag.DecisionsEnAttente = dto.DecisionsEnAttente;
         ViewBag.RecentJournal = dto.RecentJournal.Select(j => new JournalEntry
         {
@@ -158,7 +168,7 @@ public class HomeController : Controller
     public async Task<IActionResult> GetDashboardData()
     {
         var scope = await ScopeAsync();
-        return Json(await _dashboard.GetDashboardAsync(Role, UserId, scope.EcoleId, scope.EquipeId));
+        return Json(await _dashboard.GetDashboardAsync(Role, UserId, scope.EcoleId, scope.AgentId));
     }
 
     [AllowAnonymous]
@@ -188,22 +198,33 @@ public class HomeController : Controller
     // ——— Écoles ———
 
     [RequirePageAccess("ecoles")]
-    public async Task<IActionResult> Ecoles(string? q, string? commune, string? regime, string? statut)
+    public async Task<IActionResult> Ecoles(string? q, string? sousproved, string? regime)
     {
         var scope = await ScopeAsync();
-        var filter = new EcoleFilterDto { Q = q, Commune = commune, Regime = regime, Statut = statut };
-        var (communes, regimes) = await _ecoles.GetLookupsAsync();
+        var filter = new EcoleFilterDto { Q = q, Sousproved = sousproved, Regime = regime };
+        var (sousDivisions, regimes) = await _ecoles.GetLookupsAsync();
+        var categories = await _ecoles.GetCategoriesAsync();
         ViewBag.PageKey = "ecoles";
-        ViewBag.Communes = communes;
+        ViewBag.Sousproveds = sousDivisions;
         ViewBag.Regimes = regimes;
+        ViewBag.Categories = categories;
+        ViewBag.ChefsEtablissement = await _chefs.QueryEntitiesAsync(new ChefFilterDto());
         ViewBag.Q = q;
-        ViewBag.Commune = commune;
+        ViewBag.Sousproved = sousproved;
         ViewBag.Regime = regime;
-        ViewBag.Statut = statut;
         ViewBag.CanGererEcole = Can(AccessActions.GererEcole);
         var list = await _ecoles.QueryEntitiesAsync(filter);
         if (!scope.Unrestricted)
             list = list.Where(e => scope.AllowsEcole(e.Id)).ToList();
+
+        var allEcoles = await _ecoles.QueryEntitiesAsync(new EcoleFilterDto());
+        if (!scope.Unrestricted)
+            allEcoles = allEcoles.Where(e => scope.AllowsEcole(e.Id)).ToList();
+        ViewBag.StatTotal = allEcoles.Count;
+        ViewBag.StatAvecChef = allEcoles.Count(e => !string.IsNullOrWhiteSpace(e.MatriculeChef));
+        ViewBag.StatSansChef = allEcoles.Count(e => string.IsNullOrWhiteSpace(e.MatriculeChef));
+        ViewBag.StatRegimes = allEcoles.Select(e => e.RegGes).Where(r => !string.IsNullOrWhiteSpace(r)).Distinct().Count();
+
         return View(list);
     }
 
@@ -227,23 +248,21 @@ public class HomeController : Controller
     }
 
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("ecoles")]
-    public async Task<IActionResult> SaveEcole(EcoleFormViewModel model, string? DocumentsJson)
+    public async Task<IActionResult> SaveEcole(EcoleFormViewModel model)
     {
         if (DenyPage(AccessActions.GererEcole) is { } denied) return denied;
         var result = await _ecoles.SaveAsync(new SaveEcoleDto
         {
             Id = model.Id,
             Denomination = model.Denomination,
-            RegimeId = model.RegimeId,
+            RegGes = model.RegGes,
+            SousDivision = model.SousDivision,
+            CodeCategories = model.CodeCategories,
             IdDinacope = model.IdDinacope,
             NumAgrement = model.NumAgrement,
             NumNotification = model.NumNotification,
-            CommuneId = model.CommuneId,
-            Quartier = model.Quartier,
-            Avenue = model.Avenue,
-            Numero = model.Numero,
-            Statut = model.Statut,
-            DocumentsJson = DocumentsJson
+            MatriculeChef = model.MatriculeChef,
+            Adresse = model.Adresse
         });
         TempData["Toast"] = result.Message;
         TempData["ToastType"] = result.Success ? "success" : "danger";
@@ -257,20 +276,19 @@ public class HomeController : Controller
         return Json(await _ecoles.SaveAsync(dto));
     }
 
-    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("ecoles")]
-    public async Task<IActionResult> UploadEcoleDocument(string ecoleId, IFormFile file)
-    {
-        if (TryDenyJson(AccessActions.GererEcole, out var denied)) return denied;
-        return Json(await _ecoles.UploadDocumentAsync(ecoleId, file));
-    }
-
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("ecoles")]
     public async Task<IActionResult> DeleteEcole(string id)
     {
         if (DenyPage(AccessActions.GererEcole) is { } denied) return denied;
         var result = await _ecoles.DeleteAsync(id);
         TempData["Toast"] = result.Message;
-        TempData["ToastType"] = result.Success ? "success" : "danger";
+        TempData["ToastType"] = result.Success ? "success" : (result.Blocked ? "warning" : "danger");
+        if (result.Blocked)
+        {
+            TempData["ToastBlocked"] = true;
+            TempData["ToastTitle"] = result.Title;
+            TempData["ToastDetail"] = result.Detail;
+        }
         if (!result.Success && result.SuggestDeactivate)
             TempData["SuggestDeactivateId"] = id;
         return RedirectToAction(nameof(Ecoles));
@@ -305,10 +323,24 @@ public class HomeController : Controller
     public async Task<IActionResult> Chefs(string? q, string? ecoleId)
     {
         ViewBag.PageKey = "chefs";
-        ViewBag.Ecoles = await _ecoles.QueryEntitiesAsync(new EcoleFilterDto());
+        var ecoles = await _ecoles.QueryEntitiesAsync(new EcoleFilterDto());
+        ViewBag.Ecoles = ecoles;
         ViewBag.Q = q;
         ViewBag.EcoleId = ecoleId;
-        return View(await _chefs.QueryEntitiesAsync(new ChefFilterDto { Q = q, EcoleId = ecoleId }));
+        ViewBag.CanGererChefs = Can(AccessActions.GererChefs);
+        var chefs = await _chefs.QueryEntitiesAsync(new ChefFilterDto { Q = q, EcoleId = ecoleId });
+
+        var allChefs = await _chefs.QueryEntitiesAsync(new ChefFilterDto());
+        var assigned = ecoles
+            .Where(e => !string.IsNullOrWhiteSpace(e.MatriculeChef))
+            .Select(e => e.MatriculeChef!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        ViewBag.StatTotal = allChefs.Count;
+        ViewBag.StatAssignes = allChefs.Count(c => assigned.Contains(c.Matricule));
+        ViewBag.StatSansEcole = allChefs.Count(c => !assigned.Contains(c.Matricule));
+        ViewBag.StatAvecTel = allChefs.Count(c => !string.IsNullOrWhiteSpace(c.Telephone));
+
+        return View(chefs);
     }
 
     [RequirePageAccess("chefs"), HttpGet]
@@ -318,16 +350,14 @@ public class HomeController : Controller
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("chefs")]
     public async Task<IActionResult> SaveChef(Chef model)
     {
+        if (DenyPage(AccessActions.GererChefs) is { } denied) return denied;
         var result = await _chefs.SaveAsync(new SaveChefDto
         {
             Id = model.Id,
+            Matricule = model.Matricule,
             NomComplet = model.NomComplet,
-            IdDinacope = model.IdDinacope,
             Telephone = model.Telephone,
-            EcoleId = model.EcoleId,
-            AncienneteEnseignement = model.AncienneteEnseignement,
-            AncienneteChef = model.AncienneteChef,
-            AncienneteEcole = model.AncienneteEcole
+            AnneeDebutActivite = model.AnneeDebutActivite
         });
         TempData["Toast"] = result.Message;
         return RedirectToAction(nameof(Chefs));
@@ -335,76 +365,78 @@ public class HomeController : Controller
 
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("chefs")]
     public async Task<IActionResult> SaveChefJson([FromBody] SaveChefDto dto)
-        => Json(await _chefs.SaveAsync(dto));
+    {
+        if (TryDenyJson(AccessActions.GererChefs, out var denied)) return denied;
+        return Json(await _chefs.SaveAsync(dto));
+    }
 
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("chefs")]
     public async Task<IActionResult> DeleteChef(string id)
     {
+        if (DenyPage(AccessActions.GererChefs) is { } denied) return denied;
         TempData["Toast"] = (await _chefs.DeleteAsync(id)).Message;
         return RedirectToAction(nameof(Chefs));
     }
 
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("chefs")]
     public async Task<IActionResult> DeleteChefJson([FromBody] IdRequest dto)
-        => Json(await _chefs.DeleteAsync(dto.Id));
-
-    // ——— Contrôleurs (membres d’équipe, sans login) ———
-
-    [RequirePageAccess("controleurs")]
-    public async Task<IActionResult> Controleurs(string? q, string? equipeId)
     {
-        ViewBag.PageKey = "controleurs";
-        var equipes = await _parametres.QueryEntitiesAsync("equipes");
-        ViewBag.Equipes = equipes;
-        ViewBag.ChefControleurIds = equipes
-            .Where(e => !string.IsNullOrEmpty(e.ChefControleurId))
-            .Select(e => e.ChefControleurId!)
-            .ToHashSet(StringComparer.Ordinal);
+        if (TryDenyJson(AccessActions.GererChefs, out var denied)) return denied;
+        return Json(await _chefs.DeleteAsync(dto.Id));
+    }
+
+    // ——— Agents (vivier) ———
+
+    [RequirePageAccess("agents")]
+    public async Task<IActionResult> Agents(string? q, bool? actif)
+    {
+        ViewBag.PageKey = "agents";
         ViewBag.Q = q;
-        ViewBag.EquipeId = equipeId;
-        ViewBag.CanGerer = Can(AccessActions.GererControleurs);
-        return View(await _controleurs.QueryEntitiesAsync(new ControleurFilterDto { Q = q, EquipeId = equipeId }));
+        ViewBag.Actif = actif;
+        ViewBag.CanGerer = Can(AccessActions.GererAgents);
+        var list = await _agents.QueryEntitiesAsync(new AgentFilterDto { Q = q, Actif = actif });
+
+        var all = await _agents.QueryEntitiesAsync(new AgentFilterDto());
+        ViewBag.StatTotal = all.Count;
+        ViewBag.StatActifs = all.Count(a => a.Actif);
+        ViewBag.StatInactifs = all.Count(a => !a.Actif);
+        ViewBag.StatAvecTel = all.Count(a => !string.IsNullOrWhiteSpace(a.TelAgent));
+
+        return View(list);
     }
 
-    [RequirePageAccess("controleurs"), HttpGet]
-    public async Task<IActionResult> GetControleurs([FromQuery] ControleurFilterDto filter)
-        => Json(await _controleurs.ListAsync(filter));
+    [RequirePageAccess("agents"), HttpGet]
+    public async Task<IActionResult> GetAgents([FromQuery] AgentFilterDto filter)
+        => Json(await _agents.ListAsync(filter));
 
-    [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("controleurs")]
-    public async Task<IActionResult> SaveControleur(Controleur model)
+    [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("agents")]
+    public async Task<IActionResult> SaveAgent([FromForm] SaveAgentDto model)
     {
-        if (DenyPage(AccessActions.GererControleurs) is { } denied) return denied;
-        TempData["Toast"] = (await _controleurs.SaveAsync(new SaveControleurDto
-        {
-            Id = model.Id,
-            NomComplet = model.NomComplet,
-            Telephone = model.Telephone,
-            EquipeId = model.EquipeId,
-            Actif = model.Actif
-        })).Message;
-        return RedirectToAction(nameof(Controleurs));
+        if (DenyPage(AccessActions.GererAgents) is { } denied) return denied;
+        TempData["Toast"] = (await _agents.SaveAsync(model)).Message;
+        return RedirectToAction(nameof(Agents));
     }
 
-    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("controleurs")]
-    public async Task<IActionResult> SaveControleurJson([FromBody] SaveControleurDto dto)
+    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("agents")]
+    public async Task<IActionResult> SaveAgentJson([FromBody] SaveAgentDto dto)
     {
-        if (TryDenyJson(AccessActions.GererControleurs, out var denied)) return denied;
-        return Json(await _controleurs.SaveAsync(dto));
+        if (TryDenyJson(AccessActions.GererAgents, out var denied)) return denied;
+        return Json(await _agents.SaveAsync(dto));
     }
 
-    [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("controleurs")]
-    public async Task<IActionResult> DeleteControleur(string id)
+    [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("agents")]
+    public async Task<IActionResult> DeleteAgent(string id)
     {
-        if (DenyPage(AccessActions.GererControleurs) is { } denied) return denied;
-        TempData["Toast"] = (await _controleurs.DeleteAsync(id)).Message;
-        return RedirectToAction(nameof(Controleurs));
+        if (DenyPage(AccessActions.GererAgents) is { } denied) return denied;
+        TempData["Toast"] = (await _agents.DeleteAsync(id)).Message;
+        return RedirectToAction(nameof(Agents));
     }
 
-    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("controleurs")]
-    public async Task<IActionResult> DeleteControleurJson([FromBody] IdRequest dto)
+    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("agents")]
+    public async Task<IActionResult> DeleteAgentJson([FromBody] IdRequest dto)
     {
-        if (TryDenyJson(AccessActions.GererControleurs, out var denied)) return denied;
-        return Json(await _controleurs.DeleteAsync(dto.Id));
+        if (TryDenyJson(AccessActions.GererAgents, out var denied)) return denied;
+        return Json(await _agents.DeleteAsync(dto.Id));
     }
 
     // ——— Utilisateurs ———
@@ -413,9 +445,9 @@ public class HomeController : Controller
     public async Task<IActionResult> Utilisateurs()
     {
         ViewBag.PageKey = "utilisateurs";
-        ViewBag.Equipes = await _parametres.QueryEntitiesAsync("equipes");
+        ViewBag.AgentsSansCompte = await _utilisateurs.ListAgentsSansCompteAsync();
         ViewBag.Ecoles = await _ecoles.QueryEntitiesAsync(new EcoleFilterDto());
-        return View(await _utilisateurs.QueryEntitiesAsync());
+        return View(await _utilisateurs.ListAsync());
     }
 
     [RequirePageAccess("utilisateurs"), HttpGet]
@@ -425,15 +457,12 @@ public class HomeController : Controller
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("utilisateurs")]
     public async Task<IActionResult> SaveUtilisateur(Utilisateur model)
     {
-        // Création uniquement — Id ignoré / refusé côté service.
         var result = await _utilisateurs.CreateAsync(new SaveUtilisateurDto
         {
             Nom = model.Nom,
             Contact = model.Contact,
             Role = model.Role,
-            Equipe = model.Equipe,
-            EquipeId = model.EquipeId,
-            ControleurId = model.ControleurId,
+            AgentId = model.AgentId,
             Statut = model.Statut,
             MotDePasse = model.MotDePasse,
             ConfirmationMotDePasse = model.ConfirmationMotDePasse,
@@ -448,14 +477,13 @@ public class HomeController : Controller
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("utilisateurs")]
     public async Task<IActionResult> SaveUtilisateurJson([FromBody] SaveUtilisateurDto dto)
     {
-        // Refuse toute modification (Id rempli) via CreateAsync / SaveAsync.
         dto.Id = string.IsNullOrWhiteSpace(dto.Id) ? null : dto.Id;
         return Json(await _utilisateurs.SaveAsync(dto));
     }
 
     [RequirePageAccess("utilisateurs"), HttpGet]
-    public async Task<IActionResult> GetChefsEquipeSansCompte(string? excludeUserId = null)
-        => Json(await _utilisateurs.ListChefsEquipeSansCompteAsync(excludeUserId));
+    public async Task<IActionResult> GetAgentsSansCompte(string? excludeUserId = null)
+        => Json(await _utilisateurs.ListAgentsSansCompteAsync(excludeUserId));
 
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("utilisateurs")]
     public async Task<IActionResult> SetUtilisateurStatut(string id, string statut)
@@ -474,110 +502,162 @@ public class HomeController : Controller
         return Json(await _utilisateurs.SetStatutAsync(dto.Id, dto.Statut));
     }
 
-    // ——— Ordres ———
+    // ——— Missions ———
 
-    [RequirePageAccess("ordres")]
-    public async Task<IActionResult> OrdresMission(string? q, string? statut)
+    [RequirePageAccess("missions")]
+    public async Task<IActionResult> Missions(string? q, string? statut)
     {
-        var scope = await ScopeAsync();
-        ViewBag.PageKey = "ordres";
+        ViewBag.PageKey = "missions";
         ViewBag.Ecoles = await _ecoles.QueryEntitiesAsync(new EcoleFilterDto());
-        ViewBag.Equipes = await _parametres.QueryEntitiesAsync("equipes");
-        ViewBag.CanGererOrdre = Can(AccessActions.GererOrdre);
-        ViewBag.CanSigner = Can(AccessActions.SignerOrdre);
+        ViewBag.Agents = await _agents.QueryEntitiesAsync(new AgentFilterDto { Actif = true });
+        ViewBag.RolesMission = RolesMissionCodes.Labels;
+        ViewBag.CanGererMission = Can(AccessActions.GererMission);
+        ViewBag.CanSigner = Can(AccessActions.SignerMission);
         ViewBag.Q = q;
         ViewBag.Statut = statut;
-        var list = await _ordres.QueryEntitiesAsync(new OrdreFilterDto { Q = q, Statut = statut });
-        if (!scope.Unrestricted)
-            list = list.Where(o => scope.AllowsOrdre(o.EquipeId, o.EcoleId)).ToList();
-        return View(list);
+        return View(await MissionsScopedAsync(new MissionFilterDto { Q = q, Statut = statut }));
     }
 
-    [RequirePageAccess("ordres"), HttpGet]
-    public async Task<IActionResult> GetOrdres([FromQuery] OrdreFilterDto filter)
+    [RequirePageAccess("missions"), HttpGet]
+    public async Task<IActionResult> GetMissions([FromQuery] MissionFilterDto filter)
+        => Json(await MissionsScopedAsync(filter));
+
+    [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("missions")]
+    public async Task<IActionResult> SaveMission(
+        string? Id, string EcoleId, string Statut,
+        DateTime? DateEmission, DateTime? FinValidite,
+        string[]? AgentIds, string[]? RoleMissions)
     {
         var scope = await ScopeAsync();
-        var list = await _ordres.ListAsync(filter);
-        if (!scope.Unrestricted)
-            list = list.Where(o => scope.AllowsOrdre(o.EquipeId, o.EcoleId)).ToList();
-        return Json(list);
-    }
-
-    [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("ordres")]
-    public async Task<IActionResult> SaveOrdre(OrdreMission model)
-    {
-        if (DenyPage(AccessActions.GererOrdre) is { } denied) return denied;
-        TempData["Toast"] = (await _ordres.SaveAsync(new SaveOrdreMissionDto
+        var isNew = string.IsNullOrWhiteSpace(Id);
+        if (isNew)
         {
-            Id = model.Id,
-            EcoleId = model.EcoleId,
-            EquipeId = model.EquipeId,
-            Statut = model.Statut,
-            DateEmission = model.DateEmission,
-            DebutValidite = model.DebutValidite,
-            FinValidite = model.FinValidite,
-            Objet = model.Objet
+            if (DenyPage(AccessActions.GererMission) is { } denied) return denied;
+        }
+        else if (!Can(AccessActions.GererMission)
+                 && !await _missionAccess.CanWriteMissionAsync(Id!, scope.AgentId, scope.Unrestricted))
+        {
+            return DenyScopePage();
+        }
+
+        var participations = BuildParticipations(AgentIds, RoleMissions);
+        TempData["Toast"] = (await _missions.SaveAsync(new SaveMissionDto
+        {
+            Id = Id,
+            EcoleId = EcoleId,
+            Statut = Statut,
+            DateEmission = DateEmission,
+            FinValidite = FinValidite,
+            Participations = participations
         })).Message;
-        return RedirectToAction(nameof(OrdresMission));
+        return RedirectToAction(nameof(Missions));
     }
 
-    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("ordres")]
-    public async Task<IActionResult> SaveOrdreJson([FromBody] SaveOrdreMissionDto dto)
+    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("missions")]
+    public async Task<IActionResult> SaveMissionJson([FromBody] SaveMissionDto dto)
     {
-        if (TryDenyJson(AccessActions.GererOrdre, out var denied)) return denied;
-        return Json(await _ordres.SaveAsync(dto));
+        var scope = await ScopeAsync();
+        var isNew = string.IsNullOrWhiteSpace(dto.Id);
+        if (isNew)
+        {
+            if (TryDenyJson(AccessActions.GererMission, out var denied)) return denied;
+        }
+        else if (!Can(AccessActions.GererMission)
+                 && !await _missionAccess.CanWriteMissionAsync(dto.Id!, scope.AgentId, scope.Unrestricted))
+        {
+            return DenyScopeJson();
+        }
+        return Json(await _missions.SaveAsync(dto));
     }
 
-    [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("ordres")]
-    public async Task<IActionResult> SignerOrdre(string id)
+    [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("missions")]
+    public async Task<IActionResult> SignerMission(string id)
     {
-        if (DenyPage(AccessActions.SignerOrdre) is { } denied) return denied;
-        TempData["Toast"] = (await _ordres.SignerAsync(id, UserId)).Message;
-        return RedirectToAction(nameof(OrdresMission));
+        if (DenyPage(AccessActions.SignerMission) is { } denied) return denied;
+        TempData["Toast"] = (await _missions.SignerAsync(id, UserId)).Message;
+        return RedirectToAction(nameof(Missions));
     }
 
-    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("ordres")]
-    public async Task<IActionResult> SignerOrdreJson([FromBody] IdRequest dto)
+    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("missions")]
+    public async Task<IActionResult> SignerMissionJson([FromBody] IdRequest dto)
     {
-        if (TryDenyJson(AccessActions.SignerOrdre, out var denied)) return denied;
-        return Json(await _ordres.SignerAsync(dto.Id, UserId));
+        if (TryDenyJson(AccessActions.SignerMission, out var denied)) return denied;
+        return Json(await _missions.SignerAsync(dto.Id, UserId));
     }
 
-    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("ordres")]
-    public async Task<IActionResult> DemanderSignatureOrdreJson([FromBody] IdRequest dto)
+    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("missions")]
+    public async Task<IActionResult> DemanderSignatureMissionJson([FromBody] IdRequest dto)
     {
-        if (TryDenyJson(AccessActions.GererOrdre, out var denied)) return denied;
-        return Json(await _ordres.DemanderSignatureAsync(dto.Id, UserId));
+        var scope = await ScopeAsync();
+        if (!Can(AccessActions.GererMission)
+            && !await _missionAccess.CanWriteMissionAsync(dto.Id, scope.AgentId, scope.Unrestricted))
+            return DenyScopeJson();
+        return Json(await _missions.DemanderSignatureAsync(dto.Id, UserId));
     }
 
-    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("ordres")]
-    public async Task<IActionResult> PasserEnCoursOrdreJson([FromBody] IdRequest dto)
+    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("missions")]
+    public async Task<IActionResult> PasserEnCoursMissionJson([FromBody] IdRequest dto)
     {
-        if (TryDenyJson(AccessActions.GererOrdre, out var denied)) return denied;
-        return Json(await _ordres.PasserEnCoursAsync(dto.Id, UserId));
+        var scope = await ScopeAsync();
+        if (!Can(AccessActions.GererMission)
+            && !await _missionAccess.CanWriteMissionAsync(dto.Id, scope.AgentId, scope.Unrestricted))
+            return DenyScopeJson();
+        return Json(await _missions.PasserEnCoursAsync(dto.Id, UserId));
     }
 
-    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("ordres")]
-    public async Task<IActionResult> CloturerOrdreJson([FromBody] IdRequest dto)
+    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("missions")]
+    public async Task<IActionResult> CloturerMissionJson([FromBody] IdRequest dto)
     {
-        if (TryDenyJson(AccessActions.GererOrdre, out var denied)) return denied;
-        return Json(await _ordres.CloturerAsync(dto.Id, UserId));
+        var scope = await ScopeAsync();
+        if (!Can(AccessActions.GererMission)
+            && !await _missionAccess.CanWriteMissionAsync(dto.Id, scope.AgentId, scope.Unrestricted))
+            return DenyScopeJson();
+        return Json(await _missions.CloturerAsync(dto.Id, UserId));
     }
 
-    [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("ordres")]
-    public async Task<IActionResult> DeleteOrdre(string id)
+    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("missions")]
+    public async Task<IActionResult> DeleguerEcritureAdjointJson([FromBody] IdRequest dto)
+        => Json(await _missions.DeleguerEcritureAdjointAsync(dto.Id, UserId));
+
+    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("missions")]
+    public async Task<IActionResult> RetirerDelegationAdjointJson([FromBody] IdRequest dto)
+        => Json(await _missions.RetirerDelegationAdjointAsync(dto.Id, UserId));
+
+    [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("missions")]
+    public async Task<IActionResult> DeleteMission(string id)
     {
-        if (DenyPage(AccessActions.GererOrdre) is { } denied) return denied;
-        TempData["Toast"] = (await _ordres.DeleteAsync(id)).Message;
-        return RedirectToAction(nameof(OrdresMission));
+        var scope = await ScopeAsync();
+        if (!Can(AccessActions.GererMission)
+            && !await _missionAccess.CanWriteMissionAsync(id, scope.AgentId, scope.Unrestricted))
+            return DenyScopePage();
+        TempData["Toast"] = (await _missions.DeleteAsync(id)).Message;
+        return RedirectToAction(nameof(Missions));
     }
 
-    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("ordres")]
-    public async Task<IActionResult> DeleteOrdreJson([FromBody] IdRequest dto)
+    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("missions")]
+    public async Task<IActionResult> DeleteMissionJson([FromBody] IdRequest dto)
     {
-        if (TryDenyJson(AccessActions.GererOrdre, out var denied)) return denied;
-        return Json(await _ordres.DeleteAsync(dto.Id));
+        var scope = await ScopeAsync();
+        if (!Can(AccessActions.GererMission)
+            && !await _missionAccess.CanWriteMissionAsync(dto.Id, scope.AgentId, scope.Unrestricted))
+            return DenyScopeJson();
+        return Json(await _missions.DeleteAsync(dto.Id));
     }
+
+    private static List<SaveParticipationDto> BuildParticipations(string[]? agentIds, string[]? roleIds)
+    {
+        var result = new List<SaveParticipationDto>();
+        if (agentIds == null || roleIds == null) return result;
+        var n = Math.Min(agentIds.Length, roleIds.Length);
+        for (var i = 0; i < n; i++)
+        {
+            if (string.IsNullOrWhiteSpace(agentIds[i]) || string.IsNullOrWhiteSpace(roleIds[i]))
+                continue;
+            result.Add(new SaveParticipationDto { AgentId = agentIds[i], RoleMission = roleIds[i] });
+        }
+        return result;
+    }
+
     // ——— Fiches ———
 
     [RequirePageAccess("fiches")]
@@ -585,29 +665,35 @@ public class HomeController : Controller
     {
         var scope = await ScopeAsync();
         ViewBag.PageKey = "fiches";
-        var allOrdres = await _ordres.QueryEntitiesAsync(new OrdreFilterDto());
-        if (!scope.Unrestricted)
-            allOrdres = allOrdres.Where(o => scope.AllowsOrdre(o.EquipeId, o.EcoleId)).ToList();
-        ViewBag.OrdresSignes = allOrdres.Where(o => o.Statut is "signe" or "en_cours").ToList();
-        ViewBag.AllOrdres = allOrdres;
+        var allMissions = (await MissionsScopedAsync()).ToList();
+        ViewBag.MissionsSignes = allMissions.Where(m => m.Statut is "signe" or "en_cours").ToList();
+        ViewBag.AllMissions = allMissions;
         var ecoles = await _ecoles.QueryEntitiesAsync(new EcoleFilterDto());
         if (!scope.Unrestricted)
-            ecoles = ecoles.Where(e => scope.AllowsEcole(e.Id) || allOrdres.Any(o => o.EcoleId == e.Id)).ToList();
+            ecoles = ecoles.Where(e =>
+                scope.AllowsEcole(e.Id) || allMissions.Any(m => m.EcoleId == e.Id)).ToList();
         ViewBag.Ecoles = ecoles;
         ViewBag.Chefs = await _chefs.QueryEntitiesAsync(new ChefFilterDto());
-        ViewBag.Produits = new[] { "Javel", "Savon", "Détergent", "Serpillère", "Seau", "Balai" };
+        ViewBag.Produits = await _parametres.QueryEntitiesAsync(RefCategories.Produits);
+        ViewBag.Outils = await _parametres.QueryEntitiesAsync(RefCategories.Outils);
         ViewBag.Etats = EtatBatiment.FormOptions;
-        ViewBag.Recommandations = new[] { "Maintien", "Avertissement", "Réhabilitation", "Fermeture temporaire", "Fermeture définitive" };
+        ViewBag.Recommandations = DecisionTypes.Labels.Values.ToArray();
         ViewBag.CanCreerFiche = Can(AccessActions.CreerFiche);
         ViewBag.CanValider = Can(AccessActions.ValiderFiche);
         ViewBag.Q = q;
         ViewBag.Statut = statut;
+
         var fiches = await _fiches.QueryEntitiesAsync(new FicheFilterDto { Q = q, Statut = statut });
-        var omIds = allOrdres.Select(o => o.Id).ToHashSet();
-        var ordreEquipe = allOrdres.ToDictionary(o => o.Id, o => o.EquipeId);
+        var missionIds = allMissions.Select(m => m.Id).ToHashSet();
+        var missionById = allMissions.ToDictionary(m => m.Id);
         if (!scope.Unrestricted)
-            fiches = fiches.Where(f => scope.AllowsFiche(
-                ordreEquipe.GetValueOrDefault(f.OrdreMissionId), f.EcoleId, omIds, f.OrdreMissionId)).ToList();
+        {
+            fiches = fiches.Where(f =>
+            {
+                missionById.TryGetValue(f.MissionId, out var m);
+                return scope.AllowsFiche(AgentIdsOf(m), f.EcoleId, missionIds, f.MissionId);
+            }).ToList();
+        }
         return View(fiches);
     }
 
@@ -616,46 +702,66 @@ public class HomeController : Controller
     {
         var scope = await ScopeAsync();
         var list = await _fiches.ListAsync(filter);
-        var omIds = await AllowedOrdreIdsAsync(scope);
-        var ordres = await _ordres.QueryEntitiesAsync(new OrdreFilterDto());
-        var ordreEquipe = ordres.ToDictionary(o => o.Id, o => o.EquipeId);
+        var missions = await MissionsScopedAsync();
+        var missionIds = missions.Select(m => m.Id).ToHashSet();
+        var missionById = missions.ToDictionary(m => m.Id);
         if (!scope.Unrestricted)
-            list = list.Where(f => scope.AllowsFiche(
-                ordreEquipe.GetValueOrDefault(f.OrdreMissionId), f.EcoleId, omIds, f.OrdreMissionId)).ToList();
+        {
+            list = list.Where(f =>
+            {
+                missionById.TryGetValue(f.MissionId, out var m);
+                return scope.AllowsFiche(AgentIdsOf(m), f.EcoleId, missionIds, f.MissionId);
+            }).ToList();
+        }
         return Json(list);
     }
 
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("fiches")]
     public async Task<IActionResult> SaveFiche(
-        string? Id, string OrdreMissionId, string Statut,
+        string? Id, string MissionId, string Statut,
         int? NombreBatiments, string? EtatGeneral, int? NombreEleves,
-        string? ToilettesFilles, string? ToilettesGarcons,
-        string? MontantPercu, string? Quantite, string? ProduitsAutres,
+        int? ToilettesFilles, int? ToilettesGarcons,
+        string? ProduitsAutres, int? ProduitsAutresQuantite,
         string? Observations, string? RecommandationPreliminaire,
-        string[]? ProduitsNettoyage, string? PhotosJson)
+        int[]? ProduitQuantites, string? PhotosJson,
+        int[]? ProduitCodes, int? CodeOutil, int? NbreOutil)
     {
         if (DenyPage(AccessActions.CreerFiche) is { } denied) return denied;
         var scope = await ScopeAsync();
-        var ordres = await _ordres.QueryEntitiesAsync(new OrdreFilterDto());
-        var ordre = ordres.FirstOrDefault(o => o.Id == OrdreMissionId);
-        if (ordre == null || !scope.AllowsOrdre(ordre.EquipeId, ordre.EcoleId))
+        var missions = await MissionsScopedAsync();
+        var mission = missions.FirstOrDefault(m => m.Id == MissionId);
+        if (mission == null || !scope.AllowsMission(AgentIdsOf(mission), mission.EcoleId))
             return DenyScopePage();
+        if (!scope.Unrestricted
+            && !await _missionAccess.CanWriteMissionAsync(MissionId, scope.AgentId, false))
+            return DenyScopePage();
+        var codes = ProduitCodes ?? [];
+        var qtes = ProduitQuantites ?? [];
+        var controleProduits = codes
+            .Select((code, i) => new SaveControleProduitDto
+            {
+                ProduitCode = code,
+                Quantite = i < qtes.Length ? qtes[i] : 0
+            })
+            .Where(c => c.ProduitCode > 0)
+            .ToList();
         var result = await _fiches.SaveAsync(new SaveFicheControleDto
         {
             Id = Id,
-            OrdreMissionId = OrdreMissionId,
+            MissionId = MissionId,
             Statut = Statut,
             NombreBatiments = NombreBatiments ?? 0,
             EtatGeneral = EtatGeneral ?? "Satisfaisant",
             NombreEleves = NombreEleves ?? 0,
-            ToilettesFilles = ToilettesFilles ?? "",
-            ToilettesGarcons = ToilettesGarcons ?? "",
-            MontantPercu = MontantPercu ?? "",
-            Quantite = Quantite ?? "",
-            ProduitsAutres = ProduitsAutres ?? "",
+            ToilettesFilles = ToilettesFilles ?? 0,
+            ToilettesGarcons = ToilettesGarcons ?? 0,
+            ProduitsAutres = ProduitsAutres,
+            ProduitsAutresQuantite = ProduitsAutresQuantite,
             Observations = Observations,
             RecommandationPreliminaire = RecommandationPreliminaire ?? "Maintien",
-            ProduitsNettoyage = ProduitsNettoyage,
+            ControleProduits = controleProduits,
+            CodeOutil = CodeOutil,
+            NbreOutil = NbreOutil ?? 0,
             PhotosJson = PhotosJson
         });
         TempData["Toast"] = result.Message;
@@ -668,9 +774,12 @@ public class HomeController : Controller
     {
         if (TryDenyJson(AccessActions.CreerFiche, out var denied)) return denied;
         var scope = await ScopeAsync();
-        var ordres = await _ordres.QueryEntitiesAsync(new OrdreFilterDto());
-        var ordre = ordres.FirstOrDefault(o => o.Id == dto.OrdreMissionId);
-        if (ordre == null || !scope.AllowsOrdre(ordre.EquipeId, ordre.EcoleId))
+        var missions = await MissionsScopedAsync();
+        var mission = missions.FirstOrDefault(m => m.Id == dto.MissionId);
+        if (mission == null || !scope.AllowsMission(AgentIdsOf(mission), mission.EcoleId))
+            return DenyScopeJson();
+        if (!scope.Unrestricted
+            && !await _missionAccess.CanWriteMissionAsync(dto.MissionId, scope.AgentId, false))
             return DenyScopeJson();
         return Json(await _fiches.SaveAsync(dto));
     }
@@ -686,13 +795,7 @@ public class HomeController : Controller
     public async Task<IActionResult> SoumettreFiche(string id)
     {
         if (DenyPage(AccessActions.CreerFiche) is { } denied) return denied;
-        var scope = await ScopeAsync();
-        var omIds = await AllowedOrdreIdsAsync(scope);
-        var fiche = (await _fiches.QueryEntitiesAsync(new FicheFilterDto())).FirstOrDefault(f => f.Id == id);
-        if (fiche == null)
-            return DenyScopePage();
-        var ordre = (await _ordres.QueryEntitiesAsync(new OrdreFilterDto())).FirstOrDefault(o => o.Id == fiche.OrdreMissionId);
-        if (!scope.AllowsFiche(ordre?.EquipeId, fiche.EcoleId, omIds, fiche.OrdreMissionId))
+        if (!await AllowsFicheIdAsync(id))
             return DenyScopePage();
         var result = await _fiches.SoumettrePourValidationAsync(id, UserId);
         TempData["Toast"] = result.Message;
@@ -704,13 +807,7 @@ public class HomeController : Controller
     public async Task<IActionResult> SoumettreFicheJson([FromBody] IdRequest dto)
     {
         if (TryDenyJson(AccessActions.CreerFiche, out var denied)) return denied;
-        var scope = await ScopeAsync();
-        var omIds = await AllowedOrdreIdsAsync(scope);
-        var fiche = (await _fiches.QueryEntitiesAsync(new FicheFilterDto())).FirstOrDefault(f => f.Id == dto.Id);
-        if (fiche == null)
-            return DenyScopeJson();
-        var ordre = (await _ordres.QueryEntitiesAsync(new OrdreFilterDto())).FirstOrDefault(o => o.Id == fiche.OrdreMissionId);
-        if (!scope.AllowsFiche(ordre?.EquipeId, fiche.EcoleId, omIds, fiche.OrdreMissionId))
+        if (!await AllowsFicheIdAsync(dto.Id))
             return DenyScopeJson();
         return Json(await _fiches.SoumettrePourValidationAsync(dto.Id, UserId));
     }
@@ -720,8 +817,10 @@ public class HomeController : Controller
     {
         if (DenyPage(AccessActions.ValiderFiche) is { } denied) return denied;
         var scope = await ScopeAsync();
-        var fiche = (await _fiches.QueryEntitiesAsync(new FicheFilterDto())).FirstOrDefault(f => f.Id == id);
-        if (fiche == null || !scope.AllowsEcole(fiche.EcoleId))
+        if (!await AllowsFicheIdAsync(id))
+            return DenyScopePage();
+        if (!scope.Unrestricted
+            && !await _missionAccess.CanWriteMissionAsync(id, scope.AgentId, false))
             return DenyScopePage();
         TempData["Toast"] = (await _fiches.ValiderAsync(id, UserId)).Message;
         return RedirectToAction(nameof(FichesControle));
@@ -732,8 +831,10 @@ public class HomeController : Controller
     {
         if (TryDenyJson(AccessActions.ValiderFiche, out var denied)) return denied;
         var scope = await ScopeAsync();
-        var fiche = (await _fiches.QueryEntitiesAsync(new FicheFilterDto())).FirstOrDefault(f => f.Id == dto.Id);
-        if (fiche == null || !scope.AllowsEcole(fiche.EcoleId))
+        if (!await AllowsFicheIdAsync(dto.Id))
+            return DenyScopeJson();
+        if (!scope.Unrestricted
+            && !await _missionAccess.CanWriteMissionAsync(dto.Id, scope.AgentId, false))
             return DenyScopeJson();
         return Json(await _fiches.ValiderAsync(dto.Id, UserId));
     }
@@ -742,13 +843,7 @@ public class HomeController : Controller
     public async Task<IActionResult> DeleteFiche(string id)
     {
         if (DenyPage(AccessActions.CreerFiche) is { } denied) return denied;
-        var scope = await ScopeAsync();
-        var omIds = await AllowedOrdreIdsAsync(scope);
-        var fiche = (await _fiches.QueryEntitiesAsync(new FicheFilterDto())).FirstOrDefault(f => f.Id == id);
-        if (fiche == null)
-            return DenyScopePage();
-        var ordre = (await _ordres.QueryEntitiesAsync(new OrdreFilterDto())).FirstOrDefault(o => o.Id == fiche.OrdreMissionId);
-        if (!scope.AllowsFiche(ordre?.EquipeId, fiche.EcoleId, omIds, fiche.OrdreMissionId))
+        if (!await AllowsFicheIdAsync(id))
             return DenyScopePage();
         TempData["Toast"] = (await _fiches.DeleteAsync(id)).Message;
         return RedirectToAction(nameof(FichesControle));
@@ -758,246 +853,24 @@ public class HomeController : Controller
     public async Task<IActionResult> DeleteFicheJson([FromBody] IdRequest dto)
     {
         if (TryDenyJson(AccessActions.CreerFiche, out var denied)) return denied;
-        var scope = await ScopeAsync();
-        var omIds = await AllowedOrdreIdsAsync(scope);
-        var fiche = (await _fiches.QueryEntitiesAsync(new FicheFilterDto())).FirstOrDefault(f => f.Id == dto.Id);
-        if (fiche == null)
-            return DenyScopeJson();
-        var ordre = (await _ordres.QueryEntitiesAsync(new OrdreFilterDto())).FirstOrDefault(o => o.Id == fiche.OrdreMissionId);
-        if (!scope.AllowsFiche(ordre?.EquipeId, fiche.EcoleId, omIds, fiche.OrdreMissionId))
+        if (!await AllowsFicheIdAsync(dto.Id))
             return DenyScopeJson();
         return Json(await _fiches.DeleteAsync(dto.Id));
     }
-    private async Task<Dictionary<string, string>> OrdreEquipeMapAsync()
-    {
-        var ordres = await _ordres.QueryEntitiesAsync(new OrdreFilterDto());
-        return ordres.ToDictionary(o => o.Id, o => o.EquipeId);
-    }
 
-    private bool AllowsFicheScoped(UserDataScope scope, string? ordreMissionId, string? ecoleId,
-        ISet<string> omIds, IReadOnlyDictionary<string, string> ordreEquipe)
-    {
-        var equipeId = !string.IsNullOrEmpty(ordreMissionId) && ordreEquipe.TryGetValue(ordreMissionId, out var eq)
-            ? eq : null;
-        return scope.AllowsFiche(equipeId, ecoleId, omIds, ordreMissionId);
-    }
-
-    // ——— Rapports ———
-
-    [RequirePageAccess("rapports")]
-    public async Task<IActionResult> Rapports()
+    private async Task<bool> AllowsFicheIdAsync(string id)
     {
         var scope = await ScopeAsync();
-        ViewBag.PageKey = "rapports";
-        var canCreer = Can(AccessActions.CreerRapport);
-        ViewBag.CanCreerRapport = canCreer;
-
-        var fichesConsommees = await _rapports.ListFicheIdsConsommeesAsync();
-        ViewBag.FicheIdsConsommees = fichesConsommees;
-
-        var fichesValidees = await _fiches.QueryEntitiesAsync(new FicheFilterDto { Statut = "validee" });
-        var fiches = await _fiches.QueryEntitiesAsync(new FicheFilterDto());
-        var ecoles = await _ecoles.QueryEntitiesAsync(new EcoleFilterDto());
-        var rapports = await _rapports.QueryEntitiesAsync();
-        var omIds = await AllowedOrdreIdsAsync(scope);
-        var ordreEquipe = await OrdreEquipeMapAsync();
-        var allowedFicheIds = fiches.Where(f => AllowsFicheScoped(scope, f.OrdreMissionId, f.EcoleId, omIds, ordreEquipe))
-            .Select(f => f.Id).ToHashSet();
-        if (!scope.Unrestricted)
-        {
-            fichesValidees = fichesValidees.Where(f => AllowsFicheScoped(scope, f.OrdreMissionId, f.EcoleId, omIds, ordreEquipe)).ToList();
-            fiches = fiches.Where(f => AllowsFicheScoped(scope, f.OrdreMissionId, f.EcoleId, omIds, ordreEquipe)).ToList();
-            rapports = rapports.Where(r => scope.AllowsRapport(r.EcoleId, r.FicheIds, allowedFicheIds)).ToList();
-            ecoles = ecoles.Where(e =>
-                scope.AllowsEcole(e.Id) || rapports.Any(r => r.EcoleId == e.Id) || fiches.Any(f => f.EcoleId == e.Id)).ToList();
-        }
-
-        // Ne proposer au formulaire que les fiches validées non déjà déposées
-        fichesValidees = fichesValidees.Where(f => !fichesConsommees.Contains(f.Id)).ToList();
-
-        var rapportPeutDeposer = new Dictionary<string, bool>(StringComparer.Ordinal);
-        foreach (var r in rapports)
-        {
-            if (r.Statut != "brouillon" || r.FicheIds.Count == 0)
-                rapportPeutDeposer[r.Id] = false;
-            else
-            {
-                var deja = await _rapports.FindFichesDejaConsommeesAsync(r.FicheIds, excludeRapportId: r.Id);
-                rapportPeutDeposer[r.Id] = deja.Count == 0;
-            }
-        }
-        ViewBag.RapportPeutDeposer = rapportPeutDeposer;
-
-        ViewBag.FichesValidees = fichesValidees;
-        ViewBag.Fiches = fiches;
-        ViewBag.Ecoles = ecoles;
-        return View(rapports);
-    }
-
-    [RequirePageAccess("rapports"), HttpGet]
-    public async Task<IActionResult> GetRapports()
-    {
-        var scope = await ScopeAsync();
-        var list = await _rapports.ListAsync();
-        if (!scope.Unrestricted)
-        {
-            var omIds = await AllowedOrdreIdsAsync(scope);
-            var fiches = await _fiches.QueryEntitiesAsync(new FicheFilterDto());
-            var ordreEquipe = await OrdreEquipeMapAsync();
-            var allowedFicheIds = fiches.Where(f => AllowsFicheScoped(scope, f.OrdreMissionId, f.EcoleId, omIds, ordreEquipe))
-                .Select(f => f.Id).ToHashSet();
-            list = list.Where(r => scope.AllowsRapport(r.EcoleId, r.FicheIds, allowedFicheIds)).ToList();
-        }
-        return Json(list);
-    }
-
-    [RequirePageAccess("rapports"), HttpPost, IgnoreAntiforgeryToken]
-    public async Task<IActionResult> BuildSyntheseJson([FromBody] FicheIdsRequest dto)
-        => Json(new { success = true, synthese = await _rapports.BuildSyntheseAsync(dto.FicheIds) });
-
-    [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("rapports")]
-    public async Task<IActionResult> SaveRapport(Rapport model, string[]? ficheIds)
-    {
-        if (DenyPage(AccessActions.CreerRapport) is { } denied) return denied;
-        var scope = await ScopeAsync();
-        if (!await CanTouchRapportAsync(scope, model.Id, model.EcoleId, ficheIds))
-            return DenyScopePage();
-        TempData["Toast"] = (await _rapports.SaveAsync(new SaveRapportDto
-        {
-            Id = model.Id,
-            EcoleId = model.EcoleId,
-            FicheIds = ficheIds,
-            Synthese = model.Synthese,
-            Statut = model.Statut
-        })).Message;
-        return RedirectToAction(nameof(Rapports));
-    }
-
-    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("rapports")]
-    public async Task<IActionResult> SaveRapportJson([FromBody] SaveRapportDto dto)
-    {
-        if (TryDenyJson(AccessActions.CreerRapport, out var denied)) return denied;
-        var scope = await ScopeAsync();
-        if (!await CanTouchRapportAsync(scope, dto.Id, dto.EcoleId, dto.FicheIds))
-            return DenyScopeJson();
-        return Json(await _rapports.SaveAsync(dto));
-    }
-
-    [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("rapports")]
-    public async Task<IActionResult> DeposerRapport(string id)
-    {
-        if (DenyPage(AccessActions.CreerRapport) is { } denied) return denied;
-        var scope = await ScopeAsync();
-        if (!await CanTouchExistingRapportAsync(scope, id))
-            return DenyScopePage();
-        TempData["Toast"] = (await _rapports.DeposerAsync(id, UserId)).Message;
-        return RedirectToAction(nameof(Rapports));
-    }
-
-    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("rapports")]
-    public async Task<IActionResult> DeposerRapportJson([FromBody] IdRequest dto)
-    {
-        if (TryDenyJson(AccessActions.CreerRapport, out var denied)) return denied;
-        var scope = await ScopeAsync();
-        if (!await CanTouchExistingRapportAsync(scope, dto.Id))
-            return DenyScopeJson();
-        return Json(await _rapports.DeposerAsync(dto.Id, UserId));
-    }
-
-    [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("rapports")]
-    public async Task<IActionResult> DeleteRapport(string id)
-    {
-        if (DenyPage(AccessActions.CreerRapport) is { } denied) return denied;
-        var scope = await ScopeAsync();
-        if (!await CanTouchExistingRapportAsync(scope, id))
-            return DenyScopePage();
-        TempData["Toast"] = (await _rapports.DeleteAsync(id)).Message;
-        return RedirectToAction(nameof(Rapports));
-    }
-
-    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("rapports")]
-    public async Task<IActionResult> DeleteRapportJson([FromBody] IdRequest dto)
-    {
-        if (TryDenyJson(AccessActions.CreerRapport, out var denied)) return denied;
-        var scope = await ScopeAsync();
-        if (!await CanTouchExistingRapportAsync(scope, dto.Id))
-            return DenyScopeJson();
-        return Json(await _rapports.DeleteAsync(dto.Id));
-    }
-
-    private async Task<bool> CanTouchExistingRapportAsync(UserDataScope scope, string id)
-    {
         if (scope.Unrestricted) return true;
-        var r = (await _rapports.QueryEntitiesAsync()).FirstOrDefault(x => x.Id == id);
-        if (r == null) return false;
-        var omIds = await AllowedOrdreIdsAsync(scope);
-        var fiches = await _fiches.QueryEntitiesAsync(new FicheFilterDto());
-        var ordreEquipe = await OrdreEquipeMapAsync();
-        var allowedFicheIds = fiches.Where(f => AllowsFicheScoped(scope, f.OrdreMissionId, f.EcoleId, omIds, ordreEquipe))
-            .Select(f => f.Id).ToHashSet();
-        return scope.AllowsRapport(r.EcoleId, r.FicheIds, allowedFicheIds);
-    }
-
-    private async Task<bool> CanTouchRapportAsync(UserDataScope scope, string? id, string? ecoleId, IEnumerable<string>? ficheIds)
-    {
-        if (scope.Unrestricted) return true;
-        if (!string.IsNullOrEmpty(id) && !await CanTouchExistingRapportAsync(scope, id))
-            return false;
-        var omIds = await AllowedOrdreIdsAsync(scope);
-        var fiches = await _fiches.QueryEntitiesAsync(new FicheFilterDto());
-        var ordreEquipe = await OrdreEquipeMapAsync();
-        var allowedFicheIds = fiches.Where(f => AllowsFicheScoped(scope, f.OrdreMissionId, f.EcoleId, omIds, ordreEquipe))
-            .Select(f => f.Id).ToHashSet();
-        var ids = ficheIds?.ToList() ?? [];
-        if (ids.Count > 0 && ids.Any(fid => !allowedFicheIds.Contains(fid)))
-            return false;
-        return scope.AllowsRapport(ecoleId, ids, allowedFicheIds) || ids.Count > 0;
-    }
-
-    // ——— Accusés ———
-
-    [RequirePageAccess("accuses")]
-    public async Task<IActionResult> Accuses()
-    {
-        ViewBag.PageKey = "accuses";
-        ViewBag.CanAccuser = Can(AccessActions.AccuserRapport);
-        ViewBag.CanTransmettre = Can(AccessActions.TransmettreRapport);
-        ViewBag.Ecoles = await _ecoles.QueryEntitiesAsync(new EcoleFilterDto());
-        return View(await _accuses.QueryEntitiesAsync());
-    }
-
-    [RequirePageAccess("accuses"), HttpGet]
-    public async Task<IActionResult> GetAccuses([FromQuery] AccuseFilterDto filter)
-        => Json(await _accuses.ListAsync(filter));
-
-    [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("accuses")]
-    public async Task<IActionResult> Accuser(string id)
-    {
-        if (DenyPage(AccessActions.AccuserRapport) is { } denied) return denied;
-        TempData["Toast"] = (await _accuses.AccuserAsync(id, UserId)).Message;
-        return RedirectToAction(nameof(Accuses));
-    }
-
-    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("accuses")]
-    public async Task<IActionResult> AccuserJson([FromBody] IdRequest dto)
-    {
-        if (TryDenyJson(AccessActions.AccuserRapport, out var denied)) return denied;
-        return Json(await _accuses.AccuserAsync(dto.Id, UserId));
-    }
-
-    [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("accuses")]
-    public async Task<IActionResult> Transmettre(string id)
-    {
-        if (DenyPage(AccessActions.TransmettreRapport) is { } denied) return denied;
-        TempData["Toast"] = (await _accuses.TransmettreAsync(id)).Message;
-        return RedirectToAction(nameof(Accuses));
-    }
-
-    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("accuses")]
-    public async Task<IActionResult> TransmettreJson([FromBody] IdRequest dto)
-    {
-        if (TryDenyJson(AccessActions.TransmettreRapport, out var denied)) return denied;
-        return Json(await _accuses.TransmettreAsync(dto.Id));
+        var fiche = (await _fiches.QueryEntitiesAsync(new FicheFilterDto())).FirstOrDefault(f => f.Id == id);
+        if (fiche == null) return false;
+        var missions = await MissionsScopedAsync();
+        var missionIds = await AllowedMissionIdsAsync(scope);
+        if (missionIds.Count == 0)
+            missionIds = missions.Select(m => m.Id).ToHashSet();
+        var missionById = missions.ToDictionary(m => m.Id);
+        missionById.TryGetValue(fiche.MissionId, out var m);
+        return scope.AllowsFiche(AgentIdsOf(m), fiche.EcoleId, missionIds, fiche.MissionId);
     }
 
     // ——— Décisions ———
@@ -1008,21 +881,23 @@ public class HomeController : Controller
         var scope = await ScopeAsync();
         ViewBag.PageKey = "decisions";
         ViewBag.CanCreerDecision = Can(AccessActions.CreerDecision);
-        ViewBag.Types = await _parametres.QueryEntitiesAsync("typesDecision");
+        ViewBag.TypesDecision = DecisionTypes.Labels;
         var ecoles = await _ecoles.QueryEntitiesAsync(new EcoleFilterDto());
-        var rapports = await _rapports.QueryEntitiesAsync();
+        var fiches = await _fiches.QueryEntitiesAsync(new FicheFilterDto());
         var decisions = await _decisions.QueryEntitiesAsync();
         if (!scope.Unrestricted)
         {
             ecoles = ecoles.Where(e => scope.AllowsEcole(e.Id)).ToList();
-            rapports = rapports.Where(r => scope.AllowsEcole(r.EcoleId)).ToList();
+            fiches = fiches.Where(f => scope.AllowsEcole(f.EcoleId)).ToList();
             decisions = decisions.Where(d => scope.AllowsDecision(d.EcoleId)).ToList();
         }
         ViewBag.Ecoles = ecoles;
-        ViewBag.Rapports = rapports;
-        ViewBag.RapportsSansDecision = Can(AccessActions.CreerDecision)
-            ? await _decisions.QueryRapportsSansDecisionAsync()
-            : new List<Rapport>();
+        ViewBag.Fiches = fiches;
+        ViewBag.Produits = await _parametres.QueryEntitiesAsync(RefCategories.Produits);
+        ViewBag.Outils = await _parametres.QueryEntitiesAsync(RefCategories.Outils);
+        ViewBag.FichesSansDecision = Can(AccessActions.CreerDecision)
+            ? await _decisions.QueryFichesSansDecisionAsync()
+            : new List<FicheControle>();
         return View(decisions);
     }
 
@@ -1032,12 +907,12 @@ public class HomeController : Controller
         var scope = await ScopeAsync();
         var decisions = await _decisions.ListAsync();
         var sans = Can(AccessActions.CreerDecision)
-            ? await _decisions.RapportsSansDecisionAsync()
-            : Array.Empty<RapportListDto>();
+            ? await _decisions.FichesSansDecisionAsync()
+            : Array.Empty<FicheListDto>();
         if (!scope.Unrestricted)
         {
             decisions = decisions.Where(d => scope.AllowsDecision(d.EcoleId)).ToList();
-            sans = sans.Where(r => scope.AllowsEcole(r.EcoleId)).ToList();
+            sans = sans.Where(f => scope.AllowsEcole(f.EcoleId)).ToList();
         }
         return Json(new { decisions, sansDecision = sans });
     }
@@ -1049,13 +924,9 @@ public class HomeController : Controller
         TempData["Toast"] = (await _decisions.SaveAsync(new SaveDecisionDto
         {
             Id = model.Id,
-            RapportId = model.RapportId,
+            FicheControleId = model.FicheControleId,
             EcoleId = model.EcoleId,
-            TypeDecisionId = model.TypeDecisionId,
-            DelaiExecution = model.DelaiExecution,
-            StatutExecution = model.StatutExecution,
-            Motif = model.Motif,
-            Commentaire = model.Commentaire
+            TypeDecision = model.TypeDecision
         }, UserId)).Message;
         return RedirectToAction(nameof(Decisions));
     }
@@ -1081,41 +952,41 @@ public class HomeController : Controller
         if (TryDenyJson(AccessActions.CreerDecision, out var denied)) return denied;
         return Json(await _decisions.DeleteAsync(dto.Id));
     }
+
     // ——— Statistiques ———
 
     [RequirePageAccess("statistiques")]
     public async Task<IActionResult> Statistiques()
     {
-        var (communes, regimes) = await _ecoles.GetLookupsAsync();
+        var (sousproveds, regimes) = await _ecoles.GetLookupsAsync();
         var ecoles = await _ecoles.QueryEntitiesAsync(new EcoleFilterDto());
         var fiches = await _fiches.QueryEntitiesAsync(new FicheFilterDto());
         var decisions = await _decisions.QueryEntitiesAsync();
         ViewBag.PageKey = "statistiques";
-        ViewBag.Communes = communes;
+        ViewBag.Sousproveds = sousproveds;
         ViewBag.Regimes = regimes;
         ViewBag.EcolesJson = ecoles.Select(e => new
         {
             id = e.Id,
-            regime = e.Regime?.Nom ?? "",
-            statut = e.Statut,
-            commune = e.Commune?.Nom ?? ""
+            regime = RegGes.LabelOf(e.RegGes),
+            sousproved = SousDivision.LabelOf(e.SousDivision)
         }).ToList();
         ViewBag.FichesJson = fiches.Select(f => new
         {
             id = f.Id,
             ecoleId = f.EcoleId,
             createdAt = f.CreatedAt,
-            etatGeneral = f.SectionBatiments.EtatGeneral,
-            montantPercu = f.SectionImpact7.MontantPercu,
-            produitsCount = f.SectionImpact7.ProduitsNettoyage?.Count ?? 0
+            etatGeneral = f.EtatGeneral,
+            produitsCount = f.ControleProduits?.Count ?? 0,
+            hasAutres = !string.IsNullOrWhiteSpace(f.ProduitsAutres)
         }).ToList();
         ViewBag.DecisionsJson = decisions.Select(d => new
         {
-            id = d.Id,
-            ecoleId = d.EcoleId,
-            type = d.TypeDecision?.Nom ?? d.TypeDecision?.Code ?? "",
-            decideLe = d.DecideLe,
-            createdAt = d.CreatedAt
+            id = d.NumDecision,
+            ecoleId = d.Ecole?.Id ?? "",
+            type = DecisionTypes.LabelOf(d.DecisionFin),
+            decideLe = (DateTime?)null,
+            createdAt = (DateTime?)null
         }).ToList();
         return View();
     }
@@ -1131,74 +1002,105 @@ public class HomeController : Controller
         return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", "statistiques-inspect-san.csv");
     }
 
+    // ——— Rapport d'inspection ———
+
+    [RequirePageAccess("rapport")]
+    public async Task<IActionResult> Rapport()
+    {
+        var (sousproveds, _) = await _ecoles.GetLookupsAsync();
+        ViewBag.PageKey = "rapport";
+        ViewBag.Sousproveds = sousproveds;
+        ViewBag.Role = Role;
+        ViewBag.CanDeposerEquipe = string.Equals(Role, DataScope.RoleControleur, StringComparison.Ordinal);
+        ViewBag.CanDeposerSecretariat = string.Equals(Role, DataScope.RoleSecretariat, StringComparison.Ordinal)
+                                        || string.Equals(Role, DataScope.RoleAdmin, StringComparison.Ordinal);
+        ViewBag.CanCloturer = ViewBag.CanDeposerSecretariat;
+        return View();
+    }
+
+    [RequirePageAccess("rapport"), HttpGet]
+    public async Task<IActionResult> GetRapportInspection([FromQuery] RapportInspectionFilterDto filter)
+    {
+        var scope = await ScopeAsync();
+        return Json(await _statistiques.GetRapportInspectionAsync(filter, Role, scope.AgentId));
+    }
+
+    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("rapport")]
+    public async Task<IActionResult> DeposerRapportEquipeJson([FromBody] SousDivisionCodeRequest dto)
+    {
+        if (!string.Equals(Role, DataScope.RoleControleur, StringComparison.Ordinal))
+            return Json(ApiResultDto.Fail("Seul un contrôleur peut déposer le rapport d'équipe."));
+        var scope = await ScopeAsync();
+        return Json(await _statistiques.DeposerRapportEquipeAsync(dto.SousDivisionCode, UserId, scope.AgentId));
+    }
+
+    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("rapport")]
+    public async Task<IActionResult> DeposerRapportSecretariatJson([FromBody] SousDivisionCodeRequest dto)
+    {
+        if (!string.Equals(Role, DataScope.RoleSecretariat, StringComparison.Ordinal)
+            && !string.Equals(Role, DataScope.RoleAdmin, StringComparison.Ordinal))
+            return Json(ApiResultDto.Fail("Seul le secrétariat (ou admin) peut déposer ce rapport."));
+        return Json(await _statistiques.DeposerRapportSecretariatAsync(dto.SousDivisionCode, UserId));
+    }
+
+    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("rapport")]
+    public async Task<IActionResult> CloturerRapportJson([FromBody] SousDivisionCodeRequest dto)
+    {
+        var isAdmin = string.Equals(Role, DataScope.RoleAdmin, StringComparison.Ordinal);
+        if (!string.Equals(Role, DataScope.RoleSecretariat, StringComparison.Ordinal) && !isAdmin)
+            return Json(ApiResultDto.Fail("Seul le secrétariat (ou admin) peut clôturer."));
+        return Json(await _statistiques.CloturerRapportAsync(dto.SousDivisionCode, UserId, forceAdmin: isAdmin));
+    }
     // ——— Paramètres ———
 
     [RequirePageAccess("parametres")]
-    public async Task<IActionResult> Parametres(string tab = "communes")
+    public async Task<IActionResult> Parametres(string tab = "categories")
     {
         ViewBag.PageKey = "parametres";
         ViewBag.Tab = tab;
+        ViewBag.CanGererParametres = Can(AccessActions.GererParametres);
         ViewBag.Items = await _parametres.QueryEntitiesAsync(tab);
         return View();
     }
 
     [RequirePageAccess("parametres"), HttpGet]
-    public async Task<IActionResult> GetParametres(string tab = "communes")
+    public async Task<IActionResult> GetParametres(string tab = "categories")
         => Json(await _parametres.ListAsync(tab));
 
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("parametres")]
     public async Task<IActionResult> SaveParametre(string tab, RefItem model)
     {
+        if (DenyPage(AccessActions.GererParametres) is { } denied) return denied;
         TempData["Toast"] = (await _parametres.SaveAsync(tab, new SaveRefItemDto
         {
-            Id = model.Id,
             Nom = model.Nom,
-            Code = model.Code,
-            Libelle = model.Libelle,
-            Actif = model.Actif
+            Code = int.TryParse(model.Code, out var code) ? code : 0,
+            Libelle = model.Libelle
         })).Message;
         return RedirectToAction(nameof(Parametres), new { tab });
     }
 
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("parametres")]
     public async Task<IActionResult> SaveParametreJson(string tab, [FromBody] SaveRefItemDto dto)
-        => Json(await _parametres.SaveAsync(tab, dto));
-
-    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("parametres")]
-    public async Task<IActionResult> SaveEquipeJson([FromBody] SaveEquipeDto dto)
-        => Json(await _parametres.SaveEquipeAsync(dto));
-
-    [RequirePageAccess("parametres"), HttpGet]
-    public async Task<IActionResult> GetControleursPourEquipe(string? equipeId = null)
     {
-        // Uniquement les membres de l’équipe concernée (ex. équipe B → membres de B seulement).
-        if (string.IsNullOrWhiteSpace(equipeId))
-            return Json(Array.Empty<object>());
-
-        var list = await _controleurs.ListAsync(new ControleurFilterDto { EquipeId = equipeId });
-        var options = list
-            .Where(c => c.Actif)
-            .Select(c => new
-            {
-                c.Id,
-                c.NomComplet,
-                c.EquipeId,
-                c.EquipeNom,
-                c.EstChefEquipe
-            });
-        return Json(options);
+        if (TryDenyJson(AccessActions.GererParametres, out var denied)) return denied;
+        return Json(await _parametres.SaveAsync(tab, dto));
     }
 
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("parametres")]
     public async Task<IActionResult> DeleteParametre(string tab, string id)
     {
+        if (DenyPage(AccessActions.GererParametres) is { } denied) return denied;
         TempData["Toast"] = (await _parametres.DeleteAsync(tab, id)).Message;
         return RedirectToAction(nameof(Parametres), new { tab });
     }
 
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("parametres")]
     public async Task<IActionResult> DeleteParametreJson(string tab, [FromBody] IdRequest dto)
-        => Json(await _parametres.DeleteAsync(tab, dto.Id));
+    {
+        if (TryDenyJson(AccessActions.GererParametres, out var denied)) return denied;
+        return Json(await _parametres.DeleteAsync(tab, dto.Id));
+    }
 
     // ——— Journal ———
 
@@ -1251,9 +1153,4 @@ public class SetStatutRequest
 {
     public string Id { get; set; } = "";
     public string Statut { get; set; } = "";
-}
-
-public class FicheIdsRequest
-{
-    public List<string>? FicheIds { get; set; }
 }

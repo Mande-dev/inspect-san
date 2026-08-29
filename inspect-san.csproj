@@ -5,6 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>inspect_san</RootNamespace>
+    <!-- Évite le .exe apphost souvent bloqué par le contrôle d’application Windows (erreur 4551). -->
+    <UseAppHost>false</UseAppHost>
   </PropertyGroup>
 
   <ItemGroup>

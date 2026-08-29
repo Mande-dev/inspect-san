@@ -140,6 +140,127 @@
     m.hide();
   }
 
+  /** Restaure body/backdrops après fermeture d'un modal enfant (stack Bootstrap). */
+  function restoreModalStack() {
+    var open = document.querySelectorAll('.modal.show');
+    var backdrops = document.querySelectorAll('.modal-backdrop');
+    if (open.length > 0) {
+      document.body.classList.add('modal-open');
+      // Un backdrop par modal ouvert ; supprimer les orphelins
+      while (backdrops.length > open.length) {
+        backdrops[backdrops.length - 1].remove();
+        backdrops = document.querySelectorAll('.modal-backdrop');
+      }
+      if (backdrops.length === 0) {
+        var bd = document.createElement('div');
+        bd.className = 'modal-backdrop fade show';
+        document.body.appendChild(bd);
+        backdrops = document.querySelectorAll('.modal-backdrop');
+      }
+      open.forEach(function (m, i) {
+        m.style.zIndex = String(1055 + i * 20);
+      });
+      backdrops.forEach(function (bd, i) {
+        bd.style.zIndex = String(1050 + i * 20);
+      });
+      var top = open[open.length - 1];
+      if (top) {
+        var focusable = top.querySelector(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable) {
+          try { focusable.focus(); } catch (e) { /* ignore */ }
+        } else {
+          try { top.focus(); } catch (e) { /* ignore */ }
+        }
+      }
+    } else {
+      document.body.classList.remove('modal-open');
+      document.body.style.removeProperty('overflow');
+      document.body.style.removeProperty('padding-right');
+      document.querySelectorAll('.modal-backdrop').forEach(function (bd) { bd.remove(); });
+    }
+  }
+
+  function bindStackedModalHandlers(el) {
+    if (!el || el.dataset.ispStacked === '1') return;
+    el.dataset.ispStacked = '1';
+    el.addEventListener('shown.bs.modal', function () {
+      var open = Array.prototype.slice.call(document.querySelectorAll('.modal.show'));
+      var idx = open.indexOf(el);
+      if (idx < 0) idx = Math.max(0, open.length - 1);
+      el.style.zIndex = String(1055 + idx * 20);
+      document.querySelectorAll('.modal-backdrop').forEach(function (bd, i) {
+        bd.style.zIndex = String(1050 + i * 20);
+      });
+    });
+    el.addEventListener('hidden.bs.modal', function () {
+      // Laisser Bootstrap finir son cleanup, puis réparer la pile
+      setTimeout(restoreModalStack, 10);
+    });
+  }
+
+  /** Ouvre un modal Bootstrap éventuellement au-dessus d'un autre (stack sûr). */
+  function showStackedModal(el) {
+    if (!el || !global.bootstrap) return null;
+    bindStackedModalHandlers(el);
+    var m = bootstrap.Modal.getOrCreateInstance(el);
+    m.show();
+    return m;
+  }
+
+  /**
+   * Lightbox image sans Bootstrap Modal (évite body.modal-open / backdrop).
+   * opts: { url, title }
+   */
+  function showImageLightbox(opts) {
+    opts = opts || {};
+    var url = opts.url || '';
+    if (!url) return;
+    var title = opts.title || 'Photo';
+    var existing = document.getElementById('ispImageLightbox');
+    if (existing) existing.remove();
+
+    var overlay = document.createElement('div');
+    overlay.id = 'ispImageLightbox';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.style.cssText =
+      'position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.85);' +
+      'display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1rem;';
+
+    var header = document.createElement('div');
+    header.style.cssText =
+      'width:100%;max-width:960px;display:flex;justify-content:space-between;align-items:center;color:#fff;margin-bottom:.5rem;';
+    header.innerHTML =
+      '<span style="font-size:.95rem;opacity:.9"></span>' +
+      '<button type="button" aria-label="Fermer" style="background:transparent;border:0;color:#fff;font-size:1.5rem;line-height:1;cursor:pointer">&times;</button>';
+    header.querySelector('span').textContent = title;
+
+    var img = document.createElement('img');
+    img.src = url;
+    img.alt = title;
+    img.style.cssText = 'max-width:100%;max-height:80vh;object-fit:contain;border-radius:.25rem;';
+
+    function close() {
+      document.removeEventListener('keydown', onKey);
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') close();
+    }
+
+    header.querySelector('button').addEventListener('click', close);
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) close();
+    });
+    document.addEventListener('keydown', onKey);
+
+    overlay.appendChild(header);
+    overlay.appendChild(img);
+    document.body.appendChild(overlay);
+  }
+
   function refreshPagination(table) {
     if (!table) return;
     if (table._ispPagination) table._ispPagination.refresh(true);
@@ -153,12 +274,25 @@
     if (!result) return false;
     var ok = result.success !== undefined ? result.success : result.Success;
     var msg = result.message || result.Message || '';
+    var title = result.title || result.Title || '';
+    var detail = result.detail || result.Detail || '';
+    var blocked = result.blocked !== undefined ? result.blocked : result.Blocked;
     var suggest = result.suggestDeactivate !== undefined ? result.suggestDeactivate : result.SuggestDeactivate;
     if (ok) {
-      // Fermer d'abord les modales Bootstrap pour éviter tout conflit de focus/backdrop
       if (typeof onSuccess === 'function') onSuccess(result);
       showToast(msg || 'OK', 'success');
       return true;
+    }
+    if (blocked || detail || (title && title.indexOf('non autoris') >= 0)) {
+      if (global.IspAlert && typeof global.IspAlert.blocked === 'function') {
+        global.IspAlert.blocked(msg || 'Cette action ne peut pas être effectuée.', {
+          title: title || 'Suppression non autorisée',
+          detail: detail || ''
+        });
+      } else {
+        showToast((msg || '') + (detail ? '\n' + detail : ''), 'warning');
+      }
+      return false;
     }
     showToast(msg || 'Échec', suggest ? 'warning' : 'danger');
     return false;
@@ -183,6 +317,9 @@
     parseJsonAttr: parseJsonAttr,
     formToJson: formToJson,
     hideModal: hideModal,
+    showStackedModal: showStackedModal,
+    restoreModalStack: restoreModalStack,
+    showImageLightbox: showImageLightbox,
     refreshPagination: refreshPagination,
     bindAjaxResult: bindAjaxResult
   };

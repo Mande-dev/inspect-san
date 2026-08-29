@@ -4,51 +4,85 @@
 @{
     ViewData["Title"] = "Chefs d'établissement";
     var ecoles = (List<Ecole>)ViewBag.Ecoles;
+    var canGerer = ViewBag.CanGererChefs as bool? == true;
 }
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4 isp-page-head">
     <div>
         <h2 class="mb-1">Chefs d'établissement</h2>
-        <p class="text-secondary mb-0">Responsables des établissements scolaires.</p>
+        <p class="text-secondary mb-0">@(canGerer ? "Chefs d'établissement — assignés ensuite depuis la fiche établissement." : "Consultation des chefs d'établissement.")</p>
     </div>
-    <button type="button" class="btn btn-primary" id="newChef" data-bs-toggle="modal" data-bs-target="#chefModal">
-        <i class="ti ti-plus me-1"></i>Nouveau chef
-    </button>
+    @if (canGerer)
+    {
+        <button type="button" class="btn btn-primary" id="newChef" data-bs-toggle="modal" data-bs-target="#chefModal">
+            <i class="ti ti-plus me-1"></i>Nouveau chef
+        </button>
+    }
+</div>
+
+<div class="row g-3 mb-4" id="chefsStats">
+    <div class="col-6 col-xl-3">
+        <div class="card card-lg h-100"><div class="card-body d-flex align-items-center gap-3">
+            <div class="icon-shape icon-lg rounded-circle bg-primary-subtle text-primary-emphasis"><i class="ti ti-user-star fs-3"></i></div>
+            <div class="min-w-0"><h3 class="mb-0" id="statChefsTotal">@(ViewBag.StatTotal ?? 0)</h3><p class="mb-0 text-secondary small">Chefs au total</p></div>
+        </div></div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="card card-lg h-100"><div class="card-body d-flex align-items-center gap-3">
+            <div class="icon-shape icon-lg rounded-circle bg-success-subtle text-success-emphasis"><i class="ti ti-building-community fs-3"></i></div>
+            <div class="min-w-0"><h3 class="mb-0" id="statChefsAssignes">@(ViewBag.StatAssignes ?? 0)</h3><p class="mb-0 text-secondary small">Assignés à une école</p></div>
+        </div></div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="card card-lg h-100"><div class="card-body d-flex align-items-center gap-3">
+            <div class="icon-shape icon-lg rounded-circle bg-warning-subtle text-warning-emphasis"><i class="ti ti-user-question fs-3"></i></div>
+            <div class="min-w-0"><h3 class="mb-0" id="statChefsSansEcole">@(ViewBag.StatSansEcole ?? 0)</h3><p class="mb-0 text-secondary small">Sans établissement</p></div>
+        </div></div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="card card-lg h-100"><div class="card-body d-flex align-items-center gap-3">
+            <div class="icon-shape icon-lg rounded-circle bg-info-subtle text-info-emphasis"><i class="ti ti-phone fs-3"></i></div>
+            <div class="min-w-0"><h3 class="mb-0" id="statChefsTel">@(ViewBag.StatAvecTel ?? 0)</h3><p class="mb-0 text-secondary small">Avec téléphone</p></div>
+        </div></div>
+    </div>
 </div>
 <form method="get" class="row g-2 mb-4" id="chefsFilter">
-    <div class="col-md-5"><input name="q" value="@ViewBag.Q" class="form-control" placeholder="Nom ou DINACOPE…" /></div>
-    <div class="col-md-4">
+    <div class="col-12 col-md-5"><input name="q" value="@ViewBag.Q" class="form-control" placeholder="Nom ou matricule…" /></div>
+    <div class="col-12 col-md-4">
         <select name="ecoleId" class="form-select">
-            <option value="">Toutes les écoles</option>
+            <option value="">Tous les établissements</option>
             @foreach (var e in ecoles)
             {
                 <option value="@e.Id" selected="@(ViewBag.EcoleId as string == e.Id)">@e.Denomination</option>
             }
         </select>
     </div>
-    <div class="col-md-2"><button class="btn btn-outline-primary w-100">Filtrer</button></div>
+    <div class="col-12 col-md-3 col-lg-2"><button class="btn btn-outline-primary w-100">Filtrer</button></div>
 </form>
 <div class="card card-lg">
     <div class="table-responsive">
-        <table class="table table-hover mb-0 js-paginated-table">
+        <table class="table table-hover mb-0 js-paginated-table" id="chefsTable" data-can-gerer="@(canGerer ? "1" : "0")">
             <thead class="table-light">
-                <tr><th>Nom</th><th>DINACOPE</th><th>Téléphone</th><th>École</th><th>Anciennetés</th><th></th></tr>
+                <tr><th>Matricule</th><th>Nom</th><th>Téléphone</th><th>Établissement</th><th>Année début activité</th><th></th></tr>
             </thead>
             <tbody id="chefsTbody">
             @foreach (var chef in Model)
             {
-                var ecole = ecoles.FirstOrDefault(e => e.Id == chef.EcoleId);
+                var ecole = ecoles.FirstOrDefault(e => e.MatriculeChef == chef.Matricule);
                 <tr>
+                    <td class="font-monospace">@chef.Matricule</td>
                     <td class="fw-semibold">@chef.NomComplet</td>
-                    <td>@chef.IdDinacope</td>
                     <td>@chef.Telephone</td>
                     <td>@(ecole?.Denomination ?? "—")</td>
-                    <td class="small">Ens. @(chef.AncienneteEnseignement ?? 0) · Chef @(chef.AncienneteChef ?? 0) · École @(chef.AncienneteEcole ?? 0)</td>
+                    <td class="small">@(chef.AnneeDebutActivite?.ToString() ?? "—")</td>
                     <td class="text-end text-nowrap">
-                        <button type="button" class="btn btn-sm btn-outline-secondary chef-open" data-mode="view" data-json="@JsonUi.Serialize(chef)" data-bs-toggle="modal" data-bs-target="#chefModal"><i class="ti ti-eye"></i></button>
-                        <button type="button" class="btn btn-sm btn-outline-primary chef-open" data-mode="edit" data-json="@JsonUi.Serialize(chef)" data-bs-toggle="modal" data-bs-target="#chefModal"><i class="ti ti-edit"></i></button>
-                        <form class="d-inline js-delete-chef" data-id="@chef.Id">
-                            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="ti ti-trash"></i></button>
-                        </form>
+                        <button type="button" class="btn btn-sm btn-outline-secondary chef-open" data-mode="view" data-json="@JsonUi.Serialize(new { Id = chef.Matricule, chef.Matricule, chef.NomComplet, chef.Telephone, chef.AnneeDebutActivite })" data-bs-toggle="modal" data-bs-target="#chefModal"><i class="ti ti-eye"></i></button>
+                        @if (canGerer)
+                        {
+                            <button type="button" class="btn btn-sm btn-outline-primary chef-open" data-mode="edit" data-json="@JsonUi.Serialize(new { Id = chef.Matricule, chef.Matricule, chef.NomComplet, chef.Telephone, chef.AnneeDebutActivite })" data-bs-toggle="modal" data-bs-target="#chefModal"><i class="ti ti-edit"></i></button>
+                            <form class="d-inline js-delete-chef" data-id="@chef.Matricule">
+                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="ti ti-trash"></i></button>
+                            </form>
+                        }
                     </td>
                 </tr>
             }
@@ -73,27 +107,13 @@
             </div>
             <div class="modal-body">
                 <input type="hidden" name="Id" id="chefId" />
-                <div class="isp-modal-section">
+                <div class="isp-modal-section mb-0">
                     <h6 class="isp-modal-section-title"><i class="ti ti-user"></i> Identité</h6>
                     <div class="row g-3">
-                        <div class="col-12"><label class="form-label">Nom complet <span class="text-danger">*</span></label><input name="NomComplet" id="chefNom" class="form-control" required /></div>
-                        <div class="col-md-6"><label class="form-label">ID DINACOPE <span class="text-danger">*</span></label><input name="IdDinacope" id="chefDinacope" class="form-control" required /></div>
+                        <div class="col-md-6"><label class="form-label">Matricule <span class="text-danger">*</span></label><input name="Matricule" id="chefMatricule" class="form-control" required /></div>
                         <div class="col-md-6"><label class="form-label">Téléphone</label><input name="Telephone" id="chefTel" class="form-control" /></div>
-                        <div class="col-12">
-                            <label class="form-label">École <span class="text-danger">*</span></label>
-                            <select name="EcoleId" id="chefEcole" class="form-select" required>
-                                <option value="">Sélectionner…</option>
-                                @foreach (var e in ecoles) { <option value="@e.Id">@e.Denomination</option> }
-                            </select>
-                        </div>
-                    </div>
-                </div>
-                <div class="isp-modal-section mb-0">
-                    <h6 class="isp-modal-section-title"><i class="ti ti-calendar-stats"></i> Ancienneté (années)</h6>
-                    <div class="row g-3">
-                        <div class="col-md-4"><label class="form-label">Enseignement</label><input type="number" min="0" name="AncienneteEnseignement" id="chefAncEns" class="form-control" /></div>
-                        <div class="col-md-4"><label class="form-label">En tant que chef</label><input type="number" min="0" name="AncienneteChef" id="chefAncChef" class="form-control" /></div>
-                        <div class="col-md-4"><label class="form-label">Dans cette école</label><input type="number" min="0" name="AncienneteEcole" id="chefAncEcole" class="form-control" /></div>
+                        <div class="col-12"><label class="form-label">Nom complet <span class="text-danger">*</span></label><input name="NomComplet" id="chefNom" class="form-control" required /></div>
+                        <div class="col-md-6"><label class="form-label">Année début d'activité</label><input type="number" min="1950" max="2100" name="AnneeDebutActivite" id="chefAnneeDebut" class="form-control" /></div>
                     </div>
                 </div>
             </div>

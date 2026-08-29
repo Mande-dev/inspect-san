@@ -14,7 +14,6 @@ public class DashboardViewModel
     public int EcolesCount { get; set; }
     public int MissionsEnCours { get; set; }
     public int FichesEnAttente { get; set; }
-    public int RapportsDeposes { get; set; }
     public int DecisionsEnAttente { get; set; }
 }
 
@@ -22,7 +21,7 @@ public class DashboardViewModel
 public class EcolesIndexViewModel
 {
     public string? Q { get; set; }
-    public string? Commune { get; set; }
+    public string? Sousproved { get; set; }
     public string? Regime { get; set; }
     public string? Statut { get; set; }
 }

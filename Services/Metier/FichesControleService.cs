@@ -16,7 +16,8 @@ public class FichesControleService : IFichesControleService
     private readonly IFileStorageService? _files;
     private readonly IDomainEmailNotifier _email;
     private readonly ICurrentUserScope _scope;
-    private readonly IOrdresMissionService? _ordres;
+    private readonly IMissionsService? _missions;
+    private readonly IMissionAccessService _access;
 
     public FichesControleService(
         InspectSanDbContext db,
@@ -24,36 +25,48 @@ public class FichesControleService : IFichesControleService
         IFileStorageService? files = null,
         IDomainEmailNotifier? email = null,
         ICurrentUserScope? scope = null,
-        IOrdresMissionService? ordres = null)
+        IMissionsService? missions = null,
+        IMissionAccessService? access = null)
     {
         _db = db;
         _users = users;
         _files = files;
         _email = email ?? NullDomainEmailNotifier.Instance;
         _scope = scope ?? UnrestrictedUserScope.Instance;
-        _ordres = ordres;
+        _missions = missions;
+        _access = access ?? new MissionAccessService(db);
     }
 
-    private static IQueryable<FicheControle> ApplyFilter(IQueryable<FicheControle> q, FicheFilterDto filter)
+    private IQueryable<Mission> FichesQuery()
+        => _db.Missions.AsNoTracking()
+            .Include(m => m.Ecole)
+            .Include(m => m.Photos)
+            .Include(m => m.MissionProduits)
+            .Include(m => m.MissionOutils)
+            .Where(m => m.StatutFiche != null);
+
+    private static IQueryable<Mission> ApplyFilter(IQueryable<Mission> q, FicheFilterDto filter)
     {
         if (!string.IsNullOrWhiteSpace(filter.Q))
         {
             var term = filter.Q.Trim().ToLower();
-            q = q.Where(f => f.Numero.ToLower().Contains(term));
+            q = q.Where(m => m.NumOrdre.ToLower().Contains(term));
         }
         if (!string.IsNullOrWhiteSpace(filter.Statut))
-            q = q.Where(f => f.Statut == filter.Statut);
+            q = q.Where(m => m.StatutFiche == filter.Statut);
         return q;
     }
 
     public async Task<List<FicheControle>> QueryEntitiesAsync(FicheFilterDto filter)
-        => await ApplyFilter(_db.FichesControle.AsNoTracking(), filter)
-            .OrderByDescending(f => f.UpdatedAt).ToListAsync();
+    {
+        var missions = await ApplyFilter(FichesQuery(), filter)
+            .OrderByDescending(m => m.CreatedAt).ToListAsync();
+        return missions.Select(m => FicheControle.FromMission(m, m.Ecole?.Id)).ToList();
+    }
 
     public async Task<IReadOnlyList<FicheListDto>> ListAsync(FicheFilterDto filter)
     {
-        var fiches = await ApplyFilter(_db.FichesControle.AsNoTracking(), filter)
-            .OrderByDescending(f => f.UpdatedAt).ToListAsync();
+        var fiches = await QueryEntitiesAsync(filter);
         var ecoleIds = fiches.Select(f => f.EcoleId).Distinct().ToList();
         var noms = await _db.Ecoles.AsNoTracking()
             .Where(e => ecoleIds.Contains(e.Id))
@@ -62,228 +75,370 @@ public class FichesControleService : IFichesControleService
         {
             Id = f.Id,
             Numero = f.Numero,
-            OrdreMissionId = f.OrdreMissionId,
+            MissionId = f.MissionId,
             EcoleId = f.EcoleId,
             EcoleNom = noms.GetValueOrDefault(f.EcoleId),
             Statut = f.Statut,
-            EtatGeneral = f.SectionBatiments.EtatGeneral,
-            RecommandationPreliminaire = f.RecommandationPreliminaire
+            EtatGeneral = f.EtatGeneral,
+            RecommandationPreliminaire = f.RecommandationPreliminaire,
+            ControleProduits = f.ControleProduits.Select(cp => new ControleProduitListDto
+            {
+                ProduitCode = cp.ProduitCode,
+                Quantite = cp.Quantite
+            }).ToList(),
+            ControleOutils = f.ControleOutils.Select(co => new ControleOutilListDto
+            {
+                OutilCode = co.OutilCode,
+                Quantite = co.Quantite
+            }).ToList()
         }).ToList();
     }
 
-    private static bool IsOmOperational(string? statut)
-        => statut is OrdreStatuts.Signe or OrdreStatuts.EnCours;
+    private static bool IsMissionOperational(string? statut)
+        => statut is MissionStatuts.Signe or MissionStatuts.EnCours;
 
     public async Task<ApiResultDto> SaveAsync(SaveFicheControleDto dto)
     {
-        if (string.IsNullOrWhiteSpace(dto.OrdreMissionId))
-            return ApiResultDto.Fail("Ordre de mission obligatoire.");
+        if (string.IsNullOrWhiteSpace(dto.MissionId))
+            return ApiResultDto.Fail("Mission obligatoire.");
 
-        var ordre = await _db.OrdresMission.FirstOrDefaultAsync(o => o.Id == dto.OrdreMissionId);
-        if (ordre == null)
-            return ApiResultDto.Fail("Ordre de mission introuvable.");
-        if (!IsOmOperational(ordre.Statut))
-            return ApiResultDto.Fail("La fiche ne peut être créée/modifiée que sur un ordre signé ou en cours.");
+        var mission = await _db.Missions
+            .Include(m => m.Affectations)
+            .Include(m => m.Ecole)
+            .Include(m => m.Photos)
+            .Include(m => m.MissionProduits)
+            .Include(m => m.MissionOutils)
+            .FirstOrDefaultAsync(m => m.Id == dto.MissionId);
+        if (mission == null)
+            return ApiResultDto.Fail("Mission introuvable.");
+        if (!IsMissionOperational(mission.Statut))
+            return ApiResultDto.Fail("La fiche ne peut être créée/modifiée que sur une mission signée ou en cours.");
 
+        var agentIds = mission.Affectations.Select(p => p.MatrAgent).ToList();
         var scope = await _scope.GetAsync();
-        if (!scope.Unrestricted && !scope.AllowsOrdre(ordre.EquipeId, ordre.EcoleId))
+        var ecoleId = mission.Ecole?.Id ?? "";
+        if (!scope.Unrestricted && !scope.AllowsFiche(agentIds, ecoleId, null, mission.Id))
             return ApiResultDto.Fail("Accès refusé pour cette fiche / périmètre.");
+        if (!_access.CanWriteFromAffectations(mission.Affectations, scope.AgentId, scope.Unrestricted))
+            return ApiResultDto.Fail("Vous n'avez pas le droit d'écrire sur cette mission (chef d'équipe ou adjoint délégué).");
 
-        var photos = new List<PhotoMeta>();
+        var photos = new List<Photo>();
         if (!string.IsNullOrWhiteSpace(dto.PhotosJson))
         {
-            try { photos = System.Text.Json.JsonSerializer.Deserialize<List<PhotoMeta>>(dto.PhotosJson) ?? new(); }
+            try
+            {
+                var raw = System.Text.Json.JsonSerializer.Deserialize<List<PhotoJsonDto>>(dto.PhotosJson) ?? new();
+                photos = raw
+                    .Where(p => !string.IsNullOrEmpty(p.Url) && !p.Url.StartsWith("blob:", StringComparison.OrdinalIgnoreCase))
+                    .Select((p, i) =>
+                    {
+                        var stamp = PhotoStamp(mission.NumOrdre, i + 1);
+                        return new Photo
+                        {
+                            Nom = stamp,
+                            Legende = stamp,
+                            Url = p.Url!
+                        };
+                    }).ToList();
+            }
             catch { /* ignore */ }
-            photos = photos.Where(p => !string.IsNullOrEmpty(p.Url) && !p.Url.StartsWith("blob:", StringComparison.OrdinalIgnoreCase)).ToList();
         }
 
-        var ecoleId = ordre.EcoleId;
-        var chefId = await _db.Chefs.AsNoTracking()
-            .Where(c => c.EcoleId == ecoleId)
-            .Select(c => c.Id)
-            .FirstOrDefaultAsync();
+        var controleProduits = NormalizeControleProduits(dto.ControleProduits);
+        if (controleProduits.Count > 0)
+        {
+            var codes = controleProduits.Select(c => c.ProduitCode).ToList();
+            var validCount = await _db.Produits.AsNoTracking()
+                .CountAsync(p => codes.Contains(p.CodeProduit));
+            if (validCount != codes.Count)
+                return ApiResultDto.Fail("Un ou plusieurs produits sont invalides.");
+        }
+
+        if (controleProduits.Any(c => c.Quantite < 0))
+            return ApiResultDto.Fail("La quantité d'un produit ne peut pas être négative.");
+
+        var controleOutils = NormalizeControleOutils(dto);
+        if (controleOutils.Count > 0)
+        {
+            var codes = controleOutils.Select(c => c.OutilCode).ToList();
+            var validCount = await _db.Outils.AsNoTracking()
+                .CountAsync(o => codes.Contains(o.CodeOutile));
+            if (validCount != codes.Count)
+                return ApiResultDto.Fail("Un ou plusieurs outils sont invalides.");
+        }
+
+        if (controleOutils.Any(c => c.Quantite < 0))
+            return ApiResultDto.Fail("La quantité d'un outil ne peut pas être négative.");
+
+        if (dto.ToilettesFilles < 0 || dto.ToilettesGarcons < 0)
+            return ApiResultDto.Fail("Le nombre de toilettes ne peut pas être négatif.");
 
         if (!string.IsNullOrEmpty(dto.Id))
         {
-            var existing = await _db.FichesControle.FirstOrDefaultAsync(f => f.Id == dto.Id);
+            var existing = await _db.Missions
+                .Include(m => m.Photos)
+                .Include(m => m.MissionProduits)
+                .Include(m => m.MissionOutils)
+                .FirstOrDefaultAsync(m => m.Id == dto.Id);
             if (existing == null) return ApiResultDto.Fail("Fiche introuvable.");
-            if (existing.Statut == FicheStatuts.Validee)
+            if (existing.StatutFiche == FicheStatuts.Validee)
                 return ApiResultDto.Fail("Une fiche validée ne peut plus être modifiée.");
-            if (existing.Statut == FicheStatuts.EnAttenteValidation)
-                return ApiResultDto.Fail("Fiche déjà soumise au chef. Validation « Lu et approuvé » en attente.");
+            if (existing.StatutFiche == FicheStatuts.EnAttenteValidation)
+                return ApiResultDto.Fail("Fiche déjà soumise au chef.");
 
-            existing.OrdreMissionId = dto.OrdreMissionId;
-            existing.EcoleId = ecoleId;
-            if (!string.IsNullOrEmpty(chefId)) existing.ChefId = chefId;
-            existing.Observations = dto.Observations;
-            existing.ProduitsAutres = dto.ProduitsAutres ?? "";
-            existing.RecommandationPreliminaire = dto.RecommandationPreliminaire ?? "Maintien";
-            if (photos.Count > 0) existing.Photos = photos;
-            existing.SectionBatiments = new SectionBatiments
-            {
-                NombreBatiments = dto.NombreBatiments,
-                EtatGeneral = dto.EtatGeneral ?? "Satisfaisant",
-                NombreEleves = dto.NombreEleves,
-                ToilettesFilles = dto.ToilettesFilles ?? "",
-                ToilettesGarcons = dto.ToilettesGarcons ?? ""
-            };
-            existing.SectionImpact7 = new SectionImpact7
-            {
-                MontantPercu = dto.MontantPercu ?? "",
-                Quantite = dto.Quantite ?? "",
-                ProduitsNettoyage = dto.ProduitsNettoyage?.ToList() ?? new List<string>()
-            };
-            existing.UpdatedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync();
-            _users.AddJournal("Fiches", "modification", $"Fiche {existing.Numero} modifiée");
-            return ApiResultDto.Ok("Fiche enregistrée.", new { id = existing.Id });
-        }
-        else
-        {
-            var count = await _db.FichesControle.CountAsync();
-            var fiche = new FicheControle
-            {
-                Id = NewId("fc"),
-                Numero = $"FC/{DateTime.UtcNow:yyyy}/{count + 1:0000}",
-                OrdreMissionId = dto.OrdreMissionId,
-                EcoleId = ecoleId,
-                ChefId = chefId,
-                Statut = FicheStatuts.Brouillon,
-                Observations = dto.Observations,
-                ProduitsAutres = dto.ProduitsAutres ?? "",
-                RecommandationPreliminaire = dto.RecommandationPreliminaire ?? "Maintien",
-                Photos = photos,
-                SectionBatiments = new SectionBatiments
-                {
-                    NombreBatiments = dto.NombreBatiments,
-                    EtatGeneral = dto.EtatGeneral ?? "Satisfaisant",
-                    NombreEleves = dto.NombreEleves,
-                    ToilettesFilles = dto.ToilettesFilles ?? "",
-                    ToilettesGarcons = dto.ToilettesGarcons ?? ""
-                },
-                SectionImpact7 = new SectionImpact7
-                {
-                    MontantPercu = dto.MontantPercu ?? "",
-                    Quantite = dto.Quantite ?? "",
-                    ProduitsNettoyage = dto.ProduitsNettoyage?.ToList() ?? new List<string>()
-                },
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-            _db.FichesControle.Add(fiche);
-            await _db.SaveChangesAsync();
-            _users.AddJournal("Fiches", "création", $"Fiche {fiche.Numero} créée");
+            ApplyFicheDto(existing, dto, controleProduits, controleOutils);
 
-            if (ordre.Statut == OrdreStatuts.Signe)
+            if (photos.Count > 0)
             {
-                if (_ordres != null)
-                    await _ordres.PasserEnCoursAsync(ordre.Id);
-                else
+                _db.Photos.RemoveRange(existing.Photos);
+                foreach (var p in photos)
                 {
-                    ordre.Statut = OrdreStatuts.EnCours;
-                    await _db.SaveChangesAsync();
-                    _users.AddJournal("Ordres de mission", "en cours", $"Ordre {ordre.Numero} passé en cours (1re fiche)");
+                    p.FicheControleId = existing.Id;
+                    existing.Photos.Add(p);
                 }
             }
-            return ApiResultDto.Ok("Fiche enregistrée.", new { id = fiche.Id });
+
+            await _db.SaveChangesAsync();
+            _users.AddJournal("Fiches", "modification", $"Fiche {existing.NumOrdre} modifiée");
+            return ApiResultDto.Ok("Fiche enregistrée.", new { id = existing.Id });
         }
+
+        if (mission.StatutFiche != null)
+            return ApiResultDto.Fail("Une fiche existe déjà pour cette mission.");
+
+        mission.StatutFiche = FicheStatuts.Brouillon;
+        ApplyFicheDto(mission, dto, controleProduits, controleOutils);
+
+        foreach (var p in photos)
+        {
+            p.FicheControleId = mission.Id;
+            mission.Photos.Add(p);
+        }
+
+        await _db.SaveChangesAsync();
+        _users.AddJournal("Fiches", "création", $"Fiche {mission.NumOrdre} créée");
+
+        if (mission.Statut == MissionStatuts.Signe)
+        {
+            if (_missions != null)
+                await _missions.PasserEnCoursAsync(mission.Id);
+            else
+            {
+                mission.Validite = MissionStatuts.EnCours;
+                await _db.SaveChangesAsync();
+                _users.AddJournal("Missions", "en cours", $"Mission {mission.NumOrdre} passée en cours (1re fiche)");
+            }
+        }
+        return ApiResultDto.Ok("Fiche enregistrée.", new { id = mission.Id });
     }
 
+    private static void ApplyFicheDto(
+        Mission m,
+        SaveFicheControleDto dto,
+        List<SaveControleProduitDto> controleProduits,
+        List<SaveControleOutilDto> controleOutils)
+    {
+        m.NbreBatiment = dto.NombreBatiments;
+        m.EtatBatiment = string.IsNullOrWhiteSpace(dto.EtatGeneral) ? "Satisfaisant" : dto.EtatGeneral;
+        m.NbrEleve = dto.NombreEleves;
+        m.NbrToiletteFille = dto.ToilettesFilles;
+        m.NbrToiletteGarcon = dto.ToilettesGarcons;
+        m.ProduitsAutres = string.IsNullOrWhiteSpace(dto.ProduitsAutres) ? null : dto.ProduitsAutres.Trim();
+        m.ProduitsAutresQuantite = m.ProduitsAutres != null ? dto.ProduitsAutresQuantite : null;
+        m.OutilsAutres = string.IsNullOrWhiteSpace(dto.OutilsAutres) ? null : dto.OutilsAutres.Trim();
+        m.OutilsAutresQuantite = m.OutilsAutres != null ? dto.OutilsAutresQuantite : null;
+        m.Observation = dto.Observations;
+        m.RecommandationPreliminaire = dto.RecommandationPreliminaire ?? "Maintien";
+
+        m.MissionProduits.Clear();
+        foreach (var cp in controleProduits)
+        {
+            m.MissionProduits.Add(new MissionProduit
+            {
+                NumOrdre = m.NumOrdre,
+                CodeProduit = cp.ProduitCode,
+                Quantite = cp.Quantite
+            });
+        }
+        m.CodeProduit = controleProduits.FirstOrDefault()?.ProduitCode;
+        m.NbreProduit = controleProduits.Sum(c => c.Quantite);
+
+        m.MissionOutils.Clear();
+        foreach (var co in controleOutils)
+        {
+            m.MissionOutils.Add(new MissionOutil
+            {
+                NumOrdre = m.NumOrdre,
+                CodeOutil = co.OutilCode,
+                Quantite = co.Quantite
+            });
+        }
+        m.CodeOutil = controleOutils.FirstOrDefault()?.OutilCode;
+        m.NbreOutil = controleOutils.Sum(c => c.Quantite);
+    }
+
+    private static List<SaveControleProduitDto> NormalizeControleProduits(List<SaveControleProduitDto>? raw)
+        => (raw ?? [])
+            .Where(c => c.ProduitCode > 0)
+            .GroupBy(c => c.ProduitCode)
+            .Select(g => new SaveControleProduitDto
+            {
+                ProduitCode = g.Key,
+                Quantite = g.Last().Quantite
+            })
+            .ToList();
+
+    private static List<SaveControleOutilDto> NormalizeControleOutils(SaveFicheControleDto dto)
+    {
+        var fromList = (dto.ControleOutils ?? [])
+            .Where(c => c.OutilCode > 0)
+            .GroupBy(c => c.OutilCode)
+            .Select(g => new SaveControleOutilDto
+            {
+                OutilCode = g.Key,
+                Quantite = g.Last().Quantite
+            })
+            .ToList();
+        if (fromList.Count > 0)
+            return fromList;
+        if (dto.CodeOutil is > 0)
+            return [new SaveControleOutilDto { OutilCode = dto.CodeOutil.Value, Quantite = dto.NbreOutil }];
+        return [];
+    }
     public async Task<ApiResultDto> UploadPhotoAsync(string ficheId, IFormFile file, string? legende = null)
     {
         if (_files == null)
             return ApiResultDto.Fail("Stockage fichiers non configuré.");
 
-        var f = await _db.FichesControle.FirstOrDefaultAsync(x => x.Id == ficheId);
+        var f = await _db.Missions
+            .Include(x => x.Photos)
+            .Include(x => x.Affectations)
+            .Include(x => x.Ecole)
+            .FirstOrDefaultAsync(x => x.Id == ficheId);
         if (f == null) return ApiResultDto.Fail("Fiche introuvable.");
-        if (f.Statut != FicheStatuts.Brouillon)
+        if (f.StatutFiche != FicheStatuts.Brouillon)
             return ApiResultDto.Fail("Upload photos autorisé uniquement sur fiche brouillon.");
 
         var scope = await _scope.GetAsync();
-        var ordre = await _db.OrdresMission.AsNoTracking().FirstOrDefaultAsync(o => o.Id == f.OrdreMissionId);
-        if (!scope.Unrestricted && ordre != null && !scope.AllowsOrdre(ordre.EquipeId, ordre.EcoleId))
+        var agentIds = f.Affectations.Select(p => p.MatrAgent);
+        var ecoleId = f.Ecole?.Id ?? "";
+        if (!scope.Unrestricted && !scope.AllowsFiche(agentIds, ecoleId, null, f.Id))
             return ApiResultDto.Fail("Accès refusé.");
+        if (!_access.CanWriteFromAffectations(f.Affectations, scope.AgentId, scope.Unrestricted))
+            return ApiResultDto.Fail("Vous n'avez pas le droit d'écrire sur cette mission.");
 
         var (ok, url, error) = await _files.SaveAsync(file, "fiches", ficheId);
         if (!ok) return ApiResultDto.Fail(error ?? "Échec upload.");
 
-        var meta = new PhotoMeta
+        var index = f.Photos.Count + 1;
+        var stamp = PhotoStamp(f.NumOrdre, index);
+        var photo = new Photo
         {
-            Nom = file.FileName,
-            Legende = string.IsNullOrWhiteSpace(legende) ? file.FileName : legende!,
+            FicheControleId = ficheId,
+            Nom = stamp,
+            Legende = stamp,
             Url = url!
         };
-        f.Photos.Add(meta);
-        f.UpdatedAt = DateTime.UtcNow;
+        f.Photos.Add(photo);
         await _db.SaveChangesAsync();
-        return ApiResultDto.Ok("Photo enregistrée.", meta);
+        return ApiResultDto.Ok("Photo enregistrée.", new { photo.Nom, photo.Legende, photo.Url, NumOrdre = f.NumOrdre, MissionId = f.Id });
     }
 
     public async Task<ApiResultDto> SoumettrePourValidationAsync(string id, string? userId)
     {
-        var f = await _db.FichesControle.FirstOrDefaultAsync(x => x.Id == id);
+        var f = await _db.Missions.Include(m => m.Ecole).Include(m => m.Affectations)
+            .FirstOrDefaultAsync(x => x.Id == id);
         if (f == null) return ApiResultDto.Fail("Fiche introuvable.");
-        if (f.Statut != FicheStatuts.Brouillon)
+        if (f.StatutFiche != FicheStatuts.Brouillon)
             return ApiResultDto.Fail("Seules les fiches brouillon peuvent être soumises au chef.");
 
-        f.Statut = FicheStatuts.EnAttenteValidation;
-        f.UpdatedAt = DateTime.UtcNow;
+        var scope = await _scope.GetAsync();
+        if (!_access.CanWriteFromAffectations(f.Affectations, scope.AgentId, scope.Unrestricted))
+            return ApiResultDto.Fail("Vous n'avez pas le droit de soumettre cette fiche.");
+
+        f.StatutFiche = FicheStatuts.EnAttenteValidation;
         await _db.SaveChangesAsync();
 
-        var chefUserId = await _db.Users.AsNoTracking()
-            .Where(u => u.Role == "Chef d'établissement" && u.EcoleId == f.EcoleId)
-            .Select(u => u.Id)
-            .FirstOrDefaultAsync();
         _users.AddNotification(
             "Fiche à valider",
-            $"La fiche {f.Numero} attend votre « Lu et approuvé ».",
-            chefUserId);
-        _users.AddJournal("Fiches", "soumission", $"Fiche {f.Numero} soumise au chef", userId);
+            $"La fiche {f.NumOrdre} attend le « Lu et approuvé » du chef d'établissement (circuit tablette).");
+        _users.AddJournal("Fiches", "soumission",
+            $"Fiche {f.NumOrdre} soumise pour validation chef (tablette) — agent {userId}", userId);
         await _email.NotifyAsync(
-            $"Fiche à valider — {f.Numero}",
-            $"<p>La fiche <strong>{f.Numero}</strong> attend votre « Lu et approuvé ».</p>",
-            toUserId: chefUserId);
-        return ApiResultDto.Ok("Fiche soumise au chef d’établissement.");
+            $"Fiche à valider — {f.NumOrdre}",
+            $"<p>La fiche <strong>{f.NumOrdre}</strong> attend le « Lu et approuvé » du chef d'établissement.</p>",
+            toRole: DataScope.RoleControleur);
+        return ApiResultDto.Ok("Fiche prête pour validation par le chef d'établissement (tablette).");
     }
 
     public async Task<ApiResultDto> ValiderAsync(string id, string? userId)
     {
-        var f = await _db.FichesControle.FirstOrDefaultAsync(x => x.Id == id);
+        var f = await _db.Missions
+            .Include(m => m.Ecole)!.ThenInclude(e => e!.ChefEtablissement)
+            .Include(m => m.Affectations)
+            .FirstOrDefaultAsync(x => x.Id == id);
         if (f == null) return ApiResultDto.Fail("Fiche introuvable.");
-        if (f.Statut != FicheStatuts.EnAttenteValidation)
-            return ApiResultDto.Fail("Seules les fiches en attente de validation peuvent être approuvées (« Lu et approuvé »).");
+        if (f.StatutFiche != FicheStatuts.EnAttenteValidation)
+            return ApiResultDto.Fail("Seules les fiches en attente de validation peuvent être approuvées.");
 
         var scope = await _scope.GetAsync();
-        if (!scope.Unrestricted && !scope.AllowsEcole(f.EcoleId))
-            return ApiResultDto.Fail("Accès refusé pour cette fiche.");
+        if (!_access.CanWriteFromAffectations(f.Affectations, scope.AgentId, scope.Unrestricted))
+            return ApiResultDto.Fail("Accès refusé : seul le chef d'équipe (ou adjoint délégué) peut enregistrer la validation tablette.");
 
-        f.Statut = FicheStatuts.Validee;
+        var chefNom = f.Ecole?.ChefEtablissement?.NomComplet ?? "chef d'établissement";
+        f.StatutFiche = FicheStatuts.Validee;
         f.ValideePar = userId;
         f.ValideeLe = DateTime.UtcNow;
-        f.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
-        _users.AddNotification("Fiche validée", $"La fiche {f.Numero} a été validée (Lu et approuvé).");
-        _users.AddJournal("Fiches", "validation", $"Fiche {f.Numero} — Lu et approuvé", userId);
+        _users.AddNotification("Fiche validée", $"La fiche {f.NumOrdre} a été validée (Lu et approuvé) — {chefNom}.");
+        _users.AddJournal("Fiches", "validation tablette",
+            $"Fiche {f.NumOrdre} — Lu et approuvé par {chefNom} (enregistré par agent {userId})", userId);
         await _email.NotifyAsync(
-            $"Fiche validée — {f.Numero}",
-            $"<p>La fiche <strong>{f.Numero}</strong> a été validée (Lu et approuvé).</p>",
+            $"Fiche validée — {f.NumOrdre}",
+            $"<p>La fiche <strong>{f.NumOrdre}</strong> a été validée (Lu et approuvé).</p>",
             toRole: DataScope.RoleControleur);
         return ApiResultDto.Ok("Fiche validée : Lu et approuvé.");
     }
 
     public async Task<ApiResultDto> DeleteAsync(string id)
     {
-        var f = await _db.FichesControle.FirstOrDefaultAsync(x => x.Id == id);
+        var f = await _db.Missions
+            .Include(x => x.Photos)
+            .Include(x => x.MissionProduits)
+            .Include(x => x.MissionOutils)
+            .FirstOrDefaultAsync(x => x.Id == id);
         if (f == null) return ApiResultDto.Fail("Fiche introuvable.");
-        if (f.Statut != FicheStatuts.Brouillon)
-            return ApiResultDto.Fail("Seules les fiches brouillon peuvent être supprimées.");
+        if (f.StatutFiche != FicheStatuts.Brouillon)
+            return ApiResultDto.FailBlocked(
+                "Suppression non autorisée",
+                "Cette fiche de contrôle ne peut plus être retirée.",
+                "Elle a déjà été soumise ou validée dans le circuit administratif.\n\n" +
+                "Seules les fiches encore en préparation (brouillon) peuvent être annulées.");
 
-        _db.FichesControle.Remove(f);
+        _db.Photos.RemoveRange(f.Photos);
+        f.MissionProduits.Clear();
+        f.MissionOutils.Clear();
+        f.StatutFiche = null;
+        f.NbreBatiment = 0;
+        f.NbrEleve = 0;
+        f.Observation = null;
+        f.CodeProduit = null;
+        f.NbreProduit = 0;
+        f.CodeOutil = null;
+        f.NbreOutil = 0;
         await _db.SaveChangesAsync();
         _users.AddJournal("Fiches", "suppression", $"Fiche {id} supprimée");
         return ApiResultDto.Ok("Fiche supprimée.");
     }
 
-    private static string NewId(string prefix)
-        => $"{prefix}-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..32];
+    /// <summary>Nom stocké en BDD : N° mission (NumOrdre) + rang d'ajout de la photo.</summary>
+    private static string PhotoStamp(string numOrdre, int index)
+        => $"{numOrdre}-{index}";
+
+    private sealed class PhotoJsonDto
+    {
+        public string? Nom { get; set; }
+        public string? Legende { get; set; }
+        public string? Url { get; set; }
+    }
 }

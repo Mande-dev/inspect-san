@@ -1,0 +1,168 @@
+@model IReadOnlyList<MissionListDto>
+@using System.Text.Json
+@using inspect_san.Helpers
+@using inspect_san.Models.Constants
+@using inspect_san.Models.DTOs
+@{
+    ViewData["Title"] = "Missions";
+    var ecoles = (List<Ecole>)ViewBag.Ecoles;
+    var agents = (List<Agent>)(ViewBag.Agents ?? new List<Agent>());
+    var roles = (IReadOnlyDictionary<string, string>)(ViewBag.RolesMission ?? RolesMissionCodes.Labels);
+    var canSigner = ViewBag.CanSigner as bool? == true;
+    var canGerer = ViewBag.CanGererMission as bool? == true;
+}
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4 isp-page-head">
+    <div>
+        <h2 class="mb-1">Missions</h2>
+        <p class="text-secondary mb-0">Planification, équipe dynamique et signature des missions de contrôle.</p>
+    </div>
+    @if (canGerer)
+    {
+        <button type="button" class="btn btn-primary" id="newMission" data-bs-toggle="modal" data-bs-target="#missionModal">
+            <i class="ti ti-plus me-1"></i>Nouvelle mission
+        </button>
+    }
+</div>
+<form method="get" class="row g-2 mb-4" id="missionsFilter">
+    <div class="col-12 col-md-5"><input name="q" value="@ViewBag.Q" class="form-control" placeholder="N° mission ou équipe…" /></div>
+    <div class="col-12 col-md-4">
+        <select name="statut" class="form-select">
+            <option value="">Tous les statuts</option>
+            @foreach (var s in new[] { "brouillon", "en_attente_signature", "signe", "en_cours", "cloture" })
+            {
+                <option value="@s" selected="@(ViewBag.Statut as string == s)">@s.Replace("_", " ")</option>
+            }
+        </select>
+    </div>
+    <div class="col-12 col-md-3 col-lg-2"><button class="btn btn-outline-primary w-100">Filtrer</button></div>
+</form>
+<div class="card card-lg">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 js-paginated-table" id="missionsTable" data-can-signer="@(canSigner ? "1" : "0")" data-can-gerer="@(canGerer ? "1" : "0")">
+            <thead class="table-light"><tr><th>Numéro</th><th>École</th><th>Équipe</th><th>Participants</th><th>Fin de validité</th><th>Statut</th><th></th></tr></thead>
+            <tbody id="missionsTbody">
+            @foreach (var m in Model)
+            {
+                var partsLabel = string.Join(", ", m.Participations.Select(p =>
+                    $"{p.AgentNom ?? p.AgentId} ({p.RoleNom ?? RolesMissionCodes.LabelOf(p.RoleMission)})"));
+                var missionJson = JsonUi.Serialize(m);
+                <tr>
+                    <td class="fw-semibold">@m.Numero</td>
+                    <td>@(m.EcoleNom ?? "—")</td>
+                    <td>@m.NomEquipe</td>
+                    <td class="small">@(string.IsNullOrWhiteSpace(partsLabel) ? "—" : partsLabel)</td>
+                    <td class="small">@(m.FinValidite?.ToString("dd/MM/yyyy") ?? "—")</td>
+                    <td><span class="badge bg-secondary-subtle text-dark">@m.Statut.Replace("_", " ")</span></td>
+                    <td class="text-end text-nowrap">
+                        <button type="button" class="btn btn-sm btn-outline-secondary mission-print"
+                                title="Imprimer l’ordre de mission"
+                                data-json="@missionJson"
+                                data-ecole="@JsonUi.Serialize(ecoles.FirstOrDefault(e => e.Id == m.EcoleId))"><i class="ti ti-printer"></i></button>
+                        @if (canGerer || m.CanWrite)
+                        {
+                            <button type="button" class="btn btn-sm btn-outline-primary mission-edit" data-json="@missionJson" data-bs-toggle="modal" data-bs-target="#missionModal"><i class="ti ti-edit"></i></button>
+                        }
+                        @if (canSigner && (m.Statut == "brouillon" || m.Statut == "en_attente_signature"))
+                        {
+                            <form class="d-inline js-signer-mission" data-id="@m.Id"><button type="submit" class="btn btn-sm btn-outline-success" title="Signer"><i class="ti ti-signature"></i></button></form>
+                        }
+                        @if ((canGerer || m.CanWrite) && m.Statut == "brouillon")
+                        {
+                            <form class="d-inline js-demander-signature" data-id="@m.Id"><button type="submit" class="btn btn-sm btn-outline-warning" title="Demander signature"><i class="ti ti-send"></i></button></form>
+                        }
+                        @if (m.CanDeleguer)
+                        {
+                            var adjoint = m.Participations.FirstOrDefault(p => p.RoleMission == RolesMissionCodes.ChefAdjoint);
+                            var delegue = adjoint?.EcritureDeleguee == true;
+                            if (delegue)
+                            {
+                                <form class="d-inline js-retirer-delegation" data-id="@m.Id"><button type="submit" class="btn btn-sm btn-outline-secondary" title="Retirer délégation écriture"><i class="ti ti-key-off"></i></button></form>
+                            }
+                            else
+                            {
+                                <form class="d-inline js-deleguer-ecriture" data-id="@m.Id"><button type="submit" class="btn btn-sm btn-outline-info" title="Céder écriture à l'adjoint"><i class="ti ti-key"></i></button></form>
+                            }
+                        }
+                        @if (canGerer || m.CanWrite)
+                        {
+                            <form class="d-inline js-delete-mission" data-id="@m.Id"><button type="submit" class="btn btn-sm btn-outline-danger"><i class="ti ti-trash"></i></button></form>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade isp-modal" id="missionModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <form asp-action="SaveMission" method="post" class="modal-content" id="missionForm">
+            @Html.AntiForgeryToken()
+            <div class="modal-header">
+                <div class="isp-modal-heading">
+                    <span class="isp-modal-icon" aria-hidden="true"><i class="ti ti-file-certificate"></i></span>
+                    <div>
+                        <p class="isp-modal-kicker">Mission</p>
+                        <h5 class="modal-title" id="missionTitle">Nouvelle mission</h5>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="Id" id="missionId" />
+                <div class="isp-modal-section">
+                    <h6 class="isp-modal-section-title"><i class="ti ti-file-description"></i> Paramètres</h6>
+                    <div class="row g-3">
+                        <div class="col-12 d-none" id="missionNumeroWrap">
+                            <label class="form-label text-secondary">N° mission</label>
+                            <p class="fw-semibold mb-0 font-monospace" id="missionNumeroDisplay">—</p>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label text-secondary">Nom d’équipe</label>
+                            <p class="fw-semibold mb-0 font-monospace" id="missionNomEquipeDisplay">Généré automatiquement (Equipe-{N°})</p>
+                        </div>
+                        <div class="col-md-6"><label class="form-label">Statut</label>
+                            <select name="Statut" id="missionStatut" class="form-select">
+                                <option value="brouillon">Brouillon</option>
+                                <option value="en_attente_signature">En attente de signature</option>
+                                <option value="signe">Signé</option>
+                                <option value="en_cours">En cours</option>
+                                <option value="cloture">Clôturé</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6"><label class="form-label">École <span class="text-danger">*</span></label>
+                            <select name="EcoleId" id="missionEcole" class="form-select" required>
+                                <option value="">Sélectionner…</option>
+                                @foreach (var e in ecoles) { <option value="@e.Id">@e.Denomination</option> }
+                            </select>
+                        </div>
+                        <div class="col-md-6"><label class="form-label">Date d'émission</label><input type="date" name="DateEmission" id="missionEmission" class="form-control" /></div>
+                        <div class="col-md-6"><label class="form-label">Fin de validité</label><input type="date" name="FinValidite" id="missionFin" class="form-control" /></div>
+                        <div class="col-md-6"><label class="form-label">Montant perçu</label><input type="number" step="0.01" min="0" name="MontPer" id="missionMontPer" class="form-control" placeholder="0.00" /></div>
+                    </div>
+                </div>
+                <div class="isp-modal-section mb-0">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="isp-modal-section-title mb-0"><i class="ti ti-users"></i> Participations</h6>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="addParticipation"><i class="ti ti-plus"></i> Ajouter</button>
+                    </div>
+                    <p class="small text-secondary">Au plus un chef d'équipe et un chef adjoint ; plusieurs membres possibles.</p>
+                    <div id="participationsList"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="submit" class="btn btn-primary">Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script type="application/json" id="agentsOptionsJson">@Html.Raw(JsonSerializer.Serialize(agents.Select(a => new { a.Id, a.NomComplet, Telephone = a.Telephone })))</script>
+<script type="application/json" id="rolesOptionsJson">@Html.Raw(JsonSerializer.Serialize(roles.Select(r => new { Code = r.Key, Nom = r.Value })))</script>
+<script type="application/json" id="ecolesOptionsJson">@Html.Raw(JsonSerializer.Serialize(ecoles.Select(e => new { e.Id, e.Denomination, e.Adresse })))</script>
+
+@section Scripts {
+<script src="~/js/pages/missions.js" asp-append-version="true"></script>
+}

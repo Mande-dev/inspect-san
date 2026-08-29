@@ -2,21 +2,27 @@
 @{
     ViewData["Title"] = "Paramètres";
     ViewBag.PageKey = "parametres";
-    var tab = ViewBag.Tab as string ?? "communes";
+    var tab = ViewBag.Tab as string ?? "categories";
     var items = (List<RefItem>)ViewBag.Items;
-    var tabs = new[] { ("communes", "Communes"), ("regimes", "Régimes"), ("typesDecision", "Types de décision"), ("equipes", "Équipes") };
-    var isTypes = tab == "typesDecision";
-    var isEquipes = tab == "equipes";
+    var canGerer = ViewBag.CanGererParametres as bool? == true;
+    var tabs = new[] {
+        ("categories", "Catégories"),
+        ("produits", "Produits utilisés"),
+        ("outils", "Outils utilisés")
+    };
 }
-<div id="parametresPage" data-tab="@tab">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div id="parametresPage" data-tab="@tab" data-can-gerer="@(canGerer ? "1" : "0")">
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4 isp-page-head">
         <div>
             <h2 class="mb-1">Paramètres</h2>
-            <p class="text-secondary mb-0">Référentiels de démonstration.</p>
+            <p class="text-secondary mb-0">@(canGerer ? "Référentiels métier. Le code est attribué automatiquement." : "Consultation des référentiels métier.")</p>
         </div>
-        <button type="button" class="btn btn-primary" id="btnNewRef" data-bs-toggle="modal" data-bs-target="#refModal">
-            <i class="ti ti-plus me-1"></i> Ajouter
-        </button>
+        @if (canGerer)
+        {
+            <button type="button" class="btn btn-primary" id="btnNewRef" data-bs-toggle="modal" data-bs-target="#refModal">
+                <i class="ti ti-plus me-1"></i> Ajouter
+            </button>
+        }
     </div>
 
     <ul class="nav nav-tabs mb-3" id="parametresTabs" role="tablist">
@@ -26,8 +32,7 @@
                 <button type="button"
                         class="nav-link @(tab == t.Item1 ? "active" : "")"
                         data-tab="@t.Item1"
-                        role="tab"
-                        aria-selected="@(tab == t.Item1 ? "true" : "false")">@t.Item2</button>
+                        role="tab">@t.Item2</button>
             </li>
         }
     </ul>
@@ -35,12 +40,10 @@
     <div class="card card-lg">
         <div class="table-responsive">
             <table class="table table-hover mb-0 js-paginated-table" id="parametresTable">
-                <thead class="table-light">
-                    <tr id="parametresThead">
-                        @if (isTypes) { <th>Code</th> }
-                        <th>Nom / Libellé</th>
-                        @if (isEquipes) { <th>Chef d’équipe</th> }
-                        <th>Actif</th>
+                <thead class="table-light" id="parametresThead">
+                    <tr>
+                        <th style="width:5rem">Code</th>
+                        <th>Libellé</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -48,19 +51,20 @@
                 @foreach (var i in items)
                 {
                     <tr>
-                        @if (isTypes) { <td>@i.Code</td> }
+                        <td class="text-secondary">@i.Code</td>
                         <td>@(i.Libelle ?? i.Nom)</td>
-                        @if (isEquipes) { <td>@(i.ChefNom ?? "—")</td> }
-                        <td>@(i.Actif ? "Oui" : "Non")</td>
                         <td class="text-end text-nowrap">
-                            <button type="button" class="btn btn-sm btn-outline-primary ref-edit"
-                                    data-json="@JsonSerializer.Serialize(i)"
-                                    data-bs-toggle="modal" data-bs-target="#refModal">
-                                <i class="ti ti-edit"></i>
-                            </button>
-                            <form class="d-inline js-delete-ref" data-id="@i.Id">
-                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="ti ti-trash"></i></button>
-                            </form>
+                            @if (canGerer)
+                            {
+                                <button type="button" class="btn btn-sm btn-outline-primary ref-edit"
+                                        data-json="@JsonSerializer.Serialize(i)"
+                                        data-bs-toggle="modal" data-bs-target="#refModal">
+                                    <i class="ti ti-edit"></i>
+                                </button>
+                                <form class="d-inline js-delete-ref" data-code="@i.Code">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="ti ti-trash"></i></button>
+                                </form>
+                            }
                         </td>
                     </tr>
                 }
@@ -75,59 +79,30 @@
         <form asp-action="SaveParametre" method="post" class="modal-content" id="refForm">
             @Html.AntiForgeryToken()
             <input type="hidden" name="tab" id="refTab" value="@tab" />
-            <input type="hidden" name="Id" id="refId" />
+            <input type="hidden" name="Code" id="refCode" value="0" />
             <div class="modal-header">
-                <div class="isp-modal-heading">
-                    <span class="isp-modal-icon" aria-hidden="true"><i class="ti ti-settings"></i></span>
-                    <div>
-                        <p class="isp-modal-kicker">Référentiel</p>
-                        <h5 class="modal-title" id="refTitle">Ajouter</h5>
-                    </div>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                <h5 class="modal-title" id="refTitle">Ajouter</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div class="isp-modal-section mb-0">
-                    <h6 class="isp-modal-section-title"><i class="ti ti-forms"></i> Saisie</h6>
-                    <div id="refFieldsTypes" class="@(isTypes ? "" : "d-none")">
-                        <div class="mb-3">
-                            <label class="form-label" for="refCode">Code</label>
-                            <input name="Code" id="refCode" class="form-control" />
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label" for="refLibelle">Libellé</label>
-                            <input name="Libelle" id="refLibelle" class="form-control" />
-                        </div>
-                    </div>
-                    <div id="refFieldsNom" class="@(isTypes ? "d-none" : "")">
-                        <div class="mb-3">
-                            <label class="form-label" for="refNom">Nom</label>
-                            <input name="Nom" id="refNom" class="form-control" />
-                        </div>
-                    </div>
-                    <div id="refFieldsEquipe" class="@(isEquipes ? "" : "d-none")">
-                        <div class="mb-3">
-                            <label class="form-label" for="refChefControleurId">Chef d’équipe</label>
-                            <select id="refChefControleurId" class="form-select">
-                                <option value="">— À désigner plus tard —</option>
-                            </select>
-                            <div class="form-text">Optionnel. Affiche uniquement les membres de cette équipe. Ajoutez d’abord des membres (page Contrôleurs), puis désignez le chef ici.</div>
-                        </div>
-                    </div>
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" name="Actif" value="true" checked id="actif" />
-                        <label class="form-check-label" for="actif">Actif</label>
-                    </div>
+                <div class="mb-3" id="refCodeGroup" hidden>
+                    <label class="form-label" for="refCodeDisplay">Code</label>
+                    <input type="text" id="refCodeDisplay" class="form-control" readonly tabindex="-1" />
+                    <div class="form-text">Code technique auto-incrémenté (non modifiable).</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="refNom">Libellé</label>
+                    <input name="Nom" id="refNom" class="form-control" required />
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
-                <button class="btn btn-primary" type="submit">Enregistrer</button>
+                <button type="submit" class="btn btn-primary">Enregistrer</button>
             </div>
         </form>
     </div>
 </div>
 
 @section Scripts {
-    <script src="~/js/pages/parametres.js" asp-append-version="true"></script>
+<script src="~/js/pages/parametres.js" asp-append-version="true"></script>
 }

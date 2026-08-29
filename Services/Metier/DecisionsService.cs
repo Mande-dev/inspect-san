@@ -29,222 +29,195 @@ public class DecisionsService : IDecisionsService
     }
 
     public async Task<List<Decision>> QueryEntitiesAsync()
-        => await _db.Decisions.AsNoTracking()
-            .Include(d => d.TypeDecision)
-            .OrderByDescending(d => d.CreatedAt)
+    {
+        var list = await _db.Decisions.AsNoTracking()
+            .Include(d => d.Mission)
+            .Include(d => d.Ecole)
+            .OrderByDescending(d => d.NumDecision)
             .ToListAsync();
+
+        foreach (var d in list)
+        {
+            d.Id = d.NumDecision;
+            d.FicheControleId = d.Mission?.Id ?? "";
+            d.EcoleId = d.Ecole?.Id ?? "";
+        }
+
+        return list;
+    }
 
     public async Task<IReadOnlyList<DecisionListDto>> ListAsync()
     {
-        var decisions = await _db.Decisions.AsNoTracking()
-            .Include(d => d.TypeDecision)
-            .Include(d => d.Ecole)
-            .OrderByDescending(d => d.CreatedAt)
-            .ToListAsync();
+        var decisions = await QueryEntitiesAsync();
         return decisions.Select(d => new DecisionListDto
         {
-            Id = d.Id,
-            Numero = d.Numero,
-            RapportId = d.RapportId,
-            EcoleId = d.EcoleId,
+            Id = d.NumDecision,
+            Numero = d.NumDecision,
+            FicheControleId = d.Mission?.Id ?? "",
+            FicheNumero = d.NumOrdre,
+            EcoleId = d.Ecole?.Id ?? "",
             EcoleNom = d.Ecole?.Denomination,
-            Type = d.TypeDecision?.Nom ?? d.TypeDecision?.Code ?? "",
-            TypeDecisionId = d.TypeDecisionId,
-            DelaiExecution = d.DelaiExecution,
-            StatutExecution = d.StatutExecution,
-            Commentaire = d.Commentaire ?? d.Motif
+            Type = DecisionTypes.LabelOf(d.DecisionFin),
+            TypeDecision = d.DecisionFin
         }).ToList();
     }
 
-    public async Task<List<Rapport>> QueryRapportsSansDecisionAsync()
+    public async Task<List<FicheControle>> QueryFichesSansDecisionAsync()
     {
-        var decided = await _db.Decisions.AsNoTracking().Select(d => d.RapportId).ToListAsync();
-        return await _db.Rapports.AsNoTracking()
-            .Where(r => r.Statut == RapportStatuts.Transmis && !decided.Contains(r.Id))
+        var decided = await _db.Decisions.AsNoTracking().Select(d => d.NumOrdre).ToListAsync();
+        var missions = await _db.Missions.AsNoTracking()
+            .Include(m => m.Ecole)
+            .Include(m => m.MissionProduits)
+            .Include(m => m.MissionOutils)
+            .Include(m => m.Photos)
+            .Where(m => m.StatutFiche == FicheStatuts.Validee && !decided.Contains(m.NumOrdre))
             .ToListAsync();
+        return missions.Select(m => FicheControle.FromMission(m, m.Ecole?.Id)).ToList();
     }
 
-    public async Task<IReadOnlyList<RapportListDto>> RapportsSansDecisionAsync()
+    public async Task<IReadOnlyList<FicheListDto>> FichesSansDecisionAsync()
     {
-        var list = await QueryRapportsSansDecisionAsync();
-        var ecoleIds = list.Select(r => r.EcoleId).Distinct().ToList();
+        var list = await QueryFichesSansDecisionAsync();
+        var ecoleIds = list.Select(f => f.EcoleId).Distinct().ToList();
         var noms = await _db.Ecoles.AsNoTracking()
             .Where(e => ecoleIds.Contains(e.Id))
             .ToDictionaryAsync(e => e.Id, e => e.Denomination);
-        return list.Select(r => new RapportListDto
+
+        var produitCodes = list.SelectMany(f => f.ControleProduits.Select(cp => cp.ProduitCode)).Distinct().ToList();
+        var outilCodes = list.SelectMany(f => f.ControleOutils.Select(co => co.OutilCode)).Distinct().ToList();
+        var produitNoms = await _db.Produits.AsNoTracking()
+            .Where(p => produitCodes.Contains(p.CodeProduit))
+            .ToDictionaryAsync(p => p.CodeProduit, p => p.LibeleProduit);
+        var outilNoms = await _db.Outils.AsNoTracking()
+            .Where(o => outilCodes.Contains(o.CodeOutile))
+            .ToDictionaryAsync(o => o.CodeOutile, o => o.LibelleOutile);
+
+        return list.Select(f => new FicheListDto
         {
-            Id = r.Id,
-            Numero = r.Numero,
-            EcoleId = r.EcoleId,
-            EcoleNom = noms.GetValueOrDefault(r.EcoleId),
-            FicheIds = r.FicheIds.ToList(),
-            Synthese = r.Synthese,
-            Statut = r.Statut
+            Id = f.Id,
+            Numero = f.Numero,
+            MissionId = f.MissionId,
+            EcoleId = f.EcoleId,
+            EcoleNom = noms.GetValueOrDefault(f.EcoleId),
+            Statut = f.Statut,
+            EtatGeneral = f.EtatGeneral,
+            NombreBatiments = f.NombreBatiments,
+            NombreEleves = f.NombreEleves,
+            ToilettesFilles = f.ToilettesFilles,
+            ToilettesGarcons = f.ToilettesGarcons,
+            ProduitsAutres = f.ProduitsAutres,
+            ProduitsAutresQuantite = f.ProduitsAutresQuantite,
+            OutilsAutres = f.OutilsAutres,
+            OutilsAutresQuantite = f.OutilsAutresQuantite,
+            Observations = f.Observations,
+            RecommandationPreliminaire = f.RecommandationPreliminaire,
+            ControleProduits = f.ControleProduits.Select(cp => new ControleProduitListDto
+            {
+                ProduitCode = cp.ProduitCode,
+                ProduitNom = produitNoms.GetValueOrDefault(cp.ProduitCode),
+                Quantite = cp.Quantite
+            }).ToList(),
+            ControleOutils = f.ControleOutils.Select(co => new ControleOutilListDto
+            {
+                OutilCode = co.OutilCode,
+                OutilNom = outilNoms.GetValueOrDefault(co.OutilCode),
+                Quantite = co.Quantite
+            }).ToList(),
+            Photos = f.Photos.Select(p => new FichePhotoListDto
+            {
+                Nom = p.Nom,
+                Legende = p.Legende,
+                Url = p.Url,
+                NumOrdre = f.Numero,
+                MissionId = f.MissionId
+            }).ToList()
         }).ToList();
     }
 
     public async Task<ApiResultDto> SaveAsync(SaveDecisionDto dto, string? userId)
     {
-        if (string.IsNullOrWhiteSpace(dto.RapportId) || string.IsNullOrWhiteSpace(dto.TypeDecisionId))
-            return ApiResultDto.Fail("Rapport et type obligatoires.");
+        if (string.IsNullOrWhiteSpace(dto.FicheControleId) || string.IsNullOrWhiteSpace(dto.TypeDecision))
+            return ApiResultDto.Fail("Fiche et type obligatoires.");
 
-        var typeDecision = await _db.TypesDecision.FirstOrDefaultAsync(t => t.Id == dto.TypeDecisionId);
-        if (typeDecision == null)
+        if (!DecisionTypes.IsValid(dto.TypeDecision))
             return ApiResultDto.Fail("Type de décision invalide.");
 
+        var typeCode = dto.TypeDecision.Trim();
         var isNew = string.IsNullOrEmpty(dto.Id);
-        Decision? existing = null;
-        if (!isNew)
-        {
-            existing = await _db.Decisions.FirstOrDefaultAsync(d => d.Id == dto.Id);
-            if (existing == null) return ApiResultDto.Fail("Décision introuvable.");
-            dto.RapportId = existing.RapportId;
-        }
 
-        var rapport = await _db.Rapports.FirstOrDefaultAsync(r => r.Id == dto.RapportId);
-        if (rapport == null)
-            return ApiResultDto.Fail("Rapport introuvable.");
+        var mission = await _db.Missions.Include(m => m.Ecole).FirstOrDefaultAsync(m => m.Id == dto.FicheControleId);
+        if (mission == null)
+            return ApiResultDto.Fail("Fiche introuvable.");
 
+        var ecoleId = mission.Ecole?.Id ?? dto.EcoleId;
         var scope = await _scope.GetAsync();
-        if (!scope.Unrestricted && !scope.AllowsDecision(rapport.EcoleId))
+        if (!scope.Unrestricted && !scope.AllowsDecision(ecoleId))
             return ApiResultDto.Fail("Accès refusé pour cette décision / périmètre.");
 
         if (isNew)
         {
-            if (rapport.Statut != RapportStatuts.Transmis)
-                return ApiResultDto.Fail("Une décision ne peut être prise que sur un rapport transmis au Directeur Provincial.");
-            var deja = await _db.Decisions.AnyAsync(d => d.RapportId == rapport.Id);
-            if (deja)
-                return ApiResultDto.Fail("Ce rapport a déjà une décision. Un rapport ne peut recevoir qu’une seule décision.");
-        }
-        else if (rapport.Statut is not (RapportStatuts.Transmis or RapportStatuts.Traite))
-        {
-            return ApiResultDto.Fail("Cette décision ne peut plus être modifiée pour ce statut de rapport.");
-        }
-
-        var commentaire = dto.Commentaire;
-        if (string.IsNullOrEmpty(commentaire) && !string.IsNullOrEmpty(dto.Motif))
-            commentaire = dto.Motif;
-
-        var typeToStatut = new Dictionary<string, string>
-        {
-            [DecisionTypes.Maintien] = EcoleStatuts.Active,
-            [DecisionTypes.Avertissement] = EcoleStatuts.Active,
-            [DecisionTypes.Rehabilitation] = EcoleStatuts.Rehabilitation,
-            [DecisionTypes.FermetureTemporaire] = EcoleStatuts.FermetureTemporaire,
-            [DecisionTypes.FermetureDefinitive] = EcoleStatuts.FermetureDefinitive
-        };
-
-        Decision decision;
-        var ecoleId = rapport.EcoleId;
-        if (!isNew)
-        {
-            existing!.TypeDecisionId = dto.TypeDecisionId;
-            existing.EcoleId = ecoleId;
-            existing.DelaiExecution = dto.DelaiExecution;
-            existing.StatutExecution = string.IsNullOrEmpty(dto.StatutExecution) ? existing.StatutExecution : dto.StatutExecution;
-            existing.Motif = dto.Motif;
-            existing.Commentaire = commentaire;
-            decision = existing;
-            _users.AddJournal("Décisions", "modification", $"Décision {existing.Numero} modifiée", userId);
+            if (mission.StatutFiche != FicheStatuts.Validee)
+                return ApiResultDto.Fail("Une décision ne peut être prise que sur une fiche validée.");
+            if (await _db.Decisions.AnyAsync(d => d.NumOrdre == mission.NumOrdre))
+                return ApiResultDto.Fail("Cette fiche a déjà une décision.");
         }
         else
         {
-            var count = await _db.Decisions.CountAsync();
-            decision = new Decision
-            {
-                Id = NewId("dec"),
-                Numero = $"DEC/{DateTime.UtcNow:yyyy}/{count + 1:0000}",
-                RapportId = rapport.Id,
-                EcoleId = ecoleId,
-                TypeDecisionId = dto.TypeDecisionId,
-                DelaiExecution = dto.DelaiExecution,
-                StatutExecution = string.IsNullOrEmpty(dto.StatutExecution) ? StatutsExecution.EnAttente : dto.StatutExecution,
-                Motif = dto.Motif,
-                Commentaire = commentaire,
-                DecidePar = userId,
-                DecideLe = DateTime.UtcNow,
-                CreatedAt = DateTime.UtcNow
-            };
-            _db.Decisions.Add(decision);
-            _users.AddJournal("Décisions", "création", $"Décision {decision.Numero} créée", userId);
+            var existing = await _db.Decisions.FirstOrDefaultAsync(d => d.NumDecision == dto.Id);
+            if (existing == null) return ApiResultDto.Fail("Décision introuvable.");
+            existing.DecisionFin = typeCode;
+            await _db.SaveChangesAsync();
+            _users.AddJournal("Décisions", "modification", $"Décision {existing.NumDecision} modifiée", userId);
+            return ApiResultDto.Ok("Décision enregistrée.");
         }
 
-        var code = typeDecision.Code ?? "";
-        var ecole = await _db.Ecoles.FirstOrDefaultAsync(e => e.Id == ecoleId);
-        if (ecole != null && typeToStatut.TryGetValue(code, out var st))
+        var count = await _db.Decisions.CountAsync();
+        var numDecision = $"DEC/{DateTime.UtcNow:yyyy}/{count + 1:0000}";
+        var decision = new Decision
         {
-            ecole.Statut = st;
-            ecole.UpdatedAt = DateTime.UtcNow;
-        }
+            NumDecision = numDecision,
+            DecisionFin = typeCode,
+            NumOrdre = mission.NumOrdre,
+            NumAgrement = mission.NumAgrement
+        };
+        _db.Decisions.Add(decision);
+        _users.AddJournal("Décisions", "création", $"Décision {decision.NumDecision} créée", userId);
 
-        rapport.Statut = RapportStatuts.Traite;
-
-        // Règle clôture : décision prise → clôturer les OM en_cours/signé liés aux fiches du rapport
-        if (isNew && rapport.FicheIds.Count > 0)
+        if (mission.Statut is MissionStatuts.EnCours or MissionStatuts.Signe)
         {
-            var omIds = await _db.FichesControle.AsNoTracking()
-                .Where(f => rapport.FicheIds.Contains(f.Id))
-                .Select(f => f.OrdreMissionId)
-                .Distinct()
-                .ToListAsync();
-            var oms = await _db.OrdresMission
-                .Where(o => omIds.Contains(o.Id) && (o.Statut == OrdreStatuts.EnCours || o.Statut == OrdreStatuts.Signe))
-                .ToListAsync();
-            foreach (var om in oms)
-            {
-                om.Statut = OrdreStatuts.Cloture;
-                _users.AddJournal("Ordres de mission", "clôture", $"Ordre {om.Numero} clôturé (décision {decision.Numero})", userId);
-            }
+            mission.Validite = MissionStatuts.Cloture;
+            _users.AddJournal("Missions", "clôture", $"Mission {mission.NumOrdre} clôturée (décision {decision.NumDecision})", userId);
         }
 
         await _db.SaveChangesAsync();
 
-        if (isNew)
-        {
-            var ecoleNom = ecole?.Denomination ?? ecoleId;
-            var typeNom = typeDecision.Nom ?? typeDecision.Code ?? "mesure";
-            var chefUserId = await _db.Users.AsNoTracking()
-                .Where(u => u.Role == "Chef d'établissement" && u.EcoleId == ecoleId)
-                .Select(u => u.Id)
-                .FirstOrDefaultAsync();
-            _users.AddNotification(
-                "Décision sur votre établissement",
-                $"Décision {decision.Numero} ({typeNom}) pour {ecoleNom}. Suivi d’exécution : {decision.StatutExecution}.",
-                chefUserId);
-            await _email.NotifyAsync(
-                $"Décision — {decision.Numero}",
-                $"<p>Décision <strong>{decision.Numero}</strong> ({typeNom}) pour {ecoleNom}.</p>",
-                toUserId: chefUserId);
-        }
+        var ecoleNom = mission.Ecole?.Denomination ?? ecoleId;
+        var typeNom = DecisionTypes.LabelOf(typeCode);
+        var chefUserId = await _db.Users.AsNoTracking()
+            .Where(u => u.Role == "Chef d'établissement" && u.EcoleId == ecoleId)
+            .Select(u => u.Id)
+            .FirstOrDefaultAsync();
+        _users.AddNotification(
+            "Décision sur votre établissement",
+            $"Décision {decision.NumDecision} ({typeNom}) pour {ecoleNom}.",
+            chefUserId);
+        await _email.NotifyAsync(
+            $"Décision — {decision.NumDecision}",
+            $"<p>Décision <strong>{decision.NumDecision}</strong> ({typeNom}) pour {ecoleNom}.</p>",
+            toUserId: chefUserId);
 
-        return ApiResultDto.Ok("Décision enregistrée. Statut école synchronisé.");
+        return ApiResultDto.Ok("Décision enregistrée.");
     }
 
     public async Task<ApiResultDto> DeleteAsync(string id)
     {
-        var d = await _db.Decisions.FirstOrDefaultAsync(x => x.Id == id);
+        var d = await _db.Decisions.FirstOrDefaultAsync(x => x.NumDecision == id);
         if (d == null)
             return ApiResultDto.Ok("Décision supprimée.");
 
-        var rapportId = d.RapportId;
         _db.Decisions.Remove(d);
         await _db.SaveChangesAsync();
-
-        var encore = await _db.Decisions.AnyAsync(x => x.RapportId == rapportId);
-        if (!encore)
-        {
-            var rapport = await _db.Rapports.FirstOrDefaultAsync(r => r.Id == rapportId);
-            if (rapport != null)
-                rapport.Statut = RapportStatuts.Transmis;
-            await _db.SaveChangesAsync();
-        }
-
         _users.AddJournal("Décisions", "suppression", $"Décision {id} supprimée");
-        // Statut école : on conserve le dernier statut appliqué (pas de rollback).
-        return ApiResultDto.Ok("Décision supprimée. Le rapport est de nouveau en attente de décision.");
+        return ApiResultDto.Ok("Décision supprimée.");
     }
-
-    private static string NewId(string prefix)
-        => $"{prefix}-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..32];
 }

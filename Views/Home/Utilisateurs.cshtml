@@ -1,11 +1,13 @@
-@model List<Utilisateur>
+@model IReadOnlyList<UtilisateurListDto>
+@using inspect_san.Models.DTOs
 @{
     ViewData["Title"] = "Utilisateurs";
     ViewBag.PageKey = "utilisateurs";
-    var roles = new[] { "Administrateur système", "Directeur Provincial", "Contrôleur", "Agent du Secrétariat", "Chef d'établissement" };
+    var roles = new[] { "Administrateur système", "Directeur Provincial", "Contrôleur", "Agent du Secrétariat" };
     var ecolesUser = (IEnumerable<Ecole>)(ViewBag.Ecoles ?? new List<Ecole>());
+    var agentsSansCompte = (IReadOnlyList<AgentSansCompteDto>)(ViewBag.AgentsSansCompte ?? Array.Empty<AgentSansCompteDto>());
 }
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4 isp-page-head">
     <div>
         <h2 class="mb-1">Utilisateurs</h2>
         <p class="text-secondary mb-0">Création de comptes, activation et désactivation. Les coordonnées se gèrent dans Mon profil.</p>
@@ -18,7 +20,7 @@
     <div class="table-responsive">
         <table class="table table-hover mb-0 js-paginated-table">
             <thead class="table-light">
-                <tr><th>Nom</th><th>E-mail</th><th>Rôle</th><th>Équipe</th><th>Statut</th><th></th></tr>
+                <tr><th>Nom</th><th>E-mail</th><th>Rôle</th><th>Agent</th><th>Statut</th><th></th></tr>
             </thead>
             <tbody id="usersTbody">
             @foreach (var u in Model)
@@ -27,7 +29,7 @@
                     <td class="fw-semibold">@u.Nom</td>
                     <td>@u.Contact</td>
                     <td>@u.Role</td>
-                    <td>@(u.Equipe ?? "—")</td>
+                    <td>@(u.AgentNom ?? "—")</td>
                     <td>@(string.Equals(u.Statut, "actif", StringComparison.OrdinalIgnoreCase) ? Html.Raw("<span class='badge bg-success-subtle text-success-emphasis'>Actif</span>") : Html.Raw("<span class='badge bg-secondary'>Inactif</span>"))</td>
                     <td class="text-end text-nowrap">
                         @if (string.Equals(u.Statut, "actif", StringComparison.OrdinalIgnoreCase))
@@ -37,11 +39,8 @@
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="id" value="@u.Id" />
                                 <input type="hidden" name="statut" value="inactif" />
-                                <button type="submit"
-                                        class="btn btn-sm btn-outline-secondary"
-                                        title="Désactiver ce compte"
-                                        aria-label="Désactiver ce compte">
-                                    <i class="ti ti-user-off me-1" aria-hidden="true"></i>Désactiver
+                                <button type="submit" class="btn btn-sm btn-outline-secondary" title="Désactiver ce compte">
+                                    <i class="ti ti-user-off me-1"></i>Désactiver
                                 </button>
                             </form>
                         }
@@ -52,11 +51,8 @@
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="id" value="@u.Id" />
                                 <input type="hidden" name="statut" value="actif" />
-                                <button type="submit"
-                                        class="btn btn-sm btn-outline-success"
-                                        title="Activer ce compte"
-                                        aria-label="Activer ce compte">
-                                    <i class="ti ti-user-check me-1" aria-hidden="true"></i>Activer
+                                <button type="submit" class="btn btn-sm btn-outline-success" title="Activer ce compte">
+                                    <i class="ti ti-user-check me-1"></i>Activer
                                 </button>
                             </form>
                         }
@@ -107,19 +103,16 @@
                                 <option value="inactif">Inactif</option>
                             </select>
                         </div>
-                        <div class="col-md-6 d-none" id="equipeBox">
-                            <label class="form-label" for="userControleurId">Chef d’équipe <span class="text-danger">*</span></label>
-                            <select name="ControleurId" id="userControleurId" class="form-select">
+                        <div class="col-md-6 d-none" id="agentBox">
+                            <label class="form-label" for="userAgentId">Agent lié <span class="text-danger">*</span></label>
+                            <select name="AgentId" id="userAgentId" class="form-select">
                                 <option value="">— Sélectionner —</option>
+                                @foreach (var a in agentsSansCompte)
+                                {
+                                    <option value="@a.AgentId">@a.NomComplet</option>
+                                }
                             </select>
-                            <div class="form-text">Uniquement les chefs d’équipe sans compte.</div>
-                        </div>
-                        <div class="col-md-6 d-none" id="ecoleBox">
-                            <label class="form-label" for="userEcoleId">École liée <span class="text-danger">*</span></label>
-                            <select name="EcoleId" id="userEcoleId" class="form-select">
-                                <option value="">— Sélectionner —</option>
-                                @foreach (var e in ecolesUser) { <option value="@e.Id">@e.Denomination</option> }
-                            </select>
+                            <div class="form-text">Agents actifs sans compte Contrôleur.</div>
                         </div>
                         <div class="col-md-6" id="pwdBox">
                             <label class="form-label" for="userPwd">Mot de passe <span class="text-danger">*</span></label>

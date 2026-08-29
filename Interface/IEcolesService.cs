@@ -9,8 +9,8 @@ public interface IEcolesService
     Task<EcoleListDto?> GetAsync(string id);
     Task<List<Ecole>> QueryEntitiesAsync(EcoleFilterDto filter);
     Task<ApiResultDto> SaveAsync(SaveEcoleDto dto);
-    Task<ApiResultDto> UploadDocumentAsync(string ecoleId, IFormFile file);
     Task<ApiResultDto> DeleteAsync(string id);
     Task<ApiResultDto> DeactivateAsync(string id);
-    Task<(IReadOnlyList<RefItem> Communes, IReadOnlyList<RefItem> Regimes)> GetLookupsAsync();
+    Task<(IReadOnlyList<RefItem> Sousproveds, IReadOnlyList<RefItem> Regimes)> GetLookupsAsync();
+    Task<IReadOnlyList<RefItem>> GetCategoriesAsync();
 }

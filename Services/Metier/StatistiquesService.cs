@@ -1,6 +1,7 @@
 using inspect_san.Models.Constants;
 using inspect_san.Models.Data;
 using inspect_san.Models.DTOs;
+using inspect_san.Models.Entities;
 using inspect_san.Interface;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,45 +22,45 @@ public class StatistiquesService : IStatistiquesService
             return true;
         }
 
-        var ecolesQ = _db.Ecoles.AsNoTracking()
-            .Include(e => e.Commune)
-            .Include(e => e.Regime)
-            .AsQueryable();
-        if (!string.IsNullOrEmpty(filter.Commune))
-            ecolesQ = ecolesQ.Where(e => e.Commune != null && e.Commune.Nom == filter.Commune);
+        var ecolesQ = _db.Ecoles.AsNoTracking().AsQueryable();
+        if (!string.IsNullOrEmpty(filter.Sousproved))
+        {
+            var code = SousProvinceCatalog.CodeFromLegacyOrCode(filter.Sousproved) ?? filter.Sousproved;
+            ecolesQ = ecolesQ.Where(e => e.SousDivision == code);
+        }
         if (!string.IsNullOrEmpty(filter.Regime))
-            ecolesQ = ecolesQ.Where(e => e.Regime != null && e.Regime.Nom == filter.Regime);
-        if (!string.IsNullOrEmpty(filter.StatutEcole))
-            ecolesQ = ecolesQ.Where(e => e.Statut == filter.StatutEcole);
+        {
+            var code = RegGes.Labels.FirstOrDefault(kv => kv.Value == filter.Regime).Key ?? filter.Regime;
+            ecolesQ = ecolesQ.Where(e => e.RegGes == code);
+        }
 
         var ecoles = await ecolesQ.ToListAsync();
-        var ids = ecoles.Select(e => e.Id).ToHashSet();
-        var fiches = (await _db.FichesControle.AsNoTracking().ToListAsync())
-            .Where(f => ids.Contains(f.EcoleId) && InRange(f.CreatedAt)).ToList();
-        var decisions = (await _db.Decisions.AsNoTracking()
-                .Include(d => d.TypeDecision)
+        var numAgrements = ecoles.Select(e => e.NumAgrement).ToHashSet();
+        var fiches = (await _db.Missions.AsNoTracking()
+                .Include(m => m.Ecole)
+                .Include(m => m.MissionProduits)
+                .Where(m => m.StatutFiche != null)
                 .ToListAsync())
-            .Where(d => ids.Contains(d.EcoleId) && InRange(d.DecideLe ?? d.CreatedAt)).ToList();
+            .Where(f => numAgrements.Contains(f.NumAgrement) && InRange(f.CreatedAt)).ToList();
+        var decisions = (await _db.Decisions.AsNoTracking().ToListAsync())
+            .Where(d => numAgrements.Contains(d.NumAgrement)).ToList();
 
         var counts = EtatBatiment.StatBuckets.ToDictionary(b => b, _ => 0);
         foreach (var f in fiches)
         {
-            var bucket = EtatBatiment.ToStatBucket(f.SectionBatiments.EtatGeneral);
+            var bucket = EtatBatiment.ToStatBucket(f.EtatBatiment);
             if (bucket != null && counts.ContainsKey(bucket))
                 counts[bucket]++;
         }
 
-        // Dénominateur = fiches à état reconnu (tous les états formulaire + legacy sont mappés).
         var totalReconnu = counts.Values.Sum();
         var conformes = counts[EtatBatiment.BucketBon] + counts[EtatBatiment.BucketMoyen];
         var taux = totalReconnu == 0 ? 0 : (int)Math.Round(100.0 * conformes / totalReconnu);
 
-        var avecMontant = fiches.Where(f =>
-        {
-            var m = new string((f.SectionImpact7.MontantPercu ?? "").Where(char.IsDigit).ToArray());
-            return double.TryParse(m, out var v) && v > 0;
-        }).ToList();
-        var utilises = avecMontant.Where(f => (f.SectionImpact7.ProduitsNettoyage?.Count ?? 0) > 0).ToList();
+        var avecProduits = fiches.Where(f =>
+            f.MissionProduits.Count > 0
+            || f.CodeProduit.HasValue
+            || !string.IsNullOrWhiteSpace(f.ProduitsAutres)).ToList();
 
         var mois = new[] { "janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc." };
         var now = DateTime.UtcNow;
@@ -82,12 +83,12 @@ public class StatistiquesService : IStatistiquesService
             Conformite = EtatBatiment.StatBuckets
                 .Select(b => new ChartPointDto { Label = b, Value = counts[b] }).ToList(),
             DecisionsParType = decisions
-                .GroupBy(d => d.TypeDecision?.Nom ?? d.TypeDecision?.Code ?? "(sans type)")
+                .GroupBy(d => DecisionTypes.LabelOf(d.DecisionFin) is { Length: > 0 } l ? l : "(sans type)")
                 .Select(g => new ChartPointDto { Label = g.Key, Value = g.Count() }).ToList(),
-            Impact7 =
+            ProduitsDeclares =
             [
-                new() { Label = "Avec montant 7%", Value = avecMontant.Count },
-                new() { Label = "Dont produits déclarés", Value = utilises.Count }
+                new() { Label = "Avec produits déclarés", Value = avecProduits.Count },
+                new() { Label = "Sans produit", Value = fiches.Count - avecProduits.Count }
             ],
             Evolution = evo
         };
@@ -113,4 +114,340 @@ public class StatistiquesService : IStatistiquesService
 
     private static string Escape(string label)
         => label.Replace(',', '_').Replace('\n', ' ');
+
+    public async Task<RapportInspectionResponseDto> GetRapportInspectionAsync(
+        RapportInspectionFilterDto filter,
+        string? role = null,
+        string? agentId = null)
+    {
+        filter ??= new RapportInspectionFilterDto();
+        var sdCode = SousProvinceCatalog.CodeFromLegacyOrCode(filter.Sousproved);
+        if (string.IsNullOrWhiteSpace(sdCode))
+        {
+            return new RapportInspectionResponseDto
+            {
+                PeriodeLabel = "Choisir une sous-division",
+                ToutesSousDivisions = false
+            };
+        }
+
+        var sdLabel = await ResolveSousProvinceLabelAsync(sdCode);
+
+        var fichesQ = _db.Missions.AsNoTracking()
+            .Include(m => m.Ecole!)
+                .ThenInclude(e => e.Categorie)
+            .Include(m => m.Ecole!)
+                .ThenInclude(e => e.ChefEtablissement)
+            .Include(m => m.Affectations)
+                .ThenInclude(a => a.Agent)
+            .Include(m => m.MissionProduits)
+                .ThenInclude(mp => mp.Produit)
+            .Include(m => m.MissionOutils)
+                .ThenInclude(mo => mo.Outil)
+            .Include(m => m.Produit)
+            .Include(m => m.Outil)
+            .Where(m => m.StatutFiche == FicheStatuts.Validee
+                        && m.Ecole != null
+                        && m.Ecole.SousDivision == sdCode);
+
+        var fiches = await fichesQ.ToListAsync();
+
+        if (string.Equals(role, DataScope.RoleControleur, StringComparison.Ordinal)
+            && !string.IsNullOrWhiteSpace(agentId))
+        {
+            fiches = fiches
+                .Where(m => m.Affectations.Any(a =>
+                    string.Equals(a.MatrAgent, agentId, StringComparison.Ordinal)))
+                .ToList();
+        }
+
+        var decisionByOrdre = await _db.Decisions.AsNoTracking()
+            .ToDictionaryAsync(d => d.NumOrdre, d => d);
+
+        var section = BuildRapportSection(sdCode, sdLabel, fiches, decisionByOrdre);
+        var response = new RapportInspectionResponseDto
+        {
+            PeriodeLabel = sdLabel,
+            ToutesSousDivisions = false,
+            Sections = [section],
+            TotalGenerale = section.TotaleSousDivision,
+            MontantPercuGeneral = section.MontantPercuTotal,
+            MissionsEligiblesCount = fiches.Count,
+            EquipeDeposeCount = fiches.Count(m => m.RapportEquipeDeposeLe != null),
+            SecretariatDeposeCount = fiches.Count(m => m.RapportSecretariatDeposeLe != null),
+            ClosCount = fiches.Count(m => m.RapportClos)
+        };
+
+        var isControleur = string.Equals(role, DataScope.RoleControleur, StringComparison.Ordinal);
+        var isSecretariatLike = string.Equals(role, DataScope.RoleSecretariat, StringComparison.Ordinal)
+                                || string.Equals(role, DataScope.RoleAdmin, StringComparison.Ordinal);
+
+        response.CanDeposerEquipe = isControleur
+            && fiches.Any(m => !m.RapportClos && m.RapportEquipeDeposeLe == null);
+        response.CanDeposerSecretariat = isSecretariatLike
+            && fiches.Any(m => !m.RapportClos && m.RapportSecretariatDeposeLe == null);
+        response.CanCloturer = isSecretariatLike
+            && fiches.Any(m => !m.RapportClos && m.RapportSecretariatDeposeLe != null);
+
+        return response;
+    }
+
+    public async Task<ApiResultDto> DeposerRapportEquipeAsync(string sousDivisionCode, string? userId, string? agentId)
+    {
+        var sdCode = SousProvinceCatalog.CodeFromLegacyOrCode(sousDivisionCode);
+        if (string.IsNullOrWhiteSpace(sdCode) || string.IsNullOrWhiteSpace(agentId))
+            return ApiResultDto.Fail("Sous-division ou agent invalide.");
+
+        var missions = await LoadMissionsForSousDivisionAsync(sdCode);
+        missions = missions
+            .Where(m => m.Affectations.Any(a =>
+                string.Equals(a.MatrAgent, agentId, StringComparison.Ordinal)))
+            .ToList();
+        if (missions.Count == 0)
+            return ApiResultDto.Fail("Aucune mission éligible pour votre équipe sur cette sous-division.");
+
+        var clos = missions.Where(m => m.RapportClos).ToList();
+        if (clos.Count == missions.Count)
+            return ApiResultDto.Fail("Rapport déjà clôturé pour ces missions.");
+
+        var deja = missions.Where(m => !m.RapportClos && m.RapportEquipeDeposeLe != null).ToList();
+        var aDeposer = missions.Where(m => !m.RapportClos && m.RapportEquipeDeposeLe == null).ToList();
+        if (aDeposer.Count == 0)
+            return ApiResultDto.Fail("Le rapport d'équipe a déjà été déposé pour ces missions.");
+
+        var now = DateTime.UtcNow;
+        foreach (var m in aDeposer)
+        {
+            m.RapportEquipeDeposeLe = now;
+            m.RapportEquipeDeposePar = userId;
+        }
+        await _db.SaveChangesAsync();
+        return ApiResultDto.Ok(
+            $"Rapport d'équipe déposé ({aDeposer.Count} mission(s))."
+            + (deja.Count > 0 ? $" {deja.Count} déjà déposée(s) ignorée(s)." : ""));
+    }
+
+    public async Task<ApiResultDto> DeposerRapportSecretariatAsync(string sousDivisionCode, string? userId)
+    {
+        var sdCode = SousProvinceCatalog.CodeFromLegacyOrCode(sousDivisionCode);
+        if (string.IsNullOrWhiteSpace(sdCode))
+            return ApiResultDto.Fail("Sous-division invalide.");
+
+        var missions = await LoadMissionsForSousDivisionAsync(sdCode);
+        if (missions.Count == 0)
+            return ApiResultDto.Fail("Aucune fiche validée pour cette sous-division.");
+
+        if (missions.All(m => m.RapportClos))
+            return ApiResultDto.Fail("Rapport déjà clôturé.");
+
+        var aDeposer = missions.Where(m => !m.RapportClos && m.RapportSecretariatDeposeLe == null).ToList();
+        if (aDeposer.Count == 0)
+            return ApiResultDto.Fail("Le rapport secrétariat a déjà été déposé pour ces missions.");
+
+        var now = DateTime.UtcNow;
+        foreach (var m in aDeposer)
+        {
+            m.RapportSecretariatDeposeLe = now;
+            m.RapportSecretariatDeposePar = userId;
+        }
+        await _db.SaveChangesAsync();
+        return ApiResultDto.Ok($"Rapport secrétariat déposé ({aDeposer.Count} mission(s)).");
+    }
+
+    public async Task<ApiResultDto> CloturerRapportAsync(string sousDivisionCode, string? userId, bool forceAdmin = false)
+    {
+        var sdCode = SousProvinceCatalog.CodeFromLegacyOrCode(sousDivisionCode);
+        if (string.IsNullOrWhiteSpace(sdCode))
+            return ApiResultDto.Fail("Sous-division invalide.");
+
+        var missions = await LoadMissionsForSousDivisionAsync(sdCode);
+        if (missions.Count == 0)
+            return ApiResultDto.Fail("Aucune fiche validée pour cette sous-division.");
+
+        var aCloturer = missions.Where(m => !m.RapportClos).ToList();
+        if (aCloturer.Count == 0)
+            return ApiResultDto.Ok("Rapport déjà clôturé.");
+
+        if (!forceAdmin && aCloturer.Any(m => m.RapportSecretariatDeposeLe == null))
+            return ApiResultDto.Fail("Déposez d'abord le rapport secrétariat avant de clôturer.");
+
+        var now = DateTime.UtcNow;
+        foreach (var m in aCloturer)
+        {
+            m.RapportClos = true;
+            m.RapportClosLe = now;
+            m.RapportClosPar = userId;
+        }
+        await _db.SaveChangesAsync();
+        return ApiResultDto.Ok($"Rapport clôturé ({aCloturer.Count} mission(s)).");
+    }
+
+    private async Task<List<Mission>> LoadMissionsForSousDivisionAsync(string sdCode)
+        => await _db.Missions
+            .Include(m => m.Affectations)
+            .Include(m => m.Ecole)
+            .Where(m => m.StatutFiche == FicheStatuts.Validee
+                        && m.Ecole != null
+                        && m.Ecole.SousDivision == sdCode)
+            .ToListAsync();
+
+    private async Task<string> ResolveSousProvinceLabelAsync(string sdCode)
+    {
+        var fromDb = await _db.SousProvinces.AsNoTracking()
+            .Where(s => s.Code == sdCode)
+            .Select(s => s.Libelle)
+            .FirstOrDefaultAsync();
+        return fromDb ?? SousProvinceCatalog.LabelOf(sdCode);
+    }
+
+    private static RapportInspectionDto BuildRapportSection(
+        string sousDivisionCode,
+        string sdLabel,
+        List<Mission> matched,
+        Dictionary<string, Decision> decisionByOrdre)
+    {
+        matched = matched
+            .OrderBy(m => m.Ecole!.Denomination)
+            .ThenBy(m => m.NumOrdre)
+            .ToList();
+
+        var counts = EtatBatiment.StatBuckets.ToDictionary(b => b, _ => 0);
+        foreach (var f in matched)
+        {
+            var bucket = EtatBatiment.ToStatBucket(f.EtatBatiment);
+            if (bucket != null && counts.ContainsKey(bucket))
+                counts[bucket]++;
+        }
+
+        var totalReconnu = counts.Values.Sum();
+        var conformes = counts[EtatBatiment.BucketBon] + counts[EtatBatiment.BucketMoyen];
+        var taux = totalReconnu == 0 ? 0 : (int)Math.Round(100.0 * conformes / totalReconnu);
+
+        var ordres = matched.Select(m => m.NumOrdre).ToHashSet();
+        var decisions = ordres
+            .Where(decisionByOrdre.ContainsKey)
+            .Select(o => decisionByOrdre[o])
+            .ToList();
+
+        var periodeLabel = "Fiches validées";
+        var ecolesCount = matched.Select(m => m.NumAgrement).Distinct().Count();
+        var debuts = matched.Where(m => m.DateDebut.HasValue).Select(m => m.DateDebut!.Value).ToList();
+        var fins = matched.Where(m => m.DateFin.HasValue).Select(m => m.DateFin!.Value).ToList();
+        var lignes = matched.Select(m =>
+        {
+            decisionByOrdre.TryGetValue(m.NumOrdre, out var dec);
+            var ligne = MapLigne(m);
+            ligne.DecisionLabel = dec != null ? DecisionTypes.LabelOf(dec.DecisionFin) : "—";
+            return ligne;
+        }).ToList();
+
+        var dto = new RapportInspectionDto
+        {
+            SousDivisionCode = sousDivisionCode,
+            SousDivisionLabel = sdLabel,
+            PeriodeLabel = periodeLabel,
+            EcolesCount = ecolesCount,
+            FichesCount = matched.Count,
+            TauxConformite = taux,
+            DecisionsCount = decisions.Count,
+            RegGesResume = string.Join(", ",
+                matched.Select(m => RegGes.LabelOf(m.Ecole!.RegGes)).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct()),
+            MontantPercuTotal = matched.Sum(m => m.MontPer ?? 0),
+            ObservationResume = string.Join(" ; ",
+                matched.Select(m => m.Observation).Where(o => !string.IsNullOrWhiteSpace(o)).Distinct()),
+            DateDebutMissionMin = debuts.Count > 0 ? debuts.Min() : null,
+            DateFinMissionMax = fins.Count > 0 ? fins.Max() : null,
+            TotaleSousDivision = matched.Count,
+            Conformite = EtatBatiment.StatBuckets
+                .Select(b => new ChartPointDto { Label = b, Value = counts[b] }).ToList(),
+            DecisionsParType = decisions
+                .GroupBy(d => DecisionTypes.LabelOf(d.DecisionFin) is { Length: > 0 } l ? l : "(sans type)")
+                .Select(g => new ChartPointDto { Label = g.Key, Value = g.Count() }).ToList(),
+            Lignes = lignes
+        };
+
+        dto.SyntheseTexte = BuildSyntheseTexte(sdLabel, periodeLabel, dto);
+        return dto;
+    }
+
+    private static RapportInspectionLigneDto MapLigne(Mission m)
+    {
+        var ecole = m.Ecole!;
+        var chefEquipe = m.Affectations?
+            .FirstOrDefault(a => a.Fonction == RolesMissionCodes.ChefEquipe)
+            ?? m.Affectations?.FirstOrDefault();
+        var produits = m.MissionProduits?.Count > 0
+            ? string.Join(", ", m.MissionProduits
+                .Select(mp => mp.Produit?.LibeleProduit)
+                .Where(n => !string.IsNullOrWhiteSpace(n))!)
+            : m.Produit?.LibeleProduit ?? "";
+        if (string.IsNullOrWhiteSpace(produits) && !string.IsNullOrWhiteSpace(m.ProduitsAutres))
+            produits = m.ProduitsAutres;
+        else if (!string.IsNullOrWhiteSpace(m.ProduitsAutres))
+            produits = string.IsNullOrWhiteSpace(produits) ? m.ProduitsAutres : produits + ", " + m.ProduitsAutres;
+
+        var outils = m.MissionOutils?.Count > 0
+            ? string.Join(", ", m.MissionOutils
+                .Select(mo => mo.Outil?.LibelleOutile)
+                .Where(n => !string.IsNullOrWhiteSpace(n))!)
+            : m.Outil?.LibelleOutile ?? "";
+        if (string.IsNullOrWhiteSpace(outils) && !string.IsNullOrWhiteSpace(m.OutilsAutres))
+            outils = m.OutilsAutres;
+        else if (!string.IsNullOrWhiteSpace(m.OutilsAutres))
+            outils = string.IsNullOrWhiteSpace(outils) ? m.OutilsAutres : outils + ", " + m.OutilsAutres;
+
+        return new RapportInspectionLigneDto
+        {
+            NumOrdre = m.NumOrdre,
+            MissionId = m.Id,
+            EcoleNom = ecole.Denomination,
+            FonctionControleur = RolesMissionCodes.LabelOf(chefEquipe?.Fonction),
+            NumAgrement = ecole.NumAgrement,
+            NomAgent = chefEquipe?.Agent?.NomAgent
+                       ?? chefEquipe?.Agent?.NomComplet
+                       ?? "—",
+            EtatBatiment = m.EtatBatiment,
+            NombreBatiments = m.NbreBatiment,
+            ToilettesFilles = m.NbrToiletteFille,
+            ToilettesGarcons = m.NbrToiletteGarcon,
+            NombreEleves = m.NbrEleve,
+            DesignationProduit = string.IsNullOrWhiteSpace(produits) ? "—" : produits,
+            DesignationOutil = string.IsNullOrWhiteSpace(outils) ? "—" : outils,
+            IdDinacope = ecole.IdDinacope,
+            ChefNom = ecole.ChefEtablissement?.NomComplet ?? "—",
+            Regime = RegGes.LabelOf(ecole.RegGes),
+            MontPer = m.MontPer,
+            Observation = m.Observation,
+            DateDebutMission = m.DateDebut,
+            DateFinMission = m.DateFin,
+            Categorie = ecole.Categorie?.Designation ?? "—",
+            Adresse = ecole.Adresse,
+            DateInspection = m.ValideeLe ?? m.CreatedAt,
+            Recommandation = m.RecommandationPreliminaire,
+            DecisionLabel = "—",
+            RapportEquipeDepose = m.RapportEquipeDeposeLe != null,
+            RapportSecretariatDepose = m.RapportSecretariatDeposeLe != null,
+            RapportClos = m.RapportClos
+        };
+    }
+
+    private static string BuildSyntheseTexte(string sdLabel, string periodeLabel, RapportInspectionDto dto)
+    {
+        var parts = new List<string>
+        {
+            $"Pour la sous-division {sdLabel} ({periodeLabel}), {dto.EcolesCount} établissement(s) inspecté(s) " +
+            $"avec {dto.FichesCount} fiche(s) validée(s) (Lu et approuvé).",
+            $"Le taux de conformité des bâtiments est de {dto.TauxConformite} %."
+        };
+        if (dto.DecisionsCount > 0)
+        {
+            var types = string.Join(", ", dto.DecisionsParType.Select(d => $"{d.Label} ({d.Value})"));
+            parts.Add($"{dto.DecisionsCount} décision(s) provinciale(s) enregistrée(s) : {types}.");
+        }
+        else
+        {
+            parts.Add("Aucune décision provinciale enregistrée.");
+        }
+        return string.Join(" ", parts);
+    }
 }

@@ -6,36 +6,32 @@
   var table = tbody && tbody.closest('table');
   var form = document.querySelector('#userModal form');
 
-  async function loadChefsSansCompte() {
-    var $sel = $('#userControleurId');
+  async function loadAgentsSansCompte() {
+    var $sel = $('#userAgentId');
     $sel.empty().append('<option value="">— Sélectionner —</option>');
     try {
-      var list = await api.get('/Home/GetChefsEquipeSansCompte');
-      (list || []).forEach(function (c) {
-        var id = c.controleurId || c.ControleurId;
-        var nom = c.nomComplet || c.NomComplet || '';
-        var eq = c.equipeNom || c.EquipeNom || '';
-        var label = nom + (eq ? ' — ' + eq : '');
-        $sel.append($('<option></option>').attr('value', id).text(label));
+      var list = await api.get('/Home/GetAgentsSansCompte');
+      (list || []).forEach(function (a) {
+        var id = a.agentId || a.AgentId;
+        var nom = a.nomComplet || a.NomComplet || '';
+        $sel.append($('<option></option>').attr('value', id).text(nom));
       });
     } catch (err) {
-      api.showToast(err.message || 'Erreur chargement chefs', 'danger');
+      api.showToast(err.message || 'Erreur chargement agents', 'danger');
     }
   }
 
   function toggleRoleFields() {
     var role = $('#userRole').val();
-    $('#equipeBox').toggleClass('d-none', role !== 'Contrôleur');
-    $('#ecoleBox').toggleClass('d-none', role !== "Chef d'établissement");
-    if (role === 'Contrôleur') loadChefsSansCompte();
+    $('#agentBox').toggleClass('d-none', role !== 'Contrôleur');
+    if (role === 'Contrôleur') loadAgentsSansCompte();
   }
 
   $('#userRole').on('change', toggleRoleFields);
 
-  $('#userControleurId').on('change', function () {
-    var txt = $(this).find('option:selected').text() || '';
-    var nom = txt.split(' — ')[0];
-    if (nom && !$('#userNom').val()) {
+  $('#userAgentId').on('change', function () {
+    var nom = $(this).find('option:selected').text() || '';
+    if (nom && nom !== '— Sélectionner —' && !$('#userNom').val()) {
       $('#userNom').val(nom.trim());
     }
   });
@@ -58,29 +54,11 @@
     var icon = next === 'actif' ? 'ti-user-check' : 'ti-user-off';
     return (
       '<form method="post" action="/Home/SetUtilisateurStatut" class="d-inline js-set-statut"' +
-      ' data-id="' +
-      api.attr(id) +
-      '" data-statut="' +
-      api.attr(next) +
-      '">' +
-      '<input type="hidden" name="id" value="' +
-      api.attr(id) +
-      '" />' +
-      '<input type="hidden" name="statut" value="' +
-      api.attr(next) +
-      '" />' +
-      '<button type="submit" class="btn btn-sm ' +
-      btnClass +
-      '" title="' +
-      api.attr(aria) +
-      '" aria-label="' +
-      api.attr(aria) +
-      '">' +
-      '<i class="ti ' +
-      icon +
-      ' me-1" aria-hidden="true"></i>' +
-      label +
-      '</button></form>'
+      ' data-id="' + api.attr(id) + '" data-statut="' + api.attr(next) + '">' +
+      '<input type="hidden" name="id" value="' + api.attr(id) + '" />' +
+      '<input type="hidden" name="statut" value="' + api.attr(next) + '" />' +
+      '<button type="submit" class="btn btn-sm ' + btnClass + '" title="' + api.attr(aria) + '" aria-label="' + api.attr(aria) + '">' +
+      '<i class="ti ' + icon + ' me-1" aria-hidden="true"></i>' + label + '</button></form>'
     );
   }
 
@@ -88,23 +66,16 @@
     var id = u.id || u.Id || '';
     var nom = u.nom || u.Nom || '';
     var role = u.role || u.Role || '';
-    var equipe = u.equipe || u.Equipe || '';
+    var agent = u.agentNom || u.AgentNom || '';
     var statut = u.statut || u.Statut || '';
     var contact = u.contact || u.Contact || '';
     return (
-      '<tr><td class="fw-semibold">' +
-      api.esc(nom) +
-      '</td><td>' +
-      api.esc(contact) +
-      '</td><td>' +
-      api.esc(role) +
-      '</td><td>' +
-      api.esc(equipe || '—') +
-      '</td><td>' +
-      statutBadge(statut) +
-      '</td><td class="text-end text-nowrap">' +
-      statutFormHtml(id, statut) +
-      '</td></tr>'
+      '<tr><td class="fw-semibold">' + api.esc(nom) +
+      '</td><td>' + api.esc(contact) +
+      '</td><td>' + api.esc(role) +
+      '</td><td>' + api.esc(agent || '—') +
+      '</td><td>' + statutBadge(statut) +
+      '</td><td class="text-end text-nowrap">' + statutFormHtml(id, statut) + '</td></tr>'
     );
   }
 
@@ -153,7 +124,7 @@
           nom: $('#userNom').val(),
           contact: $('#userContact').val(),
           role: $('#userRole').val(),
-          controleurId: $('#userControleurId').val() || null,
+          agentId: $('#userAgentId').val() || null,
           ecoleId: $('#userEcoleId').val() || null,
           statut: $('#userStatut').val(),
           motDePasse: $('#userPwd').val() || null,
@@ -170,29 +141,18 @@
     }
   });
 
-  // Pattern aligné sur ecoles.js — preventDefault synchrone avant await
   $(document).on('submit', '.js-set-statut', async function (e) {
     e.preventDefault();
     e.stopPropagation();
-
     var formStatut = this;
-    var id =
-      formStatut.getAttribute('data-id') ||
-      (formStatut.querySelector('input[name="id"]') || {}).value ||
-      '';
-    var statut =
-      formStatut.getAttribute('data-statut') ||
-      (formStatut.querySelector('input[name="statut"]') || {}).value ||
-      '';
-
+    var id = formStatut.getAttribute('data-id') || (formStatut.querySelector('input[name="id"]') || {}).value || '';
+    var statut = formStatut.getAttribute('data-statut') || (formStatut.querySelector('input[name="statut"]') || {}).value || '';
     if (!id || !statut) {
       api.showToast('Identifiant ou statut manquant.', 'danger');
       return;
     }
-
     var label = statut === 'actif' ? 'Activer ce compte ?' : 'Désactiver ce compte ?';
     if (!(await api.confirm(label))) return;
-
     var btn = formStatut.querySelector('button[type="submit"]') || formStatut.querySelector('button');
     try {
       await api.withBusy(btn, async function () {

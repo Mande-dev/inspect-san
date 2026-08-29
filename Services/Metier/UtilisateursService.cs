@@ -38,15 +38,19 @@ public class UtilisateursService : IUtilisateursService
     public async Task<IReadOnlyList<UtilisateurListDto>> ListAsync()
     {
         var users = await _userManager.Users.AsNoTracking().OrderBy(u => u.Nom).ToListAsync();
+        var agentIds = users.Where(u => u.AgentId != null).Select(u => u.AgentId!).Distinct().ToList();
+        var agentNoms = await _db.Agents.AsNoTracking()
+            .Where(a => agentIds.Contains(a.MatrAgent))
+            .ToDictionaryAsync(a => a.MatrAgent, a => a.NomAgent);
+
         return users.Select(u => new UtilisateurListDto
         {
             Id = u.Id,
             Nom = u.Nom,
             Contact = u.Email ?? "",
             Role = u.Role,
-            Equipe = u.Equipe,
-            EquipeId = u.EquipeId,
-            ControleurId = u.ControleurId,
+            AgentId = u.AgentId,
+            AgentNom = u.AgentId != null ? agentNoms.GetValueOrDefault(u.AgentId) : null,
             Statut = u.Statut,
             Identifiant = u.Email ?? u.UserName ?? "",
             Telephone = u.Telephone,
@@ -54,34 +58,21 @@ public class UtilisateursService : IUtilisateursService
         }).ToList();
     }
 
-    public async Task<IReadOnlyList<ChefEquipeSansCompteDto>> ListChefsEquipeSansCompteAsync(string? excludeUserId = null)
+    public async Task<IReadOnlyList<AgentSansCompteDto>> ListAgentsSansCompteAsync(string? excludeUserId = null)
     {
-        var linkedChefIds = await _userManager.Users.AsNoTracking()
-            .Where(u => u.ControleurId != null && (excludeUserId == null || u.Id != excludeUserId))
-            .Select(u => u.ControleurId!)
+        var linkedAgentIds = await _userManager.Users.AsNoTracking()
+            .Where(u => u.AgentId != null && (excludeUserId == null || u.Id != excludeUserId))
+            .Select(u => u.AgentId!)
             .ToListAsync();
 
-        var equipesAvecCompte = await _userManager.Users.AsNoTracking()
-            .Where(u => u.Role == "Contrôleur" && u.EquipeId != null && (excludeUserId == null || u.Id != excludeUserId))
-            .Select(u => u.EquipeId!)
-            .ToListAsync();
-
-        return await _db.Equipes.AsNoTracking()
-            .Where(e => e.ChefControleurId != null
-                        && !linkedChefIds.Contains(e.ChefControleurId)
-                        && !equipesAvecCompte.Contains(e.Id))
-            .Join(_db.Controleurs.AsNoTracking(),
-                e => e.ChefControleurId,
-                c => c.Id,
-                (e, c) => new ChefEquipeSansCompteDto
-                {
-                    ControleurId = c.Id,
-                    NomComplet = c.NomComplet,
-                    EquipeId = e.Id,
-                    EquipeNom = e.Nom
-                })
-            .OrderBy(x => x.EquipeNom)
-            .ThenBy(x => x.NomComplet)
+        return await _db.Agents.AsNoTracking()
+            .Where(a => !linkedAgentIds.Contains(a.MatrAgent))
+            .OrderBy(a => a.NomAgent)
+            .Select(a => new AgentSansCompteDto
+            {
+                AgentId = a.MatrAgent,
+                NomComplet = a.NomAgent
+            })
             .ToListAsync();
     }
 
@@ -108,6 +99,9 @@ public class UtilisateursService : IUtilisateursService
         if (!email.Contains('@'))
             return ApiResultDto.Fail("Adresse e-mail invalide.");
 
+        if (dto.Role == DataScope.RoleChef || dto.Role == "Chef d'établissement")
+            return ApiResultDto.Fail("Le rôle « Chef d'établissement » n'est plus un compte de connexion.");
+
         if (!AccessControl.RoleAccess.ContainsKey(dto.Role))
             return ApiResultDto.Fail("Rôle invalide.");
 
@@ -118,46 +112,28 @@ public class UtilisateursService : IUtilisateursService
         if (pwd != pwd2)
             return ApiResultDto.Fail("Les mots de passe ne correspondent pas.");
 
-        var ecoleId = dto.Role == "Chef d'établissement" ? dto.EcoleId : null;
-        if (dto.Role == "Chef d'établissement" && string.IsNullOrWhiteSpace(ecoleId))
-            return ApiResultDto.Fail("Une école doit être liée au Chef d'établissement.");
+        var ecoleId = (string?)null;
 
-        string? equipeId = null;
-        string? equipeLabel = null;
-        string? controleurId = null;
+        string? agentId = null;
 
         if (dto.Role == "Contrôleur")
         {
-            if (string.IsNullOrWhiteSpace(dto.ControleurId))
-                return ApiResultDto.Fail("Un chef d’équipe doit être sélectionné.");
+            if (string.IsNullOrWhiteSpace(dto.AgentId))
+                return ApiResultDto.Fail("Un agent doit être sélectionné.");
 
-            var chef = await _db.Controleurs.AsNoTracking()
-                .FirstOrDefaultAsync(c => c.Id == dto.ControleurId);
-            if (chef == null)
-                return ApiResultDto.Fail("Chef d’équipe invalide.");
-
-            var equipe = await _db.Equipes.AsNoTracking()
-                .FirstOrDefaultAsync(e => e.ChefControleurId == chef.Id);
-            if (equipe == null)
-                return ApiResultDto.Fail("Ce contrôleur n’est pas chef d’équipe.");
+            var agent = await _db.Agents.AsNoTracking()
+                .FirstOrDefaultAsync(a => a.MatrAgent == dto.AgentId);
+            if (agent == null)
+                return ApiResultDto.Fail("Agent invalide ou inactif.");
 
             var otherUser = await _userManager.Users.AsNoTracking()
-                .FirstOrDefaultAsync(u => u.ControleurId == chef.Id);
+                .FirstOrDefaultAsync(u => u.AgentId == agent.MatrAgent);
             if (otherUser != null)
-                return ApiResultDto.Fail("Ce chef d’équipe a déjà un compte.");
+                return ApiResultDto.Fail("Cet agent a déjà un compte.");
 
-            var otherEquipeUser = await _userManager.Users.AsNoTracking()
-                .FirstOrDefaultAsync(u =>
-                    u.Role == "Contrôleur" && u.EquipeId == equipe.Id);
-            if (otherEquipeUser != null)
-                return ApiResultDto.Fail("Cette équipe a déjà un compte Contrôleur.");
-
-            equipeId = equipe.Id;
-            equipeLabel = equipe.Nom;
-            controleurId = chef.Id;
-
+            agentId = agent.MatrAgent;
             if (string.IsNullOrWhiteSpace(dto.Nom))
-                dto.Nom = chef.NomComplet;
+                dto.Nom = agent.NomAgent;
         }
 
         var byEmail = await _userManager.FindByEmailAsync(email);
@@ -176,9 +152,7 @@ public class UtilisateursService : IUtilisateursService
             EmailConfirmed = true,
             Nom = dto.Nom.Trim(),
             Role = dto.Role,
-            Equipe = equipeLabel,
-            EquipeId = equipeId,
-            ControleurId = controleurId,
+            AgentId = agentId,
             Statut = statut,
             Telephone = string.IsNullOrWhiteSpace(dto.Telephone) ? null : dto.Telephone.Trim(),
             EcoleId = ecoleId,
@@ -237,6 +211,15 @@ public class UtilisateursService : IUtilisateursService
                 .FirstOrDefaultAsync();
         }
 
+        string? agentNom = null;
+        if (!string.IsNullOrWhiteSpace(user.AgentId))
+        {
+            agentNom = await _db.Agents.AsNoTracking()
+                .Where(a => a.MatrAgent == user.AgentId)
+                .Select(a => a.NomAgent)
+                .FirstOrDefaultAsync();
+        }
+
         return new ProfilDto
         {
             Id = user.Id,
@@ -244,7 +227,8 @@ public class UtilisateursService : IUtilisateursService
             Contact = user.Email ?? "",
             Telephone = user.Telephone,
             Role = user.Role,
-            Equipe = user.Equipe,
+            AgentId = user.AgentId,
+            AgentNom = agentNom,
             EcoleId = user.EcoleId,
             EcoleNom = ecoleNom,
             Statut = user.Statut
@@ -315,9 +299,7 @@ public class UtilisateursService : IUtilisateursService
         Nom = u.Nom,
         Contact = u.Email ?? "",
         Role = u.Role,
-        Equipe = u.Equipe,
-        EquipeId = u.EquipeId,
-        ControleurId = u.ControleurId,
+        AgentId = u.AgentId,
         Statut = u.Statut,
         Identifiant = u.Email ?? u.UserName ?? "",
         MotDePasse = "",

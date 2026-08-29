@@ -154,340 +154,209 @@ namespace inspect_san.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
-            modelBuilder.Entity("inspect_san.Models.Entities.Chef", b =>
+            modelBuilder.Entity("inspect_san.Models.Entities.Affectation", b =>
                 {
-                    b.Property<string>("Id")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<int?>("AncienneteChef")
+                    b.Property<int>("IdAffectation")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    b.Property<int?>("AncienneteEcole")
-                        .HasColumnType("int");
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("IdAffectation"));
 
-                    b.Property<int?>("AncienneteEnseignement")
-                        .HasColumnType("int");
+                    b.Property<bool>("EcritureDeleguee")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false);
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("EcoleId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<string>("IdDinacope")
+                    b.Property<string>("Fonction")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
-                    b.Property<string>("NomComplet")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
-
-                    b.Property<string>("Telephone")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("varchar(40)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EcoleId");
-
-                    b.HasIndex("IdDinacope");
-
-                    b.ToTable("Chefs", (string)null);
-                });
-
-            modelBuilder.Entity("inspect_san.Models.Entities.Commune", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<bool>("Actif")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("Code")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<string>("Nom")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("varchar(150)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Nom");
-
-                    b.ToTable("Communes", (string)null);
-                });
-
-            modelBuilder.Entity("inspect_san.Models.Entities.Controleur", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<bool>("Actif")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("EquipeId")
+                    b.Property<string>("MatrAgent")
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("varchar(64)");
 
-                    b.Property<string>("NomComplet")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
-
-                    b.Property<string>("Telephone")
-                        .HasMaxLength(40)
-                        .HasColumnType("varchar(40)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EquipeId");
-
-                    b.ToTable("Controleurs", (string)null);
-                });
-
-            modelBuilder.Entity("inspect_san.Models.Entities.Decision", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<string>("Commentaire")
-                        .HasColumnType("longtext");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime?>("DecideLe")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("DecidePar")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<string>("DelaiExecution")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("EcoleId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<string>("Motif")
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("Numero")
+                    b.Property<string>("NomOrdre")
                         .IsRequired()
                         .HasMaxLength(80)
                         .HasColumnType("varchar(80)");
 
-                    b.Property<string>("RapportId")
-                        .IsRequired()
+                    b.HasKey("IdAffectation");
+
+                    b.HasIndex("MatrAgent");
+
+                    b.HasIndex("NomOrdre", "MatrAgent")
+                        .IsUnique();
+
+                    b.ToTable("Affectation", (string)null);
+                });
+
+            modelBuilder.Entity("inspect_san.Models.Entities.Agent", b =>
+                {
+                    b.Property<bool>("Actif")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("MatrAgent")
                         .HasMaxLength(64)
                         .HasColumnType("varchar(64)");
 
-                    b.Property<string>("StatutExecution")
+                    b.Property<string>("NomAgent")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("TelAgent")
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.HasKey("MatrAgent");
+
+                    b.HasIndex("Actif");
+
+                    b.HasIndex("NomAgent");
+
+                    b.ToTable("Agents", (string)null);
+                });
+
+            modelBuilder.Entity("inspect_san.Models.Entities.Categorie", b =>
+                {
+                    b.Property<int>("CodeCategories")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("CodeCategories"));
+
+                    b.Property<string>("Designation")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)");
+
+                    b.HasKey("CodeCategories");
+
+                    b.ToTable("Categories", (string)null);
+                });
+
+            modelBuilder.Entity("inspect_san.Models.Entities.Chef", b =>
+                {
+                    b.Property<string>("Matricule")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<int?>("AnneeDebutActivite")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NomComplet")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("Telephone")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.HasKey("Matricule");
+
+                    b.HasIndex("NomComplet");
+
+                    b.ToTable("ChefEtablissement", (string)null);
+                });
+
+            modelBuilder.Entity("inspect_san.Models.Entities.Decision", b =>
+                {
+                    b.Property<string>("NumDecision")
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)");
+
+                    b.Property<string>("DecisionFin")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
-                    b.Property<string>("TypeDecisionId")
+                    b.Property<string>("NumAgrement")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
 
-                    b.HasKey("Id");
+                    b.Property<string>("NumOrdre")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)");
 
-                    b.HasIndex("EcoleId");
+                    b.HasKey("NumDecision");
 
-                    b.HasIndex("Numero")
-                        .IsUnique();
+                    b.HasIndex("NumAgrement");
 
-                    b.HasIndex("RapportId");
+                    b.HasIndex("NumOrdre");
 
-                    b.HasIndex("StatutExecution");
-
-                    b.HasIndex("TypeDecisionId");
-
-                    b.ToTable("Decisions", (string)null);
+                    b.ToTable("Decision", (string)null);
                 });
 
             modelBuilder.Entity("inspect_san.Models.Entities.Ecole", b =>
                 {
-                    b.Property<string>("Id")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
+                    b.Property<string>("NumAgrement")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
 
-                    b.Property<string>("CommuneId")
+                    b.Property<string>("Adresse")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("AdresseEtablissement");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                    b.Property<int>("CodeCategories")
+                        .HasColumnType("int");
 
                     b.Property<string>("Denomination")
                         .IsRequired()
                         .HasMaxLength(250)
                         .HasColumnType("varchar(250)");
 
+                    b.Property<string>("Id")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
                     b.Property<string>("IdDinacope")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("IDDinacope");
 
-                    b.Property<string>("NumAgrement")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
+                    b.Property<string>("MatriculeChef")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
 
                     b.Property<string>("NumNotification")
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
 
-                    b.Property<string>("RegimeId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<string>("Statut")
+                    b.Property<string>("RegGes")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
+                    b.Property<string>("SousDivision")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
 
-                    b.HasKey("Id");
+                    b.HasKey("NumAgrement");
 
-                    b.HasIndex("CommuneId");
+                    b.HasIndex("CodeCategories");
+
+                    b.HasIndex("Id")
+                        .IsUnique();
 
                     b.HasIndex("IdDinacope")
                         .IsUnique();
 
-                    b.HasIndex("RegimeId");
+                    b.HasIndex("MatriculeChef");
 
-                    b.HasIndex("Statut");
-
-                    b.ToTable("Ecoles", (string)null);
-                });
-
-            modelBuilder.Entity("inspect_san.Models.Entities.Equipe", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<bool>("Actif")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("ChefControleurId")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("Nom")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("varchar(150)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ChefControleurId")
-                        .IsUnique();
-
-                    b.HasIndex("Nom");
-
-                    b.ToTable("Equipes", (string)null);
-                });
-
-            modelBuilder.Entity("inspect_san.Models.Entities.FicheControle", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<string>("ChefId")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("EcoleId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<string>("Numero")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("varchar(80)");
-
-                    b.Property<string>("Observations")
-                        .HasColumnType("longtext");
-
-                    b.Property<string>("OrdreMissionId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<string>("ProduitsAutres")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<string>("RecommandationPreliminaire")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("Statut")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime?>("ValideeLe")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("ValideePar")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ChefId");
-
-                    b.HasIndex("CreatedAt");
-
-                    b.HasIndex("EcoleId");
-
-                    b.HasIndex("Numero")
-                        .IsUnique();
-
-                    b.HasIndex("OrdreMissionId");
-
-                    b.HasIndex("Statut");
-
-                    b.ToTable("FichesControle", (string)null);
+                    b.ToTable("Etablissement", (string)null);
                 });
 
             modelBuilder.Entity("inspect_san.Models.Entities.JournalEntry", b =>
@@ -506,8 +375,8 @@ namespace inspect_san.Migrations
 
                     b.Property<string>("Detail")
                         .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("varchar(1000)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
 
                     b.Property<string>("Module")
                         .IsRequired()
@@ -523,11 +392,194 @@ namespace inspect_san.Migrations
 
                     b.HasIndex("CreatedAt");
 
-                    b.HasIndex("Module");
-
-                    b.HasIndex("UtilisateurId");
-
                     b.ToTable("JournalEntries", (string)null);
+                });
+
+            modelBuilder.Entity("inspect_san.Models.Entities.Mission", b =>
+                {
+                    b.Property<string>("NumOrdre")
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)");
+
+                    b.Property<int?>("CodeOutil")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CodeProduit")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DateDebut")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DateFin")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("EtatBatiment")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("Id")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<decimal?>("MontPer")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("NbrEleve")
+                        .HasColumnType("int");
+
+                    b.Property<int>("NbrToiletteFille")
+                        .HasColumnType("int");
+
+                    b.Property<int>("NbrToiletteGarcon")
+                        .HasColumnType("int");
+
+                    b.Property<int>("NbreBatiment")
+                        .HasColumnType("int");
+
+                    b.Property<int>("NbreOutil")
+                        .HasColumnType("int");
+
+                    b.Property<int>("NbreProduit")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NomEquipe")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)");
+
+                    b.Property<string>("NumAgrement")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Objet")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("Observation")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("OutilsAutres")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<int?>("OutilsAutresQuantite")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ProduitsAutres")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<int?>("ProduitsAutresQuantite")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RecommandationPreliminaire")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime?>("SigneLe")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("SignePar")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<string>("StatutFiche")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime?>("ValideeLe")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ValideePar")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<string>("Validite")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.HasKey("NumOrdre");
+
+                    b.HasIndex("CodeOutil");
+
+                    b.HasIndex("CodeProduit");
+
+                    b.HasIndex("DateFin");
+
+                    b.HasIndex("Id")
+                        .IsUnique();
+
+                    b.HasIndex("NumAgrement");
+
+                    b.HasIndex("Validite");
+
+                    b.ToTable("Mission", (string)null);
+                });
+
+            modelBuilder.Entity("inspect_san.Models.Entities.MissionOutil", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CodeOutil")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NumOrdre")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)");
+
+                    b.Property<int>("Quantite")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CodeOutil");
+
+                    b.HasIndex("NumOrdre", "CodeOutil")
+                        .IsUnique();
+
+                    b.ToTable("MissionOutil", (string)null);
+                });
+
+            modelBuilder.Entity("inspect_san.Models.Entities.MissionProduit", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CodeProduit")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NumOrdre")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)");
+
+                    b.Property<int>("Quantite")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CodeProduit");
+
+                    b.HasIndex("NumOrdre", "CodeProduit")
+                        .IsUnique();
+
+                    b.ToTable("MissionProduit", (string)null);
                 });
 
             modelBuilder.Entity("inspect_san.Models.Entities.NotificationItem", b =>
@@ -544,8 +596,8 @@ namespace inspect_san.Migrations
 
                     b.Property<string>("Message")
                         .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("varchar(1000)");
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
 
                     b.Property<string>("Titre")
                         .IsRequired()
@@ -560,216 +612,82 @@ namespace inspect_san.Migrations
 
                     b.HasIndex("CreatedAt");
 
-                    b.HasIndex("Lu");
-
                     b.HasIndex("UserId");
 
                     b.ToTable("Notifications", (string)null);
                 });
 
-            modelBuilder.Entity("inspect_san.Models.Entities.OrdreMission", b =>
+            modelBuilder.Entity("inspect_san.Models.Entities.Outil", b =>
                 {
-                    b.Property<string>("Id")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
+                    b.Property<int>("CodeOutile")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("CodeOutile"));
 
-                    b.Property<DateTime?>("DateEmission")
-                        .HasColumnType("datetime(6)");
+                    b.Property<string>("LibelleOutile")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)");
 
-                    b.Property<DateTime?>("DateMission")
-                        .HasColumnType("datetime(6)");
+                    b.HasKey("CodeOutile");
 
-                    b.Property<DateTime?>("DebutValidite")
-                        .HasColumnType("datetime(6)");
+                    b.ToTable("OutilUtilise", (string)null);
+                });
 
-                    b.Property<string>("EcoleId")
+            modelBuilder.Entity("inspect_san.Models.Entities.Photo", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("FicheControleId")
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("varchar(64)");
 
-                    b.Property<string>("EquipeId")
+                    b.Property<string>("Legende")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
+                        .HasMaxLength(250)
+                        .HasColumnType("varchar(250)");
 
-                    b.Property<DateTime?>("FinValidite")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("Numero")
+                    b.Property<string>("Nom")
                         .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("varchar(80)");
+                        .HasMaxLength(250)
+                        .HasColumnType("varchar(250)");
 
-                    b.Property<string>("Objet")
+                    b.Property<string>("Url")
+                        .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
 
-                    b.Property<DateTime?>("SigneLe")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("SignePar")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<string>("Statut")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("EcoleId");
-
-                    b.HasIndex("EquipeId");
-
-                    b.HasIndex("Numero")
-                        .IsUnique();
-
-                    b.HasIndex("Statut");
-
-                    b.HasIndex("DebutValidite", "FinValidite");
-
-                    b.ToTable("OrdresMission", (string)null);
-                });
-
-            modelBuilder.Entity("inspect_san.Models.Entities.Rapport", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<string>("AccusePar")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<DateTime?>("AccuseReceptionLe")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime?>("DeposeLe")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("DeposePar")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<string>("EcoleId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<string>("FicheIds")
-                        .IsRequired()
-                        .HasColumnType("longtext")
-                        .HasColumnName("FicheIdsJson");
-
-                    b.Property<string>("Numero")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("varchar(80)");
-
-                    b.Property<string>("Statut")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<string>("Synthese")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<DateTime?>("TransmisLe")
-                        .HasColumnType("datetime(6)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DeposeLe");
-
-                    b.HasIndex("EcoleId");
-
-                    b.HasIndex("Numero")
-                        .IsUnique();
-
-                    b.HasIndex("Statut");
-
-                    b.ToTable("Rapports", (string)null);
-                });
-
-            modelBuilder.Entity("inspect_san.Models.Entities.RapportFiche", b =>
-                {
-                    b.Property<string>("RapportId")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<string>("FicheControleId")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.HasKey("RapportId", "FicheControleId");
 
                     b.HasIndex("FicheControleId");
 
-                    b.ToTable("RapportFiches", (string)null);
+                    b.ToTable("Photos", (string)null);
                 });
 
-            modelBuilder.Entity("inspect_san.Models.Entities.Regime", b =>
+            modelBuilder.Entity("inspect_san.Models.Entities.Produit", b =>
                 {
-                    b.Property<string>("Id")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
+                    b.Property<int>("CodeProduit")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
 
-                    b.Property<bool>("Actif")
-                        .HasColumnType("tinyint(1)");
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("CodeProduit"));
 
-                    b.Property<string>("Code")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<string>("Nom")
+                    b.Property<string>("LibeleProduit")
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("varchar(150)");
 
-                    b.HasKey("Id");
+                    b.HasKey("CodeProduit");
 
-                    b.HasIndex("Nom");
+                    b.HasIndex("LibeleProduit");
 
-                    b.ToTable("Regimes", (string)null);
-                });
-
-            modelBuilder.Entity("inspect_san.Models.Entities.TypeDecision", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<bool>("Actif")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("Code")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<string>("Libelle")
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
-
-                    b.Property<string>("Nom")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("varchar(150)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code");
-
-                    b.HasIndex("Nom");
-
-                    b.ToTable("TypesDecision", (string)null);
+                    b.ToTable("ProduitUtilise", (string)null);
                 });
 
             modelBuilder.Entity("inspect_san.Models.Identity.ApplicationUser", b =>
@@ -780,13 +698,13 @@ namespace inspect_san.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("int");
 
+                    b.Property<string>("AgentId")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("longtext");
-
-                    b.Property<string>("ControleurId")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
@@ -801,14 +719,6 @@ namespace inspect_san.Migrations
 
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("Equipe")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("EquipeId")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
 
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("tinyint(1)");
@@ -864,12 +774,10 @@ namespace inspect_san.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ControleurId")
+                    b.HasIndex("AgentId")
                         .IsUnique();
 
                     b.HasIndex("EcoleId");
-
-                    b.HasIndex("EquipeId");
 
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
@@ -932,404 +840,184 @@ namespace inspect_san.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("inspect_san.Models.Entities.Chef", b =>
+            modelBuilder.Entity("inspect_san.Models.Entities.Affectation", b =>
                 {
-                    b.HasOne("inspect_san.Models.Entities.Ecole", "Ecole")
-                        .WithMany("Chefs")
-                        .HasForeignKey("EcoleId")
+                    b.HasOne("inspect_san.Models.Entities.Agent", "Agent")
+                        .WithMany("Affectations")
+                        .HasForeignKey("MatrAgent")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Ecole");
-                });
-
-            modelBuilder.Entity("inspect_san.Models.Entities.Controleur", b =>
-                {
-                    b.HasOne("inspect_san.Models.Entities.Equipe", "Equipe")
-                        .WithMany("Controleurs")
-                        .HasForeignKey("EquipeId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                    b.HasOne("inspect_san.Models.Entities.Mission", "Mission")
+                        .WithMany("Affectations")
+                        .HasForeignKey("NomOrdre")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Equipe");
+                    b.Navigation("Agent");
+
+                    b.Navigation("Mission");
                 });
 
             modelBuilder.Entity("inspect_san.Models.Entities.Decision", b =>
                 {
                     b.HasOne("inspect_san.Models.Entities.Ecole", "Ecole")
                         .WithMany("Decisions")
-                        .HasForeignKey("EcoleId")
+                        .HasForeignKey("NumAgrement")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("inspect_san.Models.Entities.Rapport", "Rapport")
+                    b.HasOne("inspect_san.Models.Entities.Mission", "Mission")
                         .WithMany("Decisions")
-                        .HasForeignKey("RapportId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("inspect_san.Models.Entities.TypeDecision", "TypeDecision")
-                        .WithMany("Decisions")
-                        .HasForeignKey("TypeDecisionId")
+                        .HasForeignKey("NumOrdre")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Ecole");
 
-                    b.Navigation("Rapport");
-
-                    b.Navigation("TypeDecision");
+                    b.Navigation("Mission");
                 });
 
             modelBuilder.Entity("inspect_san.Models.Entities.Ecole", b =>
                 {
-                    b.HasOne("inspect_san.Models.Entities.Commune", "Commune")
+                    b.HasOne("inspect_san.Models.Entities.Categorie", "Categorie")
                         .WithMany("Ecoles")
-                        .HasForeignKey("CommuneId")
+                        .HasForeignKey("CodeCategories")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("inspect_san.Models.Entities.Regime", "Regime")
+                    b.HasOne("inspect_san.Models.Entities.Chef", "ChefEtablissement")
                         .WithMany("Ecoles")
-                        .HasForeignKey("RegimeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .HasForeignKey("MatriculeChef")
+                        .OnDelete(DeleteBehavior.SetNull);
 
-                    b.OwnsOne("inspect_san.Models.Entities.Adresse", "Adresse", b1 =>
-                        {
-                            b1.Property<string>("EcoleId")
-                                .HasColumnType("varchar(64)");
+                    b.Navigation("Categorie");
 
-                            b1.Property<string>("Avenue")
-                                .IsRequired()
-                                .HasMaxLength(150)
-                                .HasColumnType("varchar(150)")
-                                .HasColumnName("Adresse_Avenue");
-
-                            b1.Property<string>("Numero")
-                                .IsRequired()
-                                .HasMaxLength(30)
-                                .HasColumnType("varchar(30)")
-                                .HasColumnName("Adresse_Numero");
-
-                            b1.Property<string>("Quartier")
-                                .IsRequired()
-                                .HasMaxLength(120)
-                                .HasColumnType("varchar(120)")
-                                .HasColumnName("Adresse_Quartier");
-
-                            b1.HasKey("EcoleId");
-
-                            b1.ToTable("Ecoles");
-
-                            b1.WithOwner()
-                                .HasForeignKey("EcoleId");
-                        });
-
-                    b.OwnsMany("inspect_san.Models.Entities.DocumentMeta", "Documents", b1 =>
-                        {
-                            b1.Property<int>("Id")
-                                .ValueGeneratedOnAdd()
-                                .HasColumnType("int");
-
-                            MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b1.Property<int>("Id"));
-
-                            b1.Property<DateTime>("Date")
-                                .HasColumnType("datetime(6)");
-
-                            b1.Property<string>("EcoleId")
-                                .IsRequired()
-                                .HasColumnType("varchar(64)");
-
-                            b1.Property<string>("Nom")
-                                .IsRequired()
-                                .HasMaxLength(250)
-                                .HasColumnType("varchar(250)");
-
-                            b1.Property<string>("Taille")
-                                .IsRequired()
-                                .HasMaxLength(50)
-                                .HasColumnType("varchar(50)");
-
-                            b1.Property<string>("Url")
-                                .IsRequired()
-                                .HasMaxLength(500)
-                                .HasColumnType("varchar(500)");
-
-                            b1.HasKey("Id");
-
-                            b1.HasIndex("EcoleId");
-
-                            b1.ToTable("EcoleDocuments", (string)null);
-
-                            b1.WithOwner()
-                                .HasForeignKey("EcoleId");
-                        });
-
-                    b.Navigation("Adresse")
-                        .IsRequired();
-
-                    b.Navigation("Commune");
-
-                    b.Navigation("Documents");
-
-                    b.Navigation("Regime");
+                    b.Navigation("ChefEtablissement");
                 });
 
-            modelBuilder.Entity("inspect_san.Models.Entities.Equipe", b =>
+            modelBuilder.Entity("inspect_san.Models.Entities.Mission", b =>
                 {
-                    b.HasOne("inspect_san.Models.Entities.Controleur", "ChefControleur")
-                        .WithMany()
-                        .HasForeignKey("ChefControleurId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                    b.HasOne("inspect_san.Models.Entities.Outil", "Outil")
+                        .WithMany("Missions")
+                        .HasForeignKey("CodeOutil")
+                        .OnDelete(DeleteBehavior.SetNull);
 
-                    b.Navigation("ChefControleur");
-                });
-
-            modelBuilder.Entity("inspect_san.Models.Entities.FicheControle", b =>
-                {
-                    b.HasOne("inspect_san.Models.Entities.Chef", "Chef")
-                        .WithMany("FichesControle")
-                        .HasForeignKey("ChefId")
+                    b.HasOne("inspect_san.Models.Entities.Produit", "Produit")
+                        .WithMany("Missions")
+                        .HasForeignKey("CodeProduit")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("inspect_san.Models.Entities.Ecole", "Ecole")
-                        .WithMany("FichesControle")
-                        .HasForeignKey("EcoleId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("inspect_san.Models.Entities.OrdreMission", "OrdreMission")
-                        .WithMany("FichesControle")
-                        .HasForeignKey("OrdreMissionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.OwnsMany("inspect_san.Models.Entities.PhotoMeta", "Photos", b1 =>
-                        {
-                            b1.Property<int>("Id")
-                                .ValueGeneratedOnAdd()
-                                .HasColumnType("int");
-
-                            MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b1.Property<int>("Id"));
-
-                            b1.Property<string>("FicheControleId")
-                                .IsRequired()
-                                .HasColumnType("varchar(64)");
-
-                            b1.Property<string>("Legende")
-                                .IsRequired()
-                                .HasMaxLength(250)
-                                .HasColumnType("varchar(250)");
-
-                            b1.Property<string>("Nom")
-                                .IsRequired()
-                                .HasMaxLength(250)
-                                .HasColumnType("varchar(250)");
-
-                            b1.Property<string>("Url")
-                                .IsRequired()
-                                .HasMaxLength(500)
-                                .HasColumnType("varchar(500)");
-
-                            b1.HasKey("Id");
-
-                            b1.HasIndex("FicheControleId");
-
-                            b1.ToTable("FichePhotos", (string)null);
-
-                            b1.WithOwner()
-                                .HasForeignKey("FicheControleId");
-                        });
-
-                    b.OwnsOne("inspect_san.Models.Entities.SectionBatiments", "SectionBatiments", b1 =>
-                        {
-                            b1.Property<string>("FicheControleId")
-                                .HasColumnType("varchar(64)");
-
-                            b1.Property<string>("EtatGeneral")
-                                .IsRequired()
-                                .HasMaxLength(50)
-                                .HasColumnType("varchar(50)")
-                                .HasColumnName("Batiments_EtatGeneral");
-
-                            b1.Property<int>("NombreBatiments")
-                                .HasColumnType("int")
-                                .HasColumnName("Batiments_NombreBatiments");
-
-                            b1.Property<int>("NombreEleves")
-                                .HasColumnType("int")
-                                .HasColumnName("Batiments_NombreEleves");
-
-                            b1.Property<string>("ToilettesFilles")
-                                .IsRequired()
-                                .HasMaxLength(120)
-                                .HasColumnType("varchar(120)")
-                                .HasColumnName("Batiments_ToilettesFilles");
-
-                            b1.Property<string>("ToilettesGarcons")
-                                .IsRequired()
-                                .HasMaxLength(120)
-                                .HasColumnType("varchar(120)")
-                                .HasColumnName("Batiments_ToilettesGarcons");
-
-                            b1.HasKey("FicheControleId");
-
-                            b1.ToTable("FichesControle");
-
-                            b1.WithOwner()
-                                .HasForeignKey("FicheControleId");
-                        });
-
-                    b.OwnsOne("inspect_san.Models.Entities.SectionImpact7", "SectionImpact7", b1 =>
-                        {
-                            b1.Property<string>("FicheControleId")
-                                .HasColumnType("varchar(64)");
-
-                            b1.Property<string>("MontantPercu")
-                                .IsRequired()
-                                .HasMaxLength(80)
-                                .HasColumnType("varchar(80)")
-                                .HasColumnName("Impact7_MontantPercu");
-
-                            b1.Property<string>("ProduitsNettoyage")
-                                .IsRequired()
-                                .HasColumnType("longtext")
-                                .HasColumnName("Impact7_ProduitsJson");
-
-                            b1.Property<string>("Quantite")
-                                .IsRequired()
-                                .HasMaxLength(250)
-                                .HasColumnType("varchar(250)")
-                                .HasColumnName("Impact7_Quantite");
-
-                            b1.HasKey("FicheControleId");
-
-                            b1.ToTable("FichesControle");
-
-                            b1.WithOwner()
-                                .HasForeignKey("FicheControleId");
-                        });
-
-                    b.Navigation("Chef");
-
-                    b.Navigation("Ecole");
-
-                    b.Navigation("OrdreMission");
-
-                    b.Navigation("Photos");
-
-                    b.Navigation("SectionBatiments")
-                        .IsRequired();
-
-                    b.Navigation("SectionImpact7")
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("inspect_san.Models.Entities.OrdreMission", b =>
-                {
-                    b.HasOne("inspect_san.Models.Entities.Ecole", "Ecole")
-                        .WithMany("OrdresMission")
-                        .HasForeignKey("EcoleId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("inspect_san.Models.Entities.Equipe", "Equipe")
-                        .WithMany("OrdresMission")
-                        .HasForeignKey("EquipeId")
+                        .WithMany("Missions")
+                        .HasForeignKey("NumAgrement")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Ecole");
 
-                    b.Navigation("Equipe");
+                    b.Navigation("Outil");
+
+                    b.Navigation("Produit");
                 });
 
-            modelBuilder.Entity("inspect_san.Models.Entities.Rapport", b =>
+            modelBuilder.Entity("inspect_san.Models.Entities.MissionOutil", b =>
                 {
-                    b.HasOne("inspect_san.Models.Entities.Ecole", "Ecole")
-                        .WithMany("Rapports")
-                        .HasForeignKey("EcoleId")
+                    b.HasOne("inspect_san.Models.Entities.Outil", "Outil")
+                        .WithMany("MissionOutils")
+                        .HasForeignKey("CodeOutil")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Ecole");
-                });
-
-            modelBuilder.Entity("inspect_san.Models.Entities.RapportFiche", b =>
-                {
-                    b.HasOne("inspect_san.Models.Entities.FicheControle", "FicheControle")
-                        .WithMany("RapportFiches")
-                        .HasForeignKey("FicheControleId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("inspect_san.Models.Entities.Rapport", "Rapport")
-                        .WithMany("RapportFiches")
-                        .HasForeignKey("RapportId")
+                    b.HasOne("inspect_san.Models.Entities.Mission", "Mission")
+                        .WithMany("MissionOutils")
+                        .HasForeignKey("NumOrdre")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("FicheControle");
+                    b.Navigation("Mission");
 
-                    b.Navigation("Rapport");
+                    b.Navigation("Outil");
+                });
+
+            modelBuilder.Entity("inspect_san.Models.Entities.MissionProduit", b =>
+                {
+                    b.HasOne("inspect_san.Models.Entities.Produit", "Produit")
+                        .WithMany("MissionProduits")
+                        .HasForeignKey("CodeProduit")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("inspect_san.Models.Entities.Mission", "Mission")
+                        .WithMany("MissionProduits")
+                        .HasForeignKey("NumOrdre")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Mission");
+
+                    b.Navigation("Produit");
+                });
+
+            modelBuilder.Entity("inspect_san.Models.Entities.Photo", b =>
+                {
+                    b.HasOne("inspect_san.Models.Entities.Mission", "Mission")
+                        .WithMany("Photos")
+                        .HasForeignKey("FicheControleId")
+                        .HasPrincipalKey("Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Mission");
+                });
+
+            modelBuilder.Entity("inspect_san.Models.Entities.Agent", b =>
+                {
+                    b.Navigation("Affectations");
+                });
+
+            modelBuilder.Entity("inspect_san.Models.Entities.Categorie", b =>
+                {
+                    b.Navigation("Ecoles");
                 });
 
             modelBuilder.Entity("inspect_san.Models.Entities.Chef", b =>
                 {
-                    b.Navigation("FichesControle");
-                });
-
-            modelBuilder.Entity("inspect_san.Models.Entities.Commune", b =>
-                {
                     b.Navigation("Ecoles");
                 });
 
             modelBuilder.Entity("inspect_san.Models.Entities.Ecole", b =>
                 {
-                    b.Navigation("Chefs");
+                    b.Navigation("Decisions");
+
+                    b.Navigation("Missions");
+                });
+
+            modelBuilder.Entity("inspect_san.Models.Entities.Mission", b =>
+                {
+                    b.Navigation("Affectations");
 
                     b.Navigation("Decisions");
 
-                    b.Navigation("FichesControle");
+                    b.Navigation("MissionOutils");
 
-                    b.Navigation("OrdresMission");
+                    b.Navigation("MissionProduits");
 
-                    b.Navigation("Rapports");
+                    b.Navigation("Photos");
                 });
 
-            modelBuilder.Entity("inspect_san.Models.Entities.Equipe", b =>
+            modelBuilder.Entity("inspect_san.Models.Entities.Outil", b =>
                 {
-                    b.Navigation("Controleurs");
+                    b.Navigation("MissionOutils");
 
-                    b.Navigation("OrdresMission");
+                    b.Navigation("Missions");
                 });
 
-            modelBuilder.Entity("inspect_san.Models.Entities.FicheControle", b =>
+            modelBuilder.Entity("inspect_san.Models.Entities.Produit", b =>
                 {
-                    b.Navigation("RapportFiches");
-                });
+                    b.Navigation("MissionProduits");
 
-            modelBuilder.Entity("inspect_san.Models.Entities.OrdreMission", b =>
-                {
-                    b.Navigation("FichesControle");
-                });
-
-            modelBuilder.Entity("inspect_san.Models.Entities.Rapport", b =>
-                {
-                    b.Navigation("Decisions");
-
-                    b.Navigation("RapportFiches");
-                });
-
-            modelBuilder.Entity("inspect_san.Models.Entities.Regime", b =>
-                {
-                    b.Navigation("Ecoles");
-                });
-
-            modelBuilder.Entity("inspect_san.Models.Entities.TypeDecision", b =>
-                {
-                    b.Navigation("Decisions");
+                    b.Navigation("Missions");
                 });
 #pragma warning restore 612, 618
         }

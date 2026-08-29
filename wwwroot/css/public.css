@@ -20,6 +20,7 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
 }
 
 body.isp-public {
@@ -29,6 +30,7 @@ body.isp-public {
   background: var(--isp-paper);
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
 }
 
 a {
@@ -488,6 +490,35 @@ a:focus-visible,
 
   .isp-land-section {
     padding: 3.25rem 1.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .isp-land-hero-inner {
+    padding: 4.75rem 1rem 2.75rem;
+  }
+
+  .isp-land-brand {
+    font-size: clamp(1.85rem, 9vw, 2.4rem);
+  }
+
+  .isp-land-cta,
+  .isp-land-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 0.65rem;
+  }
+
+  .isp-land-cta .isp-btn,
+  .isp-land-actions .isp-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .isp-sys-panel {
+    padding: 1.1rem;
   }
 }
 

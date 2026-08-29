@@ -67,6 +67,17 @@ using (var scope = app.Services.CreateScope())
             var seedLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DbSeeder");
             await db.Database.MigrateAsync();
 
+            // One-shot : dotnet run -- --purge-entities
+            if (args.Contains("--purge-entities", StringComparer.OrdinalIgnoreCase))
+            {
+                var purgeLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DbPurger");
+                await DbPurger.PurgeEntitiesMetierAsync(db, purgeLogger);
+                DbPurger.ClearUploads(app.Environment.WebRootPath, purgeLogger);
+                purgeLogger.LogWarning(
+                    "Purge entités OK. Relancer sans --purge-entities. Seed métier recommandé OFF.");
+                return;
+            }
+
             // One-shot : dotnet run -- --purge-keep-admin
             if (args.Contains("--purge-keep-admin", StringComparer.OrdinalIgnoreCase))
             {

@@ -70,8 +70,8 @@ public class ProfilViewModel
     [Display(Name = "Rôle")]
     public string Role { get; set; } = "";
 
-    [Display(Name = "Équipe")]
-    public string? Equipe { get; set; }
+    [Display(Name = "Agent")]
+    public string? AgentNom { get; set; }
 
     [Display(Name = "École")]
     public string? EcoleNom { get; set; }
@@ -99,21 +99,20 @@ public class EcoleFormViewModel
     public string Denomination { get; set; } = "";
 
     [Required]
-    public string RegimeId { get; set; } = "";
+    public string RegGes { get; set; } = "";
+
+    [Required]
+    public string SousDivision { get; set; } = "";
+
+    [Required]
+    public int CodeCategories { get; set; }
 
     [Required]
     public string IdDinacope { get; set; } = "";
 
     public string? NumAgrement { get; set; }
     public string? NumNotification { get; set; }
-
-    [Required]
-    public string CommuneId { get; set; } = "";
-
-    public string Quartier { get; set; } = "";
-    public string Avenue { get; set; } = "";
-    public string Numero { get; set; } = "";
-
-    public string Statut { get; set; } = "active";
+    public string? MatriculeChef { get; set; }
+    public string Adresse { get; set; } = "";
     public string Mode { get; set; } = "create";
 }

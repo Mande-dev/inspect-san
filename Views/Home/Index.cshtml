@@ -9,72 +9,74 @@
     <p class="text-secondary mb-0">Bienvenue — vue adaptée au rôle « @role ».</p>
 </div>
 
-<div class="row g-4 mb-4">
-    <div class="col-xl-3 col-sm-6">
+<div class="row g-3 g-md-4 mb-4">
+    <div class="col-6 col-xl-3">
         <div class="card card-lg h-100"><div class="card-body d-flex align-items-center gap-3">
             <div class="icon-shape icon-lg rounded-circle bg-primary-subtle text-primary-emphasis"><i class="ti ti-building-community fs-3"></i></div>
-            <div><h3 class="mb-0" id="kpiEcolesCount">@ViewBag.EcolesCount</h3><p class="mb-0 text-secondary small">@(role == "Chef d'établissement" ? "Mon établissement" : "Écoles enregistrées")</p></div>
+            <div class="min-w-0"><h3 class="mb-0" id="kpiEcolesCount">@ViewBag.EcolesCount</h3><p class="mb-0 text-secondary small">Écoles enregistrées</p></div>
         </div></div>
     </div>
-    <div class="col-xl-3 col-sm-6">
+    <div class="col-6 col-xl-3">
         <div class="card card-lg h-100"><div class="card-body d-flex align-items-center gap-3">
             <div class="icon-shape icon-lg rounded-circle bg-info-subtle text-info-emphasis"><i class="ti ti-file-certificate fs-3"></i></div>
-            <div><h3 class="mb-0" id="kpiMissions">@ViewBag.MissionsEnCours</h3><p class="mb-0 text-secondary small">Missions en cours</p></div>
+            <div class="min-w-0"><h3 class="mb-0" id="kpiMissions">@ViewBag.MissionsEnCours</h3><p class="mb-0 text-secondary small">Missions en cours</p></div>
         </div></div>
     </div>
-    <div class="col-xl-3 col-sm-6">
+    <div class="col-6 col-xl-3">
         <div class="card card-lg h-100"><div class="card-body d-flex align-items-center gap-3">
             <div class="icon-shape icon-lg rounded-circle bg-warning-subtle text-warning-emphasis"><i class="ti ti-clipboard-check fs-3"></i></div>
-            <div><h3 class="mb-0" id="kpiFiches">@ViewBag.FichesEnAttente</h3><p class="mb-0 text-secondary small">Fiches en attente du chef</p></div>
+            <div class="min-w-0"><h3 class="mb-0" id="kpiFiches">@ViewBag.FichesEnAttente</h3><p class="mb-0 text-secondary small">Fiches en attente de validation</p></div>
         </div></div>
     </div>
-    <div class="col-xl-3 col-sm-6">
+    <div class="col-6 col-xl-3">
         <div class="card card-lg h-100"><div class="card-body d-flex align-items-center gap-3">
-            <div class="icon-shape icon-lg rounded-circle bg-success-subtle text-success-emphasis"><i class="ti ti-report-analytics fs-3"></i></div>
-            <div><h3 class="mb-0" id="kpiRapports">@ViewBag.RapportsDeposes</h3><p class="mb-0 text-secondary small">Rapports déposés</p></div>
+            <div class="icon-shape icon-lg rounded-circle bg-danger-subtle text-danger-emphasis"><i class="ti ti-gavel fs-3"></i></div>
+            <div class="min-w-0">
+                <h3 class="mb-0" id="kpiDecisions">@ViewBag.DecisionsEnAttente</h3>
+                <p class="mb-0 text-secondary small">Décisions en attente</p>
+            </div>
         </div></div>
     </div>
 </div>
 
-<div class="row g-4 mb-4">
-    <div class="col-xl-3 col-sm-6">
-        <div class="card card-lg h-100"><div class="card-body d-flex align-items-center gap-3">
-            <div class="icon-shape icon-lg rounded-circle bg-danger-subtle text-danger-emphasis"><i class="ti ti-gavel fs-3"></i></div>
-            <div>
-                <h3 class="mb-0" id="kpiDecisions">@ViewBag.DecisionsEnAttente</h3>
-                <p class="mb-0 text-secondary small">Décisions en attente</p>
-                <p class="mb-0 text-muted" style="font-size:0.75rem">Sans décision + exécution en cours</p>
-            </div>
-        </div></div>
-    </div>
-    @if (!string.IsNullOrEmpty(tip))
-    {
-        <div class="col-xl-9">
-            <div class="card card-lg h-100"><div class="card-body d-flex align-items-center gap-3">
+@if (!string.IsNullOrEmpty(tip))
+{
+    <div class="row g-4 mb-4">
+        <div class="col-12">
+            <div class="card card-lg"><div class="card-body d-flex align-items-center gap-3">
                 <i class="ti ti-bulb fs-3 text-primary flex-shrink-0"></i>
                 <p class="mb-0" id="dashboardRoleTip">@tip</p>
             </div></div>
         </div>
-    }
-</div>
+    </div>
+}
 
 <div class="row g-4 mb-4">
     <div class="col-lg-4">
         <div class="card card-lg h-100">
-            <div class="card-header"><h5 class="mb-0">Écoles par régime</h5></div>
-            <div class="card-body"><div id="chartRegime" style="min-height:260px;"></div></div>
+            <div class="card-header">
+                <h5 class="mb-0">Écoles par régime</h5>
+                <p class="text-secondary small mb-0 mt-1">Combien d’écoles pour chaque type de régime</p>
+            </div>
+            <div class="card-body"><div id="chartRegime" style="min-height:280px;"></div></div>
         </div>
     </div>
     <div class="col-lg-4">
         <div class="card card-lg h-100">
-            <div class="card-header"><h5 class="mb-0">Contrôles (6 mois)</h5></div>
-            <div class="card-body"><div id="chartControles" style="min-height:260px;"></div></div>
+            <div class="card-header">
+                <h5 class="mb-0">Contrôles par mois</h5>
+                <p class="text-secondary small mb-0 mt-1">Nombre de fiches créées sur les 6 derniers mois</p>
+            </div>
+            <div class="card-body"><div id="chartControles" style="min-height:280px;"></div></div>
         </div>
     </div>
     <div class="col-lg-4">
         <div class="card card-lg h-100">
-            <div class="card-header"><h5 class="mb-0">Décisions</h5></div>
-            <div class="card-body"><div id="chartDecisions" style="min-height:260px;"></div></div>
+            <div class="card-header">
+                <h5 class="mb-0">Décisions prises</h5>
+                <p class="text-secondary small mb-0 mt-1">Répartition selon le type de décision</p>
+            </div>
+            <div class="card-body"><div id="chartDecisions" style="min-height:280px;"></div></div>
         </div>
     </div>
 </div>

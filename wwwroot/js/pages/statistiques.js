@@ -13,9 +13,8 @@
     return {
       dateFrom: document.getElementById('filterDateFrom').value || '',
       dateTo: document.getElementById('filterDateTo').value || '',
-      commune: document.getElementById('filterCommune').value || '',
-      regime: document.getElementById('filterRegime').value || '',
-      statutEcole: document.getElementById('filterStatut').value || ''
+      sousproved: document.getElementById('filterSousproved').value || '',
+      regime: document.getElementById('filterRegime').value || ''
     };
   }
 
@@ -33,7 +32,7 @@
 
     var conformite = dto.conformite || dto.Conformite || [];
     var decParType = dto.decisionsParType || dto.DecisionsParType || [];
-    var impact7 = dto.impact7 || dto.Impact7 || [];
+    var produitsDeclares = dto.produitsDeclares || dto.ProduitsDeclares || [];
     var evolution = dto.evolution || dto.Evolution || [];
 
     if (window.ApexCharts) {
@@ -57,10 +56,10 @@
         series: [{ name: 'Décisions', data: valuesOf(decParType) }],
         colors: ['#00B8D9']
       }));
-      charts.push(new ApexCharts(document.querySelector('#chartImpact7'), {
+      charts.push(new ApexCharts(document.querySelector('#chartProduits'), {
         chart: { type: 'bar', height: 280, toolbar: { show: false } },
-        xaxis: { categories: labelsOf(impact7) },
-        series: [{ name: 'Fiches', data: valuesOf(impact7) }],
+        xaxis: { categories: labelsOf(produitsDeclares) },
+        series: [{ name: 'Fiches', data: valuesOf(produitsDeclares) }],
         colors: ['#8E33FF']
       }));
       charts.push(new ApexCharts(document.querySelector('#chartEvolution'), {
@@ -82,31 +81,21 @@
     };
   }
 
-  ['filterDateFrom', 'filterDateTo', 'filterCommune', 'filterRegime', 'filterStatut'].forEach(function (id) {
+  ['filterDateFrom', 'filterDateTo', 'filterSousproved', 'filterRegime'].forEach(function (id) {
     document.getElementById(id)?.addEventListener('change', function () {
       refresh().catch(function (err) { api.showToast(err.message, 'danger'); });
     });
   });
   document.getElementById('resetFilters')?.addEventListener('click', function () {
-    ['filterDateFrom', 'filterDateTo', 'filterCommune', 'filterRegime', 'filterStatut'].forEach(function (id) {
+    ['filterDateFrom', 'filterDateTo', 'filterSousproved', 'filterRegime'].forEach(function (id) {
       document.getElementById(id).value = '';
     });
     refresh().catch(function (err) { api.showToast(err.message, 'danger'); });
   });
   document.getElementById('exportCsv')?.addEventListener('click', function () {
     var q = new URLSearchParams();
-    ['filterDateFrom', 'filterDateTo', 'filterCommune', 'filterRegime', 'filterStatut'].forEach(function (id) {
-      var el = document.getElementById(id);
-      if (!el || !el.value) return;
-      var key = id.replace('filter', '');
-      key = key.charAt(0).toLowerCase() + key.slice(1);
-      if (id === 'filterDateFrom') key = 'dateFrom';
-      if (id === 'filterDateTo') key = 'dateTo';
-      if (id === 'filterStatut') key = 'statutEcole';
-      if (id === 'filterCommune') key = 'commune';
-      if (id === 'filterRegime') key = 'regime';
-      q.set(key, el.value);
-    });
+    var f = filters();
+    Object.keys(f).forEach(function (k) { if (f[k]) q.set(k, f[k]); });
     window.location = '/Home/ExportStatistiquesCsv?' + q.toString();
   });
   document.getElementById('exportPdf')?.addEventListener('click', function () {
@@ -120,4 +109,14 @@
   });
 
   refresh().catch(function (err) { api.showToast(err.message, 'danger'); });
+
+  var resizeTimer;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      charts.forEach(function (c) {
+        try { c.resize(); } catch (e) {}
+      });
+    }, 150);
+  });
 })();

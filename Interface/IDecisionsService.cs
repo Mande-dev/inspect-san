@@ -7,8 +7,8 @@ public interface IDecisionsService
 {
     Task<IReadOnlyList<DecisionListDto>> ListAsync();
     Task<List<Decision>> QueryEntitiesAsync();
-    Task<IReadOnlyList<RapportListDto>> RapportsSansDecisionAsync();
-    Task<List<Rapport>> QueryRapportsSansDecisionAsync();
+    Task<IReadOnlyList<FicheListDto>> FichesSansDecisionAsync();
+    Task<List<FicheControle>> QueryFichesSansDecisionAsync();
     Task<ApiResultDto> SaveAsync(SaveDecisionDto dto, string? userId);
     Task<ApiResultDto> DeleteAsync(string id);
 }

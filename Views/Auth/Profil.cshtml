@@ -2,7 +2,7 @@
 @{
     ViewData["Title"] = "Mon profil";
     ViewBag.PageKey = "profil";
-    var showEquipe = string.Equals(Model.Role, "Contrôleur", StringComparison.Ordinal);
+    var showAgent = string.Equals(Model.Role, "Contrôleur", StringComparison.Ordinal);
     var showEcole = string.Equals(Model.Role, "Chef d'établissement", StringComparison.Ordinal);
 }
 <div class="isp-profil">
@@ -14,7 +14,7 @@
             <h1>Mon profil</h1>
             <p>
                 Mettez à jour vos coordonnées et votre mot de passe.
-                Les affectations métier (rôle, équipe, école) sont définies uniquement par l’administrateur à la création du compte.
+                Les affectations métier (rôle, agent, école) sont définies uniquement par l’administrateur à la création du compte.
             </p>
         </div>
     </header>
@@ -63,11 +63,11 @@
                         <label class="form-label">Rôle</label>
                         <input class="form-control isp-profil-readonly" value="@Model.Role" readonly tabindex="-1" />
                     </div>
-                    @if (showEquipe)
+                    @if (showAgent)
                     {
                         <div class="col-md-6">
-                            <label class="form-label">Équipe</label>
-                            <input class="form-control isp-profil-readonly" value="@(string.IsNullOrWhiteSpace(Model.Equipe) ? "—" : Model.Equipe)" readonly tabindex="-1" />
+                            <label class="form-label">Agent</label>
+                            <input class="form-control isp-profil-readonly" value="@(string.IsNullOrWhiteSpace(Model.AgentNom) ? "—" : Model.AgentNom)" readonly tabindex="-1" />
                         </div>
                     }
                     @if (showEcole)

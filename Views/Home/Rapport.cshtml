@@ -1,0 +1,77 @@
+@{
+    ViewData["Title"] = "Rapport d'inspection";
+    var sousproveds = (List<RefItem>)(ViewBag.Sousproveds ?? new List<RefItem>());
+    var canDeposerEquipe = ViewBag.CanDeposerEquipe as bool? == true;
+    var canDeposerSecretariat = ViewBag.CanDeposerSecretariat as bool? == true;
+    var canCloturer = ViewBag.CanCloturer as bool? == true;
+}
+<div id="rapportPage"
+     data-can-equipe="@(canDeposerEquipe ? "1" : "0")"
+     data-can-secretariat="@(canDeposerSecretariat ? "1" : "0")"
+     data-can-cloturer="@(canCloturer ? "1" : "0")">
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4 isp-page-head">
+        <div>
+            <h2 class="mb-1">Rapport d'inspection</h2>
+            <p class="text-secondary mb-0">Fiches validées par sous-division — dépôt équipe / secrétariat puis clôture.</p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            @if (canDeposerEquipe)
+            {
+                <button type="button" class="btn btn-outline-primary" id="btnDeposerEquipe" disabled>
+                    <i class="ti ti-upload me-1"></i>Déposer rapport équipe
+                </button>
+            }
+            @if (canDeposerSecretariat)
+            {
+                <button type="button" class="btn btn-outline-primary" id="btnDeposerSecretariat" disabled>
+                    <i class="ti ti-upload me-1"></i>Déposer rapport secrétariat
+                </button>
+            }
+            @if (canCloturer)
+            {
+                <button type="button" class="btn btn-outline-danger" id="btnCloturerRapport" disabled>
+                    <i class="ti ti-lock me-1"></i>Clôturer
+                </button>
+            }
+            <button type="button" class="btn btn-primary" id="btnPrintRapport" disabled>
+                <i class="ti ti-printer me-1"></i>Aperçu / Imprimer
+            </button>
+        </div>
+    </div>
+
+    <div class="card card-lg mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-6">
+                    <label class="form-label">Sous-division</label>
+                    <select class="form-select" id="filterSousproved">
+                        <option value="">Choisir…</option>
+                        @foreach (var c in sousproveds)
+                        {
+                            <option value="@c.Code">@c.Code — @c.Nom</option>
+                        }
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="rapportStatus" class="alert alert-secondary d-none mb-4"></div>
+
+    <div id="rapportGlobalKpi" class="row g-3 g-md-4 mb-4 d-none">
+        <div class="col-6 col-md-3"><div class="card card-lg h-100"><div class="card-body"><div class="text-secondary small">Établissements</div><div class="fs-3 fw-bold" id="kpiEcoles">—</div></div></div></div>
+        <div class="col-6 col-md-3"><div class="card card-lg h-100"><div class="card-body"><div class="text-secondary small">Fiches validées</div><div class="fs-3 fw-bold" id="kpiFiches">—</div></div></div></div>
+        <div class="col-6 col-md-3"><div class="card card-lg h-100"><div class="card-body"><div class="text-secondary small">Taux de conformité</div><div class="fs-3 fw-bold" id="kpiConformite">—</div></div></div></div>
+        <div class="col-6 col-md-3"><div class="card card-lg h-100"><div class="card-body"><div class="text-secondary small">Décisions</div><div class="fs-3 fw-bold" id="kpiDecisions">—</div></div></div></div>
+    </div>
+
+    <div id="rapportSections"></div>
+
+    <div id="rapportEmpty" class="alert alert-info d-none mb-0">
+        Sélectionnez une sous-division pour afficher les fiches validées.
+    </div>
+</div>
+
+@section Scripts {
+<script src="~/js/pages/rapport.js" asp-append-version="true"></script>
+}

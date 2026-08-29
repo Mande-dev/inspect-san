@@ -13,14 +13,14 @@ public static partial class NumeroGenerator
         => $"{prefix.Trim().ToUpperInvariant()}-{year}-{sequence.ToString($"D{digits}", CultureInfo.InvariantCulture)}";
 
     /// <summary>
-    /// Prochain numéro d’ordre de mission pour l’année donnée (UTC par défaut) :
-    /// <c>OM-2026-001</c>, <c>OM-2026-002</c>, …
+    /// Prochain numéro de mission pour l’année donnée (UTC par défaut) :
+    /// <c>OM-2026-001</c>, <c>OM-2026-002</c>, … (préfixe OM pour compatibilité).
     /// </summary>
-    public static Task<string> NextOrdreMissionAsync(
+    public static Task<string> NextMissionAsync(
         InspectSanDbContext db,
         DateTime? date = null,
         CancellationToken ct = default)
-        => NextAsync(db.OrdresMission.AsNoTracking().Select(o => o.Numero), "OM", date, digits: 3, ct);
+        => NextAsync(db.Missions.AsNoTracking().Select(m => m.NumOrdre), "OM", date, digits: 3, ct);
 
     /// <summary>
     /// Calcule le prochain numéro <c>{PREFIX}-{année}-{seq}</c> à partir des numéros existants

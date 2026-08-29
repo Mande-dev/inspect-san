@@ -7,7 +7,7 @@ public interface IUtilisateursService
 {
     Task<IReadOnlyList<UtilisateurListDto>> ListAsync();
     Task<List<Utilisateur>> QueryEntitiesAsync();
-    Task<IReadOnlyList<ChefEquipeSansCompteDto>> ListChefsEquipeSansCompteAsync(string? excludeUserId = null);
+    Task<IReadOnlyList<AgentSansCompteDto>> ListAgentsSansCompteAsync(string? excludeUserId = null);
 
     /// <summary>Création admin uniquement. Refuse toute mise à jour (Id renseigné).</summary>
     Task<ApiResultDto> CreateAsync(SaveUtilisateurDto dto);

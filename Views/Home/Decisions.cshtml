@@ -1,25 +1,37 @@
 @model List<Decision>
+@using System.Text.Json
+@using inspect_san.Models.Constants
 @{
     ViewData["Title"] = "Décisions";
-    var types = (List<RefItem>)ViewBag.Types;
+    var types = (IReadOnlyDictionary<string, string>)(ViewBag.TypesDecision ?? DecisionTypes.Labels);
     var ecoles = (List<Ecole>)ViewBag.Ecoles;
-    var rapports = (List<Rapport>)ViewBag.Rapports;
-    var sansDecision = (List<Rapport>)(ViewBag.RapportsSansDecision ?? new List<Rapport>());
+    var fiches = (List<FicheControle>)(ViewBag.Fiches ?? new List<FicheControle>());
+    var sansDecision = (List<FicheControle>)(ViewBag.FichesSansDecision ?? new List<FicheControle>());
+    var produits = ((IEnumerable<RefItem>)(ViewBag.Produits ?? Enumerable.Empty<RefItem>()))
+        .Select(p => (Ok: int.TryParse(p.Code, out var c), Code: c, Nom: p.Libelle ?? p.Nom))
+        .Where(x => x.Ok)
+        .GroupBy(x => x.Code)
+        .ToDictionary(g => g.Key, g => g.First().Nom);
+    var outils = ((IEnumerable<RefItem>)(ViewBag.Outils ?? Enumerable.Empty<RefItem>()))
+        .Select(o => (Ok: int.TryParse(o.Code, out var c), Code: c, Nom: o.Libelle ?? o.Nom))
+        .Where(x => x.Ok)
+        .GroupBy(x => x.Code)
+        .ToDictionary(g => g.Key, g => g.First().Nom);
     var canCreer = ViewBag.CanCreerDecision as bool? == true;
-    var sansIds = sansDecision.Select(r => r.Id).ToHashSet(StringComparer.Ordinal);
-    // En édition : rapports déjà liés à une décision (souvent « traite »)
-    var rapportsLies = Model
-        .Select(d => rapports.FirstOrDefault(r => r.Id == d.RapportId))
-        .Where(r => r != null && !sansIds.Contains(r!.Id))
-        .Cast<Rapport>()
-        .GroupBy(r => r.Id)
+    var sansIds = sansDecision.Select(f => f.Id).ToHashSet(StringComparer.Ordinal);
+    var fichesLiees = Model
+        .Select(d => fiches.FirstOrDefault(f => f.Id == d.FicheControleId))
+        .Where(f => f != null && !sansIds.Contains(f!.Id))
+        .Cast<FicheControle>()
+        .GroupBy(f => f.Id)
         .Select(g => g.First())
         .ToList();
+    var fichesPreview = sansDecision.Concat(fichesLiees).GroupBy(f => f.Id).Select(g => g.First()).ToList();
 }
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4 isp-page-head">
     <div>
         <h2 class="mb-1">Décisions</h2>
-        <p class="text-secondary mb-0">@(canCreer ? "Une décision par rapport transmis. L’école est celle du rapport." : "Suivi des décisions concernant votre établissement.")</p>
+        <p class="text-secondary mb-0">@(canCreer ? "Une décision par fiche validée. Consultez la fiche avant de décider." : "Suivi des décisions concernant votre établissement.")</p>
     </div>
     @if (canCreer)
     {
@@ -32,13 +44,18 @@
 <div id="sansDecisionAlert" class="alert alert-warning @(sansDecision.Any() ? "" : "d-none")">
 @if (sansDecision.Any())
 {
-        <strong>Rapports transmis sans décision :</strong>
+        <strong>Fiches validées sans décision :</strong>
         <ul class="mb-0 mt-2">
-            @foreach (var r in sansDecision)
+            @foreach (var f in sansDecision)
             {
-                var eco = ecoles.FirstOrDefault(e => e.Id == r.EcoleId);
-                <li>@r.Numero — @(eco?.Denomination)
-                    <button type="button" class="btn btn-sm btn-outline-dark ms-2 decide-from" data-rapport="@r.Id" data-ecole="@r.EcoleId" data-ecole-nom="@(eco?.Denomination ?? "")" data-bs-toggle="modal" data-bs-target="#decisionModal">Prendre une décision</button>
+                var eco = ecoles.FirstOrDefault(e => e.Id == f.EcoleId);
+                <li class="mb-2">
+                    @f.Numero — @(eco?.Denomination)
+                    <button type="button" class="btn btn-sm btn-outline-secondary ms-2 btn-voir-fiche"
+                            data-fiche-id="@f.Id">Voir la fiche</button>
+                    <button type="button" class="btn btn-sm btn-outline-dark ms-1 decide-from"
+                            data-fiche="@f.Id" data-ecole="@f.EcoleId" data-ecole-nom="@(eco?.Denomination ?? "")"
+                            data-bs-toggle="modal" data-bs-target="#decisionModal">Prendre une décision</button>
                 </li>
             }
         </ul>
@@ -49,32 +66,44 @@
 <div class="card card-lg">
     <div class="table-responsive">
         <table class="table table-hover mb-0 js-paginated-table" id="decisionsTable" data-can-creer="@(canCreer ? "1" : "0")">
-            <thead class="table-light"><tr><th>N°</th><th>Type</th><th>École</th><th>Délai</th><th>Exécution</th><th></th></tr></thead>
+            <thead class="table-light"><tr><th>N°</th><th>Type</th><th>École</th><th>Fiche</th><th></th></tr></thead>
             <tbody id="decisionsTbody">
             @foreach (var d in Model)
             {
                 var eco = ecoles.FirstOrDefault(e => e.Id == d.EcoleId);
-                var typeLabel = d.TypeDecision?.Nom ?? d.TypeDecision?.Code ?? "—";
+                var typeLabel = DecisionTypes.LabelOf(d.TypeDecision);
                 <tr>
                     <td class="fw-semibold">@(string.IsNullOrEmpty(d.Numero) ? d.Id : d.Numero)</td>
-                    <td>@typeLabel</td>
+                    <td>@(string.IsNullOrEmpty(typeLabel) ? "—" : typeLabel)</td>
                     <td>@(eco?.Denomination ?? "—")</td>
-                    <td>@(d.DelaiExecution ?? "—")</td>
-                    <td>@d.StatutExecution</td>
+                    <td>
+                        @if (!string.IsNullOrEmpty(d.FicheControleId))
+                        {
+                            <button type="button" class="btn btn-sm btn-link p-0 btn-voir-fiche" data-fiche-id="@d.FicheControleId">Voir</button>
+                        }
+                        else { <span>—</span> }
+                    </td>
                     <td class="text-end text-nowrap">
-                        <button type="button" class="btn btn-sm btn-outline-secondary btn-voir-decision"
-                                data-id="@d.Id" data-rapport="@d.RapportId" data-ecole="@d.EcoleId"
+                        <button type="button" class="btn btn-sm btn-outline-dark btn-print-decision"
+                                data-id="@d.Id"
+                                data-numero="@(string.IsNullOrEmpty(d.Numero) ? d.Id : d.Numero)"
+                                data-fiche="@d.FicheControleId"
+                                data-ecole="@d.EcoleId"
                                 data-ecole-nom="@(eco?.Denomination ?? "")"
-                                data-type="@d.TypeDecisionId" data-delai="@(d.DelaiExecution ?? "")"
-                                data-exec="@d.StatutExecution" data-commentaire="@(d.Commentaire ?? d.Motif ?? "")"
+                                data-type="@d.TypeDecision"
+                                data-type-label="@typeLabel"
+                                title="Imprimer la lettre de décision"><i class="ti ti-printer"></i></button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary btn-voir-decision"
+                                data-id="@d.Id" data-fiche="@d.FicheControleId" data-ecole="@d.EcoleId"
+                                data-ecole-nom="@(eco?.Denomination ?? "")"
+                                data-type="@d.TypeDecision"
                                 data-readonly="1" data-bs-toggle="modal" data-bs-target="#decisionModal" title="Voir"><i class="ti ti-eye"></i></button>
                         @if (canCreer)
                         {
                             <button type="button" class="btn btn-sm btn-outline-primary btn-edit-decision"
-                                    data-id="@d.Id" data-rapport="@d.RapportId" data-ecole="@d.EcoleId"
+                                    data-id="@d.Id" data-fiche="@d.FicheControleId" data-ecole="@d.EcoleId"
                                     data-ecole-nom="@(eco?.Denomination ?? "")"
-                                    data-type="@d.TypeDecisionId" data-delai="@(d.DelaiExecution ?? "")"
-                                    data-exec="@d.StatutExecution" data-commentaire="@(d.Commentaire ?? d.Motif ?? "")"
+                                    data-type="@d.TypeDecision"
                                     data-readonly="0" data-bs-toggle="modal" data-bs-target="#decisionModal" title="Modifier"><i class="ti ti-edit"></i></button>
                             <form class="d-inline js-delete-decision" data-id="@d.Id"><button type="submit" class="btn btn-sm btn-outline-danger"><i class="ti ti-trash"></i></button></form>
                         }
@@ -105,56 +134,112 @@
                 <div class="isp-modal-section mb-0">
                     <h6 class="isp-modal-section-title"><i class="ti ti-scale"></i> Contenu de la décision</h6>
                     <div class="mb-3">
-                        <label class="form-label">Rapport concerné</label>
-                        <select name="RapportId" id="decRapport" class="form-select" required>
-                            <option value="">Sélectionner…</option>
-                            @foreach (var r in sansDecision)
-                            {
-                                var eco = ecoles.FirstOrDefault(e => e.Id == r.EcoleId);
-                                <option value="@r.Id" data-ecole="@r.EcoleId" data-ecole-nom="@(eco?.Denomination ?? "")" data-eligible="1">@r.Numero — @(eco?.Denomination)</option>
-                            }
-                            @foreach (var r in rapportsLies)
-                            {
-                                var eco = ecoles.FirstOrDefault(e => e.Id == r.EcoleId);
-                                <option value="@r.Id" data-ecole="@r.EcoleId" data-ecole-nom="@(eco?.Denomination ?? "")" data-eligible="0">@r.Numero — @(eco?.Denomination)</option>
-                            }
-                        </select>
-                        <div class="form-text">Création : uniquement les rapports transmis sans décision.</div>
+                        <label class="form-label">Fiche concernée</label>
+                        <div class="d-flex flex-column flex-sm-row gap-2">
+                            <select name="FicheControleId" id="decFiche" class="form-select" required>
+                                <option value="">Sélectionner…</option>
+                                @foreach (var f in sansDecision)
+                                {
+                                    var eco = ecoles.FirstOrDefault(e => e.Id == f.EcoleId);
+                                    <option value="@f.Id" data-ecole="@f.EcoleId" data-ecole-nom="@(eco?.Denomination ?? "")" data-eligible="1">@f.Numero — @(eco?.Denomination)</option>
+                                }
+                                @foreach (var f in fichesLiees)
+                                {
+                                    var eco = ecoles.FirstOrDefault(e => e.Id == f.EcoleId);
+                                    <option value="@f.Id" data-ecole="@f.EcoleId" data-ecole-nom="@(eco?.Denomination ?? "")" data-eligible="0">@f.Numero — @(eco?.Denomination)</option>
+                                }
+                            </select>
+                            <button type="button" class="btn btn-outline-secondary text-nowrap flex-shrink-0" id="btnVoirFicheDecision" title="Consulter la fiche">
+                                <i class="ti ti-file-search"></i> Voir la fiche
+                            </button>
+                        </div>
+                        <div class="form-text">Consultez la fiche avant d’enregistrer. Création : fiches validées sans décision uniquement.</div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">École (issue du rapport)</label>
+                        <label class="form-label">École (issue de la fiche)</label>
                         <input type="hidden" name="EcoleId" id="decEcole" />
-                        <input type="text" id="decEcoleLabel" class="form-control" readonly tabindex="-1" placeholder="Sélectionnez un rapport" />
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Type de décision</label>
-                        <select name="TypeDecisionId" id="decType" class="form-select" required>
-                            @foreach (var t in types) { <option value="@t.Id">@(t.Libelle ?? t.Nom)</option> }
-                        </select>
-                    </div>
-                    <div class="mb-3"><label class="form-label">Délai d'exécution</label><input name="DelaiExecution" id="decDelai" class="form-control" placeholder="Ex. 15 jours" /></div>
-                    <div class="mb-3">
-                        <label class="form-label">Statut d'exécution</label>
-                        <select name="StatutExecution" id="decExec" class="form-select">
-                            <option value="en_attente">En attente</option>
-                            <option value="en_cours">En cours</option>
-                            <option value="executee">Exécutée</option>
-                        </select>
+                        <input type="text" id="decEcoleLabel" class="form-control" readonly tabindex="-1" placeholder="Sélectionnez une fiche" />
                     </div>
                     <div class="mb-0">
-                        <label class="form-label">Commentaire / Motif</label>
-                        <textarea name="Commentaire" id="decCommentaire" class="form-control" rows="3"></textarea>
-                        <input type="hidden" name="Motif" id="decMotif" />
+                        <label class="form-label">Type de décision</label>
+                        <select name="TypeDecision" id="decType" class="form-select" required>
+                            @foreach (var t in types) { <option value="@t.Key">@t.Value</option> }
+                        </select>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-outline-dark" id="btnApercuLettreDecision" title="Aperçu / impression de la lettre officielle">
+                    <i class="ti ti-printer me-1"></i>Aperçu lettre
+                </button>
                 <button class="btn btn-primary" id="decisionSave">Enregistrer</button>
             </div>
         </form>
     </div>
 </div>
+
+<div class="modal fade isp-modal isp-modal--detail" id="fichePreviewModal" tabindex="-1">
+    <div class="modal-dialog modal-xxl modal-dialog-scrollable modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="isp-modal-heading">
+                    <span class="isp-modal-icon" aria-hidden="true"><i class="ti ti-file-search"></i></span>
+                    <div>
+                        <p class="isp-modal-kicker">Consultation</p>
+                        <h5 class="modal-title">Fiche de contrôle (lecture seule)</h5>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body isp-fiche-detail" id="fichePreviewBody">
+                <p class="text-secondary mb-0">Sélectionnez une fiche.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fermer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="application/json" id="fichesPreviewJson">@Html.Raw(JsonSerializer.Serialize(fichesPreview.Select(f => {
+    var eco = ecoles.FirstOrDefault(e => e.Id == f.EcoleId);
+    return new {
+        Id = f.Id,
+        Numero = f.Numero,
+        MissionId = f.MissionId,
+        EcoleNom = eco?.Denomination ?? "",
+        Statut = f.Statut,
+        EtatGeneral = f.EtatGeneral,
+        NombreBatiments = f.NombreBatiments,
+        NombreEleves = f.NombreEleves,
+        ToilettesFilles = f.ToilettesFilles,
+        ToilettesGarcons = f.ToilettesGarcons,
+        ProduitsAutres = f.ProduitsAutres,
+        ProduitsAutresQuantite = f.ProduitsAutresQuantite,
+        OutilsAutres = f.OutilsAutres,
+        OutilsAutresQuantite = f.OutilsAutresQuantite,
+        Observations = f.Observations,
+        RecommandationPreliminaire = f.RecommandationPreliminaire,
+        ControleProduits = f.ControleProduits.Select(cp => new {
+            ProduitCode = cp.ProduitCode,
+            ProduitNom = produits.GetValueOrDefault(cp.ProduitCode),
+            Quantite = cp.Quantite
+        }),
+        ControleOutils = f.ControleOutils.Select(co => new {
+            OutilCode = co.OutilCode,
+            OutilNom = outils.GetValueOrDefault(co.OutilCode),
+            Quantite = co.Quantite
+        }),
+        Photos = (f.Photos ?? []).Select(p => new {
+            p.Nom,
+            p.Legende,
+            p.Url,
+            NumOrdre = f.Numero,
+            MissionId = f.MissionId
+        })
+    };
+})))</script>
 
 @section Scripts {
 <script src="~/js/pages/decisions.js" asp-append-version="true"></script>

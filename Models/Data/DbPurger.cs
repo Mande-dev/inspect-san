@@ -5,11 +5,32 @@ using Microsoft.Extensions.Logging;
 
 namespace inspect_san.Models.Data;
 
-/// <summary>
-/// Purge one-shot : vide le métier + référentiels + users Identity sauf admin.
-/// </summary>
 public static class DbPurger
 {
+    public static async Task PurgeEntitiesMetierAsync(
+        InspectSanDbContext db,
+        ILogger logger,
+        CancellationToken ct = default)
+    {
+        logger.LogWarning("PURGE entités métier…");
+
+        const string sql = """
+            SET FOREIGN_KEY_CHECKS = 0;
+            DELETE FROM `Decision`;
+            DELETE FROM `Photos`;
+            DELETE FROM `Affectation`;
+            DELETE FROM `Mission`;
+            UPDATE `AspNetUsers` SET `EcoleId` = NULL, `AgentId` = NULL
+                WHERE `EcoleId` IS NOT NULL OR `AgentId` IS NOT NULL;
+            DELETE FROM `Etablissement`;
+            DELETE FROM `Agents`;
+            SET FOREIGN_KEY_CHECKS = 1;
+            """;
+
+        await db.Database.ExecuteSqlRawAsync(sql, ct);
+        logger.LogWarning("PURGE entités métier terminée.");
+    }
+
     public static async Task PurgeKeepAdminAsync(
         InspectSanDbContext db,
         UserManager<ApplicationUser> users,
@@ -18,31 +39,24 @@ public static class DbPurger
     {
         logger.LogWarning("PURGE BDD : conservation uniquement du compte administrateur…");
 
-        // Un seul batch sur la même connexion : FOREIGN_KEY_CHECKS doit rester actif
-        // pour toute la série (le pool EF sinon réinitialise la session).
         const string sql = """
             SET FOREIGN_KEY_CHECKS = 0;
-            DELETE FROM `Decisions`;
-            DELETE FROM `RapportFiches`;
-            DELETE FROM `Rapports`;
-            DELETE FROM `FichePhotos`;
-            DELETE FROM `FichesControle`;
-            DELETE FROM `OrdresMission`;
-            DELETE FROM `EcoleDocuments`;
-            DELETE FROM `Chefs`;
-            DELETE FROM `Ecoles`;
-            DELETE FROM `Controleurs`;
-            DELETE FROM `Equipes`;
-            DELETE FROM `Communes`;
-            DELETE FROM `Regimes`;
-            DELETE FROM `TypesDecision`;
+            DELETE FROM `Decision`;
+            DELETE FROM `Photos`;
+            DELETE FROM `Affectation`;
+            DELETE FROM `Mission`;
+            DELETE FROM `Etablissement`;
+            DELETE FROM `Agents`;
+            DELETE FROM `ProduitUtilise`;
+            DELETE FROM `OutilUtilise`;
+            DELETE FROM `Categories`;
             DELETE FROM `JournalEntries`;
             DELETE FROM `Notifications`;
             SET FOREIGN_KEY_CHECKS = 1;
             """;
 
         await db.Database.ExecuteSqlRawAsync(sql, ct);
-        logger.LogInformation("Tables métier + référentiels vidées (DELETE batch).");
+        logger.LogInformation("Tables métier vidées (DELETE batch).");
 
         var adminId = IdentitySeeder.AdminId;
         var adminEmail = IdentitySeeder.AdminEmail;
@@ -62,24 +76,13 @@ public static class DbPurger
                 logger.LogWarning("Échec suppression {Email} : {Errors}",
                     u.Email, string.Join("; ", result.Errors.Select(e => e.Description)));
         }
-
-        var remaining = await users.Users.AsNoTracking()
-            .Select(u => new { u.Id, u.Email, u.Role, u.Statut })
-            .ToListAsync(ct);
-        logger.LogWarning("PURGE terminée — users restants ({Count}) : {Users}",
-            remaining.Count,
-            string.Join(", ", remaining.Select(u => $"{u.Email}/{u.Id}")));
     }
 
-    /// <summary>Supprime le contenu de wwwroot/uploads (fichiers), conserve le dossier.</summary>
     public static void ClearUploads(string webRootPath, ILogger logger)
     {
         var uploads = Path.Combine(webRootPath, "uploads");
         if (!Directory.Exists(uploads))
-        {
-            logger.LogInformation("Aucun dossier uploads à vider.");
             return;
-        }
 
         foreach (var entry in Directory.EnumerateFileSystemEntries(uploads))
         {
@@ -95,7 +98,5 @@ public static class DbPurger
                 logger.LogWarning(ex, "Impossible de supprimer {Entry}", entry);
             }
         }
-
-        logger.LogInformation("Contenu de uploads/ vidé.");
     }
 }

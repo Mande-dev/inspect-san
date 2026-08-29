@@ -1,0 +1,160 @@
+@model List<Agent>
+@{
+    ViewData["Title"] = "Agents";
+    var canGerer = ViewBag.CanGerer as bool? == true;
+}
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4 isp-page-head">
+    <div>
+        <h2 class="mb-1">Agents</h2>
+        <p class="text-secondary mb-0">Vivier d’agents pouvant être affectés aux missions (rôles variables).</p>
+    </div>
+    @if (canGerer)
+    {
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#agentModal" id="btnNewAgent">
+            <i class="ti ti-plus me-1"></i> Nouvel agent
+        </button>
+    }
+</div>
+
+<div class="row g-3 mb-4" id="agentsStats">
+    <div class="col-6 col-xl-3">
+        <div class="card card-lg h-100"><div class="card-body d-flex align-items-center gap-3">
+            <div class="icon-shape icon-lg rounded-circle bg-primary-subtle text-primary-emphasis"><i class="ti ti-users-group fs-3"></i></div>
+            <div class="min-w-0"><h3 class="mb-0" id="statAgentsTotal">@(ViewBag.StatTotal ?? 0)</h3><p class="mb-0 text-secondary small">Agents au total</p></div>
+        </div></div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="card card-lg h-100"><div class="card-body d-flex align-items-center gap-3">
+            <div class="icon-shape icon-lg rounded-circle bg-success-subtle text-success-emphasis"><i class="ti ti-user-check fs-3"></i></div>
+            <div class="min-w-0"><h3 class="mb-0" id="statAgentsActifs">@(ViewBag.StatActifs ?? 0)</h3><p class="mb-0 text-secondary small">Actifs</p></div>
+        </div></div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="card card-lg h-100"><div class="card-body d-flex align-items-center gap-3">
+            <div class="icon-shape icon-lg rounded-circle bg-secondary-subtle text-secondary-emphasis"><i class="ti ti-user-off fs-3"></i></div>
+            <div class="min-w-0"><h3 class="mb-0" id="statAgentsInactifs">@(ViewBag.StatInactifs ?? 0)</h3><p class="mb-0 text-secondary small">Inactifs</p></div>
+        </div></div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="card card-lg h-100"><div class="card-body d-flex align-items-center gap-3">
+            <div class="icon-shape icon-lg rounded-circle bg-info-subtle text-info-emphasis"><i class="ti ti-phone fs-3"></i></div>
+            <div class="min-w-0"><h3 class="mb-0" id="statAgentsTel">@(ViewBag.StatAvecTel ?? 0)</h3><p class="mb-0 text-secondary small">Avec téléphone</p></div>
+        </div></div>
+    </div>
+</div>
+@{
+    var filtreActif = ViewBag.Actif as bool?;
+}
+<form method="get" class="row g-2 mb-4" id="agentsFilter">
+    <div class="col-12 col-md-5"><input name="q" value="@ViewBag.Q" class="form-control" placeholder="Nom, matricule ou téléphone…" /></div>
+    <div class="col-12 col-md-4">
+        <select name="actif" class="form-select">
+            @if (filtreActif is null)
+            {
+                <option value="" selected>Tous</option>
+            }
+            else
+            {
+                <option value="">Tous</option>
+            }
+            @if (filtreActif == true)
+            {
+                <option value="true" selected>Actifs</option>
+            }
+            else
+            {
+                <option value="true">Actifs</option>
+            }
+            @if (filtreActif == false)
+            {
+                <option value="false" selected>Inactifs</option>
+            }
+            else
+            {
+                <option value="false">Inactifs</option>
+            }
+        </select>
+    </div>
+    <div class="col-12 col-md-3 col-lg-2"><button type="submit" class="btn btn-outline-primary w-100">Filtrer</button></div>
+</form>
+<div class="card card-lg">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 js-paginated-table" id="agentsTable" data-can-gerer="@(canGerer ? "1" : "0")">
+            <thead class="table-light"><tr><th>Matricule</th><th>Nom</th><th>Téléphone</th><th>Statut</th><th></th></tr></thead>
+            <tbody id="agentsTbody">
+            @foreach (var a in Model)
+            {
+                <tr>
+                    <td class="font-monospace">@a.Id</td>
+                    <td class="fw-semibold">@a.NomComplet</td>
+                    <td>@(a.Telephone ?? "—")</td>
+                    <td>@(a.Actif ? Html.Raw("<span class='badge bg-success-subtle text-success-emphasis'>Actif</span>") : Html.Raw("<span class='badge bg-secondary'>Inactif</span>"))</td>
+                    <td class="text-end text-nowrap">
+                        @if (canGerer)
+                        {
+                            <button type="button" class="btn btn-sm btn-outline-primary btn-edit-agent"
+                                    data-bs-toggle="modal" data-bs-target="#agentModal"
+                                    data-id="@a.Id" data-nom="@a.NomComplet" data-tel="@a.Telephone"
+                                    data-actif="@(a.Actif ? "1" : "0")">
+                                <i class="ti ti-edit"></i>
+                            </button>
+                            <form asp-action="DeleteAgent" method="post" class="d-inline js-delete-agent" data-id="@a.Id">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@a.Id" />
+                                <button class="btn btn-sm btn-outline-danger" type="submit"><i class="ti ti-trash"></i></button>
+                            </form>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade isp-modal" id="agentModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <form asp-action="SaveAgent" method="post" class="modal-content" id="agentForm">
+            @Html.AntiForgeryToken()
+            <div class="modal-header">
+                <div class="isp-modal-heading">
+                    <span class="isp-modal-icon"><i class="ti ti-users-group"></i></span>
+                    <div>
+                        <p class="isp-modal-kicker">Agent</p>
+                        <h5 class="modal-title" id="agentTitle">Nouvel agent</h5>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="isp-modal-section mb-0">
+                    <h6 class="isp-modal-section-title"><i class="ti ti-user"></i> Fiche agent</h6>
+                    <div class="row g-3">
+                        <input type="hidden" name="Id" id="agentEditId" value="" />
+                        <div class="col-md-4">
+                            <label class="form-label">Matricule <span class="text-danger">*</span></label>
+                            <input name="Matricule" id="agentId" class="form-control" required />
+                            <div class="form-text">Saisi à la création ; non modifiable ensuite.</div>
+                        </div>
+                        <div class="col-md-8"><label class="form-label">Nom complet</label><input name="NomComplet" id="agentNom" class="form-control" required /></div>
+                        <div class="col-md-4"><label class="form-label">Téléphone</label><input name="Telephone" id="agentTel" class="form-control" /></div>
+                        <div class="col-md-4">
+                            <label class="form-label">Actif</label>
+                            <select name="Actif" id="agentActif" class="form-select">
+                                <option value="true">Oui</option>
+                                <option value="false">Non</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button class="btn btn-primary" type="submit">Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
+@section Scripts {
+<script src="~/js/pages/agents.js" asp-append-version="true"></script>
+}

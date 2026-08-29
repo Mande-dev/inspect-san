@@ -32,13 +32,30 @@ public class CurrentUserScope : ICurrentUserScope
         var role = user.FindFirstValue(ClaimTypes.Role);
         var id = UserId;
         string? ecoleId = null;
-        string? equipeId = null;
+        string? agentId = null;
         if (!string.IsNullOrEmpty(id))
         {
             var appUser = await _users.FindByIdAsync(id);
             ecoleId = appUser?.EcoleId;
-            equipeId = appUser?.EquipeId;
+            agentId = appUser?.AgentId;
         }
-        return DataScope.Resolve(role, id, ecoleId, equipeId);
+        return DataScope.Resolve(role, id, ecoleId, agentId);
     }
+}
+
+/// <summary>Scope non restreint (tests / jobs).</summary>
+public sealed class UnrestrictedUserScope : ICurrentUserScope
+{
+    public static readonly UnrestrictedUserScope Instance = new();
+    public string? UserId => null;
+    public Task<UserDataScope> GetAsync() => Task.FromResult(new UserDataScope { Unrestricted = true });
+}
+
+/// <summary>Scope figé (tests unitaires).</summary>
+public sealed class FixedUserScope : ICurrentUserScope
+{
+    private readonly UserDataScope _scope;
+    public FixedUserScope(UserDataScope scope) => _scope = scope;
+    public string? UserId => null;
+    public Task<UserDataScope> GetAsync() => Task.FromResult(_scope);
 }

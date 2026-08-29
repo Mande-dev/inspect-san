@@ -1,17 +1,22 @@
 namespace inspect_san.Models.Entities;
 
+/// <summary>Chef d'établissement — table ChefEtablissement (PK Matricule).</summary>
 public class Chef
 {
-    public string Id { get; set; } = "";
+    /// <summary>Clé primaire (matricule saisi).</summary>
+    public string Matricule { get; set; } = "";
     public string NomComplet { get; set; } = "";
-    public string IdDinacope { get; set; } = "";
     public string Telephone { get; set; } = "";
-    public string EcoleId { get; set; } = "";
-    public int? AncienneteEnseignement { get; set; }
-    public int? AncienneteChef { get; set; }
-    public int? AncienneteEcole { get; set; }
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>Année de début d'activité (ex. 2018).</summary>
+    public int? AnneeDebutActivite { get; set; }
 
-    public Ecole? Ecole { get; set; }
-    public ICollection<FicheControle> FichesControle { get; set; } = new List<FicheControle>();
+    public ICollection<Ecole> Ecoles { get; set; } = new List<Ecole>();
+
+    /// <summary>Alias UI / formulaires (même valeur que <see cref="Matricule"/>).</summary>
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public string Id
+    {
+        get => Matricule;
+        set => Matricule = value;
+    }
 }

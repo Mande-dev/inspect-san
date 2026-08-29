@@ -1,22 +1,24 @@
 @model List<FicheControle>
 @using System.Text.Json
 @using inspect_san.Helpers
+@using inspect_san.Models.Constants
+@using inspect_san.Models.DTOs
 @{
     ViewData["Title"] = "Fiches de contrôle";
-    var ordres = (List<OrdreMission>)ViewBag.OrdresSignes;
+    var missions = (List<MissionListDto>)(ViewBag.MissionsSignes ?? new List<MissionListDto>());
     var ecoles = (List<Ecole>)ViewBag.Ecoles;
     var chefs = (List<Chef>)ViewBag.Chefs;
-    var allOrdres = (List<OrdreMission>)(ViewBag.AllOrdres ?? ordres);
+    var allMissions = (List<MissionListDto>)(ViewBag.AllMissions ?? missions);
     var etats = (IEnumerable<string>)ViewBag.Etats;
-    var produits = (IEnumerable<string>)ViewBag.Produits;
-    var recommandations = (IEnumerable<string>)ViewBag.Recommandations;
+    var produits = (IEnumerable<RefItem>)(ViewBag.Produits ?? new List<RefItem>());
+    var outils = (IEnumerable<RefItem>)(ViewBag.Outils ?? new List<RefItem>());
     var canValider = ViewBag.CanValider as bool? == true;
     var canCreer = ViewBag.CanCreerFiche as bool? == true;
 }
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4 isp-page-head">
     <div>
         <h2 class="mb-1">Fiches de contrôle</h2>
-        <p class="text-secondary mb-0">Constats sanitaires. Circuit : brouillon → soumettre au chef → Lu et approuvé.</p>
+        <p class="text-secondary mb-0">Constats sanitaires. Circuit tablette : brouillon → soumettre → validation chef d'établissement (« Lu et approuvé »).</p>
     </div>
     @if (canCreer)
     {
@@ -26,15 +28,16 @@
     }
 </div>
 <form method="get" class="row g-2 mb-4" id="fichesFilter">
-    <div class="col-md-5"><input name="q" value="@ViewBag.Q" class="form-control" placeholder="N° de fiche…" /></div>
-    <div class="col-md-4">
+    <div class="col-12 col-md-5"><input name="q" value="@ViewBag.Q" class="form-control" placeholder="N° de fiche…" /></div>
+    <div class="col-12 col-md-4">
         <select name="statut" class="form-select">
             <option value="">Tous les statuts</option>
             <option value="brouillon" selected="@(ViewBag.Statut as string == "brouillon")">Brouillon</option>
+            <option value="en_attente_validation" selected="@(ViewBag.Statut as string == "en_attente_validation")">En attente</option>
             <option value="validee" selected="@(ViewBag.Statut as string == "validee")">Validée</option>
         </select>
     </div>
-    <div class="col-md-2"><button class="btn btn-outline-primary w-100">Filtrer</button></div>
+    <div class="col-12 col-md-3 col-lg-2"><button class="btn btn-outline-primary w-100">Filtrer</button></div>
 </form>
 <div class="card card-lg">
     <div class="table-responsive">
@@ -44,30 +47,72 @@
             @foreach (var f in Model)
             {
                 var ecole = ecoles.FirstOrDefault(e => e.Id == f.EcoleId);
+                var controleProduits = (f.ControleProduits ?? []).Select(cp => new
+                {
+                    cp.ProduitCode,
+                    cp.Quantite,
+                    ProduitNom = produits.FirstOrDefault(p => p.Code == cp.ProduitCode.ToString())?.Nom
+                }).ToList();
+                var controleOutils = (f.ControleOutils ?? []).Select(co => new
+                {
+                    co.OutilCode,
+                    co.Quantite,
+                    OutilNom = outils.FirstOrDefault(o => o.Code == co.OutilCode.ToString())?.Nom
+                }).ToList();
+                var chef = chefs.FirstOrDefault(c => ecole != null && ecole.MatriculeChef == c.Matricule);
+                var photosPayload = (f.Photos ?? []).Select(p => new
+                {
+                    p.Nom,
+                    p.Legende,
+                    p.Url,
+                    NumOrdre = f.Numero,
+                    MissionId = f.MissionId
+                }).ToList();
+                var missionRow = allMissions.FirstOrDefault(m => m.Id == f.MissionId);
+                var canWriteMission = missionRow?.CanWrite == true;
+                var fichePayload = new
+                {
+                    f.Id, f.Numero, f.MissionId, f.EcoleId, f.Statut,
+                    EcoleNom = ecole?.Denomination ?? "",
+                    ChefNom = chef?.NomComplet ?? "",
+                    CanWrite = canWriteMission,
+                    f.NombreBatiments, f.EtatGeneral, f.NombreEleves,
+                    f.ToilettesFilles, f.ToilettesGarcons,
+                    f.ProduitsAutres, f.ProduitsAutresQuantite,
+                    f.OutilsAutres, f.OutilsAutresQuantite,
+                    f.CodeOutil, f.NbreOutil,
+                    f.Observations, f.RecommandationPreliminaire,
+                    ControleProduits = controleProduits,
+                    ControleOutils = controleOutils,
+                    Photos = photosPayload
+                };
                 <tr>
                     <td class="fw-semibold">@f.Numero</td>
                     <td>@(ecole?.Denomination ?? "—")</td>
-                    <td>@(f.SectionBatiments?.EtatGeneral ?? "—")</td>
+                    <td>@(f.EtatGeneral ?? "—")</td>
                     <td><span class="badge @(f.Statut == "validee" ? "bg-success-subtle text-success" : "bg-warning-subtle text-warning")">@f.Statut</span></td>
                     <td class="text-end text-nowrap">
+                        <button type="button" class="btn btn-sm btn-outline-secondary fiche-voir"
+                                data-json="@JsonUi.Serialize(fichePayload)"
+                                title="Voir la fiche">
+                            <i class="ti ti-eye me-1"></i>Voir la fiche
+                        </button>
                         @if (canCreer || canValider)
                         {
-                            <button type="button" class="btn btn-sm btn-outline-primary fiche-edit" data-json="@JsonUi.Serialize(f)" data-bs-toggle="modal" data-bs-target="#ficheModal" title="@(canCreer ? "Modifier" : "Consulter")"><i class="ti ti-@(canCreer ? "edit" : "eye")"></i></button>
+                            <button type="button" class="btn btn-sm btn-outline-primary fiche-edit" data-json="@JsonUi.Serialize(fichePayload)" data-bs-toggle="modal" data-bs-target="#ficheModal" title="@(canCreer ? "Modifier" : "Consulter")"><i class="ti ti-@(canCreer ? "edit" : "eye")"></i></button>
                         }
                         @if (canCreer && f.Statut == "brouillon")
                         {
-                            <form asp-action="SoumettreFiche" method="post" class="d-inline">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@f.Id" /><button class="btn btn-sm btn-outline-warning" title="Soumettre au chef"><i class="ti ti-send"></i> Soumettre</button></form>
+                            <form asp-action="SoumettreFiche" method="post" class="d-inline">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@f.Id" /><button class="btn btn-sm btn-outline-warning" title="Soumettre pour validation tablette"><i class="ti ti-send"></i> Soumettre</button></form>
                         }
-                        @if (canValider && f.Statut == "en_attente_validation")
+                        @if (canValider && canWriteMission && f.Statut == "en_attente_validation")
                         {
-                            <form asp-action="ValiderFiche" method="post" class="d-inline">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@f.Id" /><button class="btn btn-sm btn-outline-success" title="Lu et approuvé"><i class="ti ti-check"></i> Lu et approuvé</button></form>
+                            <button type="button" class="btn btn-sm btn-outline-success fiche-valider-tablette"
+                                    data-json="@JsonUi.Serialize(fichePayload)"
+                                    title="Faire valider par le chef d'établissement">
+                                <i class="ti ti-device-tablet me-1"></i>Faire valider par le chef
+                            </button>
                         }
-                        <button type="button" class="btn btn-sm btn-outline-secondary print-btn"
-                                data-title="Fiche @f.Numero"
-                                data-json="@JsonUi.Serialize(f)"
-                                data-ecole="@JsonUi.Serialize(ecole)"
-                                data-chef="@JsonUi.Serialize(chefs.FirstOrDefault(c => c.Id == f.ChefId))"
-                                data-ordre="@JsonUi.Serialize(allOrdres.FirstOrDefault(o => o.Id == f.OrdreMissionId))"><i class="ti ti-printer"></i></button>
                         @if (canCreer && f.Statut == "brouillon")
                         {
                             <form asp-action="DeleteFiche" method="post" class="d-inline">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@f.Id" /><button class="btn btn-sm btn-outline-danger"><i class="ti ti-trash"></i></button></form>
@@ -100,25 +145,13 @@
                 <input type="hidden" name="PhotosJson" id="photosJson" value="[]" />
 
                 <div class="fiche-stepper mb-4" id="ficheStepper" role="navigation" aria-label="Étapes du formulaire">
-                    <div class="fiche-step active" data-step="1">
-                        <span class="fiche-step-num">1</span>
-                        <span class="fiche-step-label">Généralités</span>
-                    </div>
+                    <div class="fiche-step active" data-step="1"><span class="fiche-step-num">1</span><span class="fiche-step-label">Généralités</span></div>
                     <div class="fiche-step-line"></div>
-                    <div class="fiche-step" data-step="2">
-                        <span class="fiche-step-num">2</span>
-                        <span class="fiche-step-label">Bâtiments</span>
-                    </div>
+                    <div class="fiche-step" data-step="2"><span class="fiche-step-num">2</span><span class="fiche-step-label">Bâtiments</span></div>
                     <div class="fiche-step-line"></div>
-                    <div class="fiche-step" data-step="3">
-                        <span class="fiche-step-num">3</span>
-                        <span class="fiche-step-label">Impact 7 %</span>
-                    </div>
+                    <div class="fiche-step" data-step="3"><span class="fiche-step-num">3</span><span class="fiche-step-label">Produits &amp; outils</span></div>
                     <div class="fiche-step-line"></div>
-                    <div class="fiche-step" data-step="4">
-                        <span class="fiche-step-num">4</span>
-                        <span class="fiche-step-label">Constat</span>
-                    </div>
+                    <div class="fiche-step" data-step="4"><span class="fiche-step-num">4</span><span class="fiche-step-label">Constat</span></div>
                 </div>
 
                 <div class="fiche-pane" data-pane="1">
@@ -126,14 +159,14 @@
                         <h6 class="isp-modal-section-title"><i class="ti ti-map-pin"></i> Mission et établissement</h6>
                         <div class="row g-3">
                             <div class="col-md-8">
-                                <label class="form-label">Ordre de mission <span class="text-danger">*</span></label>
-                                <select name="OrdreMissionId" id="ficheOrdre" class="form-select" required>
+                                <label class="form-label">Mission <span class="text-danger">*</span></label>
+                                <select name="MissionId" id="ficheMission" class="form-select" required>
                                     <option value="">Sélectionner…</option>
-                                    @foreach (var o in ordres)
+                                    @foreach (var m in missions)
                                     {
-                                        var e = ecoles.FirstOrDefault(x => x.Id == o.EcoleId);
-                                        var c = chefs.FirstOrDefault(x => x.EcoleId == o.EcoleId);
-                                        <option value="@o.Id" data-ecole="@(e?.Denomination)" data-chef="@(c?.NomComplet)">@o.Numero — @(e?.Denomination)</option>
+                                        var e = ecoles.FirstOrDefault(x => x.Id == m.EcoleId);
+                                        var c = chefs.FirstOrDefault(x => e != null && e.MatriculeChef == x.Matricule);
+                                        <option value="@m.Id" data-numero="@m.Numero" data-ecole="@(e?.Denomination)" data-chef="@(c?.NomComplet)">@m.Numero — @(e?.Denomination)</option>
                                     }
                                 </select>
                             </div>
@@ -145,7 +178,6 @@
                                     <option value="validee">Validée</option>
                                 </select>
                                 <input type="hidden" name="Statut" value="brouillon" id="ficheStatutHidden" />
-                                <div class="form-text">Le statut évolue via « Soumettre » puis « Lu et approuvé ».</div>
                             </div>
                             <div class="col-12">
                                 <div class="alert alert-light border mb-0">
@@ -177,65 +209,13 @@
                                 <label class="form-label">Nombre d'élèves</label>
                                 <input type="number" min="0" name="NombreEleves" id="ficheEleves" class="form-control" />
                             </div>
-                            <div class="col-12">
-                                <h6 class="isp-modal-section-title mb-2"><i class="ti ti-restroom"></i> Toilettes / latrines</h6>
-                                <p class="small text-secondary mb-3">Indiquez d’abord le <strong>nombre de cabines</strong>, puis leur <strong>état</strong>. Le résumé est enregistré automatiquement.</p>
-                                <div class="isp-toilet-grid">
-                                    <div class="isp-toilet-card">
-                                        <div class="isp-toilet-card-head">
-                                            <span class="isp-toilet-card-icon" aria-hidden="true"><i class="ti ti-gender-female"></i></span>
-                                            <div>
-                                                <p class="isp-toilet-card-title">Filles</p>
-                                                <p class="isp-toilet-card-hint">Cabines réservées aux filles</p>
-                                            </div>
-                                        </div>
-                                        <div class="row g-2">
-                                            <div class="col-5">
-                                                <label class="form-label" for="ficheFillesNb">Nombre</label>
-                                                <input type="number" min="0" max="99" class="form-control" id="ficheFillesNb" placeholder="0" />
-                                            </div>
-                                            <div class="col-7">
-                                                <label class="form-label" for="ficheFillesEtat">État</label>
-                                                <select class="form-select" id="ficheFillesEtat">
-                                                    <option value="">Choisir…</option>
-                                                    <option value="Fonctionnelles">Fonctionnelles</option>
-                                                    <option value="Partiellement fonctionnelles">Partiellement fonctionnelles</option>
-                                                    <option value="Hors service">Hors service</option>
-                                                    <option value="Absentes">Absentes</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="isp-toilet-preview" id="ficheFillesPreview">Résumé : <strong>—</strong></div>
-                                        <input type="hidden" name="ToilettesFilles" id="ficheFilles" />
-                                    </div>
-                                    <div class="isp-toilet-card">
-                                        <div class="isp-toilet-card-head">
-                                            <span class="isp-toilet-card-icon" aria-hidden="true"><i class="ti ti-gender-male"></i></span>
-                                            <div>
-                                                <p class="isp-toilet-card-title">Garçons</p>
-                                                <p class="isp-toilet-card-hint">Cabines réservées aux garçons</p>
-                                            </div>
-                                        </div>
-                                        <div class="row g-2">
-                                            <div class="col-5">
-                                                <label class="form-label" for="ficheGarconsNb">Nombre</label>
-                                                <input type="number" min="0" max="99" class="form-control" id="ficheGarconsNb" placeholder="0" />
-                                            </div>
-                                            <div class="col-7">
-                                                <label class="form-label" for="ficheGarconsEtat">État</label>
-                                                <select class="form-select" id="ficheGarconsEtat">
-                                                    <option value="">Choisir…</option>
-                                                    <option value="Fonctionnelles">Fonctionnelles</option>
-                                                    <option value="Partiellement fonctionnelles">Partiellement fonctionnelles</option>
-                                                    <option value="Hors service">Hors service</option>
-                                                    <option value="Absentes">Absentes</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div class="isp-toilet-preview" id="ficheGarconsPreview">Résumé : <strong>—</strong></div>
-                                        <input type="hidden" name="ToilettesGarcons" id="ficheGarcons" />
-                                    </div>
-                                </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Toilettes filles</label>
+                                <input type="number" min="0" name="ToilettesFilles" id="ficheToilettesFilles" class="form-control" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Toilettes garçons</label>
+                                <input type="number" min="0" name="ToilettesGarcons" id="ficheToilettesGarcons" class="form-control" />
                             </div>
                         </div>
                     </div>
@@ -243,31 +223,60 @@
 
                 <div class="fiche-pane d-none" data-pane="3">
                     <div class="isp-modal-section mb-0">
-                        <h6 class="isp-modal-section-title"><i class="ti ti-coin"></i> Frais de fonctionnement (Impact 7 %)</h6>
+                        <h6 class="isp-modal-section-title"><i class="ti ti-spray"></i> Produits &amp; outils</h6>
                         <div class="row g-3">
-                            <div class="col-md-4">
-                                <label class="form-label">Montant perçu (FC / $)</label>
-                                <input name="MontantPercu" id="ficheMontant" class="form-control" />
-                            </div>
-                            <div class="col-md-8">
-                                <label class="form-label">Produits de nettoyage achetés</label>
-                                <div class="d-flex flex-wrap gap-3 mt-1">
+                            <div class="col-12">
+                                <div class="d-flex flex-column gap-2">
                                     @foreach (var p in produits)
                                     {
-                                        <div class="form-check">
-                                            <input class="form-check-input produit-check" type="checkbox" name="ProduitsNettoyage" value="@p" id="prod_@p" />
-                                            <label class="form-check-label" for="prod_@p">@p</label>
+                                        <div class="row g-2 align-items-center produit-row" data-produit-code="@p.Code">
+                                            <div class="col-md-6">
+                                                <div class="form-check">
+                                                    <input class="form-check-input produit-check" type="checkbox" value="@p.Code" id="prod_@p.Code" />
+                                                    <label class="form-check-label" for="prod_@p.Code">@p.Nom</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <input type="number" min="0" class="form-control produit-qte" id="prod_qte_@p.Code" placeholder="Nombres" disabled />
+                                            </div>
                                         </div>
                                     }
                                 </div>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Autres produits</label>
-                                <input name="ProduitsAutres" id="ficheAutres" class="form-control" />
+                            <div class="col-md-8">
+                                <label class="form-label">Autre produit</label>
+                                <input name="ProduitsAutres" id="ficheProduitsAutres" class="form-control" placeholder="Ex. Chlore" />
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Quantité / Précisions</label>
-                                <input name="Quantite" id="ficheQuantite" class="form-control" />
+                            <div class="col-md-4">
+                                <label class="form-label">Quantité (autre)</label>
+                                <input type="number" min="0" name="ProduitsAutresQuantite" id="ficheProduitsAutresQte" class="form-control" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Outils utilisés</label>
+                                <div class="d-flex flex-column gap-2">
+                                    @foreach (var o in outils)
+                                    {
+                                        <div class="row g-2 align-items-center outil-row" data-outil-code="@o.Code">
+                                            <div class="col-md-6">
+                                                <div class="form-check">
+                                                    <input class="form-check-input outil-check" type="checkbox" value="@o.Code" id="outil_@o.Code" />
+                                                    <label class="form-check-label" for="outil_@o.Code">@o.Nom</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <input type="number" min="0" class="form-control outil-qte" id="outil_qte_@o.Code" placeholder="Nombres" disabled />
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label">Autre outil</label>
+                                <input name="OutilsAutres" id="ficheOutilsAutres" class="form-control" placeholder="Ex. Brosse métallique" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Quantité (autre outil)</label>
+                                <input type="number" min="0" name="OutilsAutresQuantite" id="ficheOutilsAutresQte" class="form-control" />
                             </div>
                         </div>
                     </div>
@@ -275,16 +284,10 @@
 
                 <div class="fiche-pane d-none" data-pane="4">
                     <div class="isp-modal-section mb-0">
-                        <h6 class="isp-modal-section-title"><i class="ti ti-notes"></i> Observations, recommandation &amp; photos</h6>
+                        <h6 class="isp-modal-section-title"><i class="ti ti-notes"></i> Observations &amp; photos</h6>
                         <div class="mb-3">
                             <label class="form-label">Observations générales</label>
                             <textarea name="Observations" id="ficheObs" class="form-control" rows="3"></textarea>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Recommandation préliminaire</label>
-                            <select name="RecommandationPreliminaire" id="ficheReco" class="form-select">
-                                @foreach (var r in recommandations) { <option value="@r">@r</option> }
-                            </select>
                         </div>
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <strong class="small text-uppercase text-secondary">Photos constatées</strong>
@@ -307,6 +310,87 @@
     </div>
 </div>
 
+<div class="modal fade isp-modal isp-modal--detail" id="ficheDetailModal" tabindex="-1" aria-labelledby="ficheDetailTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xxl modal-dialog-scrollable modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="isp-modal-heading">
+                    <span class="isp-modal-icon" aria-hidden="true"><i class="ti ti-file-search"></i></span>
+                    <div>
+                        <p class="isp-modal-kicker">Consultation</p>
+                        <h5 class="modal-title" id="ficheDetailTitle">Fiche de contrôle</h5>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body isp-fiche-detail" id="ficheDetailBody">
+                <p class="text-secondary mb-0">Sélectionnez une fiche.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fermer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="fichePhotoLightbox" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content bg-dark border-0">
+            <div class="modal-header border-0 py-2">
+                <h6 class="modal-title text-white mb-0" id="fichePhotoLightboxTitle">Photo</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body text-center p-2">
+                <img id="fichePhotoLightboxImg" src="" alt="" class="img-fluid rounded" style="max-height:75vh;object-fit:contain" />
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="validationTabletteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <p class="text-secondary small mb-0">Validation chef d'établissement (tablette)</p>
+                    <h5 class="modal-title mb-0" id="valTabletteTitle">Fiche</h5>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="valTabletteFicheId" />
+                <div class="alert alert-info">
+                    Montrez cet écran au chef d'établissement pour consultation, puis confirmez « Lu et approuvé ».
+                    Aucun compte chef n'est requis.
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-secondary">Chef d'établissement</label>
+                        <input type="text" class="form-control" id="valTabletteChefNom" readonly />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-secondary">École</label>
+                        <input type="text" class="form-control" id="valTabletteEcole" readonly />
+                    </div>
+                </div>
+                <div id="valTabletteResume" class="border rounded p-3 bg-light small"></div>
+                <div class="form-check mt-4">
+                    <input class="form-check-input" type="checkbox" id="valTabletteConfirm" />
+                    <label class="form-check-label" for="valTabletteConfirm">
+                        Lu et approuvé par le chef d'établissement (validation tablette)
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-success" id="valTabletteSubmit" disabled>
+                    <i class="ti ti-check me-1"></i>Enregistrer « Lu et approuvé »
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
 <script>
 (function () {
@@ -318,85 +402,59 @@
   var hints = {
     1: 'Étape 1 sur 4 — Généralités',
     2: 'Étape 2 sur 4 — Bâtiments & infrastructures',
-    3: 'Étape 3 sur 4 — Impact 7 %',
+    3: 'Étape 3 sur 4 — Produits & outils',
     4: 'Étape 4 sur 4 — Observations & photos'
   };
 
-  var toiletEtats = [
-    'Fonctionnelles',
-    'Partiellement fonctionnelles',
-    'Hors service',
-    'Absentes'
-  ];
-
-  function composeToilet(nbEl, etatEl) {
-    var nb = (nbEl.value || '').trim();
-    var etat = (etatEl.value || '').trim();
-    if (etat === 'Absentes') return '0 · Absentes';
-    if (nb !== '' && etat) return nb + ' · ' + etat;
-    if (nb !== '') return nb + ' cabine(s)';
-    if (etat) return etat;
-    return '';
+  function syncProduitQte(check) {
+    var row = check.closest('.produit-row');
+    var qte = row && row.querySelector('.produit-qte');
+    if (!qte) return;
+    qte.disabled = !check.checked || locked;
+    if (!check.checked) qte.value = '';
   }
 
-  function syncToiletPair(nbId, etatId, hiddenId, previewId) {
-    var nbEl = document.getElementById(nbId);
-    var etatEl = document.getElementById(etatId);
-    var hidden = document.getElementById(hiddenId);
-    var preview = document.getElementById(previewId);
-    if (!nbEl || !etatEl || !hidden || !preview) return;
-    var absentes = etatEl.value === 'Absentes';
-    if (absentes) nbEl.value = '0';
-    nbEl.disabled = locked || absentes;
-    etatEl.disabled = locked;
-    var value = composeToilet(nbEl, etatEl);
-    hidden.value = value;
-    preview.innerHTML = 'Résumé : <strong>' + (value || '—') + '</strong>';
+  function syncOutilQte(check) {
+    var row = check.closest('.outil-row');
+    var qte = row && row.querySelector('.outil-qte');
+    if (!qte) return;
+    qte.disabled = !check.checked || locked;
+    if (!check.checked) qte.value = '';
   }
 
-  function syncAllToilets() {
-    syncToiletPair('ficheFillesNb', 'ficheFillesEtat', 'ficheFilles', 'ficheFillesPreview');
-    syncToiletPair('ficheGarconsNb', 'ficheGarconsEtat', 'ficheGarcons', 'ficheGarconsPreview');
-  }
-  window.syncFicheToilets = syncAllToilets;
-
-  function parseToilet(raw, nbId, etatId) {
-    var nbEl = document.getElementById(nbId);
-    var etatEl = document.getElementById(etatId);
-    if (!nbEl || !etatEl) return;
-    nbEl.value = '';
-    etatEl.value = '';
-    var text = (raw || '').trim();
-    if (!text) return;
-
-    var lower = text.toLowerCase();
-    var matchedEtat = '';
-    toiletEtats.forEach(function (e) {
-      if (lower.indexOf(e.toLowerCase()) >= 0) matchedEtat = e;
-    });
-    // Compat anciens libellés
-    if (!matchedEtat) {
-      if (/fonctionnell/.test(lower) && /partiel/.test(lower)) matchedEtat = 'Partiellement fonctionnelles';
-      else if (/fonctionnell|ok|bon/.test(lower)) matchedEtat = 'Fonctionnelles';
-      else if (/hors\s*service|d[eé]grad|inutilis/.test(lower)) matchedEtat = 'Hors service';
-      else if (/absent|inexistant|aucune/.test(lower)) matchedEtat = 'Absentes';
-    }
-
-    var nbMatch = text.match(/(\d+)/);
-    if (nbMatch) nbEl.value = nbMatch[1];
-    if (matchedEtat) etatEl.value = matchedEtat;
-    if (matchedEtat === 'Absentes' && !nbMatch) nbEl.value = '0';
-  }
-
-  ['ficheFillesNb', 'ficheFillesEtat', 'ficheGarconsNb', 'ficheGarconsEtat'].forEach(function (id) {
-    document.getElementById(id)?.addEventListener('input', syncAllToilets);
-    document.getElementById(id)?.addEventListener('change', syncAllToilets);
+  document.querySelectorAll('.produit-check').forEach(function (chk) {
+    chk.addEventListener('change', function () { syncProduitQte(chk); });
+  });
+  document.querySelectorAll('.outil-check').forEach(function (chk) {
+    chk.addEventListener('change', function () { syncOutilQte(chk); });
   });
 
   function syncSchool() {
-    var o = document.getElementById('ficheOrdre').selectedOptions[0];
+    var o = document.getElementById('ficheMission').selectedOptions[0];
     document.getElementById('infoEcole').textContent = (o && o.dataset.ecole) || '—';
     document.getElementById('infoChef').textContent = (o && o.dataset.chef) || '—';
+  }
+
+  function currentMissionRefs() {
+    var sel = document.getElementById('ficheMission');
+    var o = sel && sel.selectedOptions[0];
+    return {
+      numOrdre: (o && (o.dataset.numero || '')) || '',
+      missionId: (sel && sel.value) || ''
+    };
+  }
+
+  function photoStamp(numOrdre, index) {
+    var ordre = (numOrdre || '').trim() || 'MISSION';
+    return ordre + '-' + index;
+  }
+
+  function displayPhotoLabel(p, f, index) {
+    var existing = (p.Nom || p.nom || p.Legende || p.legende || '').trim();
+    // Ancien format éventuel : on préfère le nom BDD s'il suit déjà N°mission-index
+    if (/^.+-\d+$/.test(existing) && existing.indexOf('.') < 0) return existing;
+    var ordre = p.NumOrdre || p.numOrdre || (f && (f.Numero || f.numero)) || '';
+    return photoStamp(ordre, index + 1);
   }
 
   function renderPhotos() {
@@ -404,7 +462,8 @@
     var box = document.getElementById('photoList');
     document.getElementById('photoEmpty').style.display = photos.length ? 'none' : 'block';
     box.innerHTML = photos.map(function (p, i) {
-      return '<div class="col-md-4"><div class="border rounded p-2 text-center"><img src="' + (p.Url || p.url || '') + '" class="img-fluid rounded mb-1" style="max-height:100px;object-fit:cover" onerror="this.style.display=\'none\'"><div class="small">' + (p.Legende || p.legende || p.Nom || '') + '</div>' +
+      var label = p.Nom || p.nom || p.Legende || p.legende || photoStamp('', i + 1);
+      return '<div class="col-md-4"><div class="border rounded p-2 text-center"><img src="' + (p.Url || p.url || '') + '" class="img-fluid rounded mb-1" style="max-height:100px;object-fit:cover" onerror="this.style.display=\'none\'"><div class="small">' + label + '</div>' +
         (locked ? '' : '<button type="button" class="btn btn-link btn-sm text-danger p-0" data-i="' + i + '">Retirer</button>') +
         '</div></div>';
     }).join('');
@@ -428,38 +487,18 @@
 
   function validateStep(n) {
     if (n === 1) {
-      var ordre = document.getElementById('ficheOrdre');
-      if (!ordre.value) {
-        ordre.classList.add('is-invalid');
-        ordre.focus();
+      var mission = document.getElementById('ficheMission');
+      if (!mission.value) {
+        mission.classList.add('is-invalid');
+        mission.focus();
         return false;
       }
-      ordre.classList.remove('is-invalid');
-    }
-    if (n === 2) {
-      syncAllToilets();
-      var fEtat = document.getElementById('ficheFillesEtat');
-      var gEtat = document.getElementById('ficheGarconsEtat');
-      var fNb = document.getElementById('ficheFillesNb');
-      var gNb = document.getElementById('ficheGarconsNb');
-      var ok = true;
-      [fEtat, gEtat].forEach(function (el) {
-        if (!el.value) { el.classList.add('is-invalid'); ok = false; }
-        else el.classList.remove('is-invalid');
-      });
-      [fNb, gNb].forEach(function (el) {
-        var etat = el.id === 'ficheFillesNb' ? fEtat.value : gEtat.value;
-        if (etat && etat !== 'Absentes' && (el.value === '' || +el.value < 0)) {
-          el.classList.add('is-invalid');
-          ok = false;
-        } else el.classList.remove('is-invalid');
-      });
-      if (!ok) return false;
+      mission.classList.remove('is-invalid');
     }
     return true;
   }
 
-  document.getElementById('ficheOrdre').addEventListener('change', function () {
+  document.getElementById('ficheMission').addEventListener('change', function () {
     this.classList.remove('is-invalid');
     syncSchool();
   });
@@ -472,16 +511,6 @@
     s.addEventListener('click', function () {
       var target = +s.dataset.step;
       if (target < step || (target > step && validateStep(step))) goStep(target);
-      else if (target === step) return;
-      else if (target > step + 1) {
-        // avancer étape par étape si validation OK
-        var ok = true;
-        for (var i = step; i < target; i++) {
-          if (!validateStep(i)) { ok = false; break; }
-          goStep(i + 1);
-        }
-        if (ok) goStep(target);
-      }
     });
   });
 
@@ -490,10 +519,18 @@
     if (e.target.dataset.i != null) { photos.splice(+e.target.dataset.i, 1); renderPhotos(); }
   });
   document.getElementById('photoInput').addEventListener('change', function () {
+    var refs = currentMissionRefs();
+    if (!refs.missionId) {
+      if (window.api) api.showToast('Sélectionnez d’abord une mission.', 'warning');
+      this.value = '';
+      return;
+    }
     Array.from(this.files).forEach(function (f) {
       if (!window.pendingPhotoFiles) window.pendingPhotoFiles = [];
       window.pendingPhotoFiles.push(f);
-      photos.push({ Nom: f.name, Legende: f.name, Url: URL.createObjectURL(f) });
+      var idx = photos.length + 1;
+      var stamp = photoStamp(refs.numOrdre, idx);
+      photos.push({ Nom: stamp, Legende: stamp, Url: URL.createObjectURL(f), NumOrdre: refs.numOrdre, MissionId: refs.missionId });
     });
     this.value = '';
     renderPhotos();
@@ -511,10 +548,7 @@
       if (el.type !== 'hidden' && el.id !== 'photoInput') el.disabled = locked;
     });
     document.getElementById('photoLabel').classList.toggle('d-none', locked);
-    document.getElementById('ficheNext').disabled = false;
-    document.getElementById('fichePrev').disabled = false;
     syncSchool();
-    syncAllToilets();
     goStep(1);
   }
 
@@ -523,40 +557,57 @@
   document.getElementById('newFiche')?.addEventListener('click', function () {
     if (!canCreerFiche) return;
     resetWizard('Nouvelle fiche', false);
-    parseToilet('', 'ficheFillesNb', 'ficheFillesEtat');
-    parseToilet('', 'ficheGarconsNb', 'ficheGarconsEtat');
-    syncAllToilets();
   });
 
   function openFiche(btn) {
     var f = api.parseJsonAttr(btn, 'json');
     if (!f) return;
-    var sb = f.SectionBatiments || f.sectionBatiments || {};
-    var si = f.SectionImpact7 || f.sectionImpact7 || {};
     var statut = f.Statut || f.statut || 'brouillon';
     var isValidee = statut === 'validee';
     var isEnAttente = statut === 'en_attente_validation';
     locked = isValidee || isEnAttente || !canCreerFiche;
     form.reset();
     document.getElementById('ficheId').value = f.Id || f.id || '';
-    document.getElementById('ficheOrdre').value = f.OrdreMissionId || f.ordreMissionId || '';
+    document.getElementById('ficheMission').value = f.MissionId || f.missionId || '';
     document.getElementById('ficheStatut').value = statut;
     var hiddenStatut = document.getElementById('ficheStatutHidden');
     if (hiddenStatut) hiddenStatut.value = statut === 'brouillon' ? 'brouillon' : statut;
-    document.getElementById('ficheBatiments').value = sb.NombreBatiments ?? sb.nombreBatiments ?? '';
-    document.getElementById('ficheEtat').value = sb.EtatGeneral || sb.etatGeneral || 'Satisfaisant';
-    document.getElementById('ficheEleves').value = sb.NombreEleves ?? sb.nombreEleves ?? '';
-    parseToilet(sb.ToilettesFilles || sb.toilettesFilles || '', 'ficheFillesNb', 'ficheFillesEtat');
-    parseToilet(sb.ToilettesGarcons || sb.toilettesGarcons || '', 'ficheGarconsNb', 'ficheGarconsEtat');
-    syncAllToilets();
-    document.getElementById('ficheMontant').value = si.MontantPercu || si.montantPercu || '';
-    document.getElementById('ficheQuantite').value = si.Quantite || si.quantite || '';
-    document.getElementById('ficheAutres').value = f.ProduitsAutres || f.produitsAutres || '';
+    document.getElementById('ficheBatiments').value = f.NombreBatiments ?? f.nombreBatiments ?? '';
+    document.getElementById('ficheEtat').value = f.EtatGeneral || f.etatGeneral || 'Satisfaisant';
+    document.getElementById('ficheEleves').value = f.NombreEleves ?? f.nombreEleves ?? '';
+    document.getElementById('ficheToilettesFilles').value = f.ToilettesFilles ?? f.toilettesFilles ?? 0;
+    document.getElementById('ficheToilettesGarcons').value = f.ToilettesGarcons ?? f.toilettesGarcons ?? 0;
+    document.getElementById('ficheProduitsAutres').value = f.ProduitsAutres || f.produitsAutres || '';
+    document.getElementById('ficheProduitsAutresQte').value = f.ProduitsAutresQuantite ?? f.produitsAutresQuantite ?? '';
+    document.getElementById('ficheOutilsAutres').value = f.OutilsAutres || f.outilsAutres || '';
+    document.getElementById('ficheOutilsAutresQte').value = f.OutilsAutresQuantite ?? f.outilsAutresQuantite ?? '';
     document.getElementById('ficheObs').value = f.Observations || f.observations || '';
-    document.getElementById('ficheReco').value = f.RecommandationPreliminaire || f.recommandationPreliminaire || 'Maintien';
-    var produits = si.ProduitsNettoyage || si.produitsNettoyage || [];
+    var cps = f.ControleProduits || f.controleProduits || [];
+    var qteByCode = {};
+    cps.forEach(function (cp) {
+      var code = String(cp.ProduitCode ?? cp.produitCode ?? cp.ProduitId ?? cp.produitId ?? '');
+      qteByCode[code] = cp.Quantite ?? cp.quantite ?? 0;
+    });
     document.querySelectorAll('.produit-check').forEach(function (x) {
-      x.checked = produits.indexOf(x.value) >= 0;
+      x.checked = Object.prototype.hasOwnProperty.call(qteByCode, x.value);
+      var qte = document.getElementById('prod_qte_' + x.value);
+      if (qte) qte.value = x.checked ? qteByCode[x.value] : '';
+      syncProduitQte(x);
+    });
+    var cos = f.ControleOutils || f.controleOutils || [];
+    var outilQteByCode = {};
+    cos.forEach(function (co) {
+      var code = String(co.OutilCode ?? co.outilCode ?? '');
+      outilQteByCode[code] = co.Quantite ?? co.quantite ?? 0;
+    });
+    if (!cos.length && (f.CodeOutil || f.codeOutil)) {
+      outilQteByCode[String(f.CodeOutil || f.codeOutil)] = f.NbreOutil ?? f.nbreOutil ?? 0;
+    }
+    document.querySelectorAll('.outil-check').forEach(function (x) {
+      x.checked = Object.prototype.hasOwnProperty.call(outilQteByCode, x.value);
+      var qte = document.getElementById('outil_qte_' + x.value);
+      if (qte) qte.value = x.checked ? outilQteByCode[x.value] : '';
+      syncOutilQte(x);
     });
     photos = f.Photos || f.photos || [];
     renderPhotos();
@@ -568,35 +619,169 @@
     form.querySelectorAll('input,select,textarea').forEach(function (el) {
       if (el.type !== 'hidden' && el.id !== 'photoInput') el.disabled = locked;
     });
+    document.querySelectorAll('.produit-check').forEach(function (x) { syncProduitQte(x); });
+    document.querySelectorAll('.outil-check').forEach(function (x) { syncOutilQte(x); });
     document.getElementById('photoLabel').classList.toggle('d-none', locked);
     syncSchool();
-    syncAllToilets();
     goStep(1);
   }
 
   document.addEventListener('click', function (e) {
+    var voir = e.target.closest('.fiche-voir');
+    if (voir) {
+      showFicheDetail(voir);
+      return;
+    }
+    var thumb = e.target.closest('.fiche-detail-photo');
+    if (thumb) {
+      openPhotoLightbox(thumb.getAttribute('data-url') || '', thumb.getAttribute('data-title') || 'Photo');
+      return;
+    }
     var btn = e.target.closest('.fiche-edit');
     if (btn) openFiche(btn);
   });
+
+  function escHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function detailRow(label, value) {
+    return '<tr><th>' + escHtml(label) + '</th><td>' + (value || '—') + '</td></tr>';
+  }
+
+  function itemsTable(rows) {
+    if (!rows.length) {
+      return '<tr><td colspan="2" class="isp-fd-empty">Aucun élément</td></tr>';
+    }
+    return rows.map(function (r) {
+      return '<tr><td>' + escHtml(r.nom) + '</td><td>' + escHtml(String(r.qte)) + '</td></tr>';
+    }).join('');
+  }
+
+  function showFicheDetail(btn) {
+    var f = api.parseJsonAttr(btn, 'json');
+    if (!f) return;
+    var produits = (f.ControleProduits || f.controleProduits || []).map(function (cp) {
+      return {
+        nom: cp.ProduitNom || cp.produitNom || String(cp.ProduitCode ?? cp.produitCode ?? ''),
+        qte: cp.Quantite ?? cp.quantite ?? 0
+      };
+    });
+    var autresP = f.ProduitsAutres || f.produitsAutres;
+    if (autresP) {
+      produits.push({
+        nom: String(autresP) + ' (autre)',
+        qte: f.ProduitsAutresQuantite ?? f.produitsAutresQuantite ?? 0
+      });
+    }
+    var outils = (f.ControleOutils || f.controleOutils || []).map(function (co) {
+      return {
+        nom: co.OutilNom || co.outilNom || String(co.OutilCode ?? co.outilCode ?? ''),
+        qte: co.Quantite ?? co.quantite ?? 0
+      };
+    });
+    var autresO = f.OutilsAutres || f.outilsAutres;
+    if (autresO) {
+      outils.push({
+        nom: String(autresO) + ' (autre)',
+        qte: f.OutilsAutresQuantite ?? f.outilsAutresQuantite ?? 0
+      });
+    }
+    var photosList = (f.Photos || f.photos || []).filter(function (p) {
+      var url = p.Url || p.url || '';
+      return url && url.indexOf('blob:') !== 0;
+    });
+    var photosHtml;
+    if (!photosList.length) {
+      photosHtml = '<p class="isp-fd-empty">Aucune photo.</p>';
+    } else {
+      photosHtml = '<div class="isp-fd-photos">' + photosList.map(function (p, i) {
+        var url = p.Url || p.url || '';
+        var legende = displayPhotoLabel(p, f, i);
+        return '<button type="button" class="isp-fd-photo fiche-detail-photo" data-url="' +
+          escHtml(url) + '" data-title="' + escHtml(legende) + '">' +
+          '<img src="' + escHtml(url) + '" alt="' + escHtml(legende) + '" />' +
+          '<div class="isp-fd-photo-cap">' + escHtml(legende) + '</div>' +
+          '</button>';
+      }).join('') + '</div>';
+    }
+
+    var numero = f.Numero || f.numero || '';
+    var missionId = f.MissionId || f.missionId || '';
+    var title = document.getElementById('ficheDetailTitle');
+    if (title) title.textContent = 'Fiche ' + (numero || '');
+    var body = document.getElementById('ficheDetailBody');
+    if (body) {
+      body.innerHTML =
+        '<div class="isp-fd-hero">' +
+        '<div><p class="isp-fd-hero-title">Ordre ' + escHtml(numero || '—') + '</p>' +
+        '<p class="isp-fd-hero-meta">Mission ' + escHtml(missionId || '—') +
+        ' · ' + escHtml(f.EcoleNom || f.ecoleNom || '—') + '</p></div>' +
+        '<span class="isp-fd-badge">' + escHtml(f.Statut || f.statut || '—') + '</span>' +
+        '</div>' +
+        '<div class="isp-fd-section"><h6 class="isp-fd-section-title"><i class="ti ti-id"></i> Identification</h6>' +
+        '<div class="table-responsive"><table class="isp-fd-table"><tbody>' +
+        detailRow('N° ordre / fiche', escHtml(numero)) +
+        detailRow('N° mission', escHtml(missionId || '—')) +
+        detailRow('Établissement', escHtml(f.EcoleNom || f.ecoleNom || '—')) +
+        detailRow('Recommandation', escHtml(f.RecommandationPreliminaire || f.recommandationPreliminaire || '—')) +
+        '</tbody></table></div></div>' +
+        '<div class="isp-fd-section"><h6 class="isp-fd-section-title"><i class="ti ti-building"></i> Constats</h6>' +
+        '<div class="table-responsive"><table class="isp-fd-table"><tbody>' +
+        detailRow('État général', escHtml(f.EtatGeneral || f.etatGeneral || '—')) +
+        detailRow('Bâtiments', escHtml(String(f.NombreBatiments ?? f.nombreBatiments ?? '—'))) +
+        detailRow('Élèves', escHtml(String(f.NombreEleves ?? f.nombreEleves ?? '—'))) +
+        detailRow('Toilettes filles', escHtml(String(f.ToilettesFilles ?? f.toilettesFilles ?? 0))) +
+        detailRow('Toilettes garçons', escHtml(String(f.ToilettesGarcons ?? f.toilettesGarcons ?? 0))) +
+        '</tbody></table></div></div>' +
+        '<div class="row g-3 mb-1">' +
+        '<div class="col-md-6"><div class="isp-fd-section"><h6 class="isp-fd-section-title"><i class="ti ti-flask"></i> Produits</h6>' +
+        '<div class="table-responsive"><table class="isp-fd-table isp-fd-table-list">' +
+        '<thead><tr><th>Libellé</th><th class="text-end">Nombres</th></tr></thead><tbody>' +
+        itemsTable(produits) + '</tbody></table></div></div></div>' +
+        '<div class="col-md-6"><div class="isp-fd-section"><h6 class="isp-fd-section-title"><i class="ti ti-tool"></i> Outils</h6>' +
+        '<div class="table-responsive"><table class="isp-fd-table isp-fd-table-list">' +
+        '<thead><tr><th>Libellé</th><th class="text-end">Nombres</th></tr></thead><tbody>' +
+        itemsTable(outils) + '</tbody></table></div></div></div></div>' +
+        '<div class="isp-fd-section"><h6 class="isp-fd-section-title"><i class="ti ti-notes"></i> Observations</h6>' +
+        '<div class="isp-fd-obs">' + escHtml(f.Observations || f.observations || '—') + '</div></div>' +
+        '<div class="isp-fd-section mb-0"><h6 class="isp-fd-section-title"><i class="ti ti-photo"></i> Photos</h6>' +
+        photosHtml + '</div>';
+    }
+    var modalEl = document.getElementById('ficheDetailModal');
+    if (window.bootstrap && modalEl) {
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+  }
+
+  function openPhotoLightbox(url, title) {
+    if (!url) return;
+    if (window.api && typeof api.showImageLightbox === 'function') {
+      api.showImageLightbox({ url: url, title: title || 'Photo' });
+      return;
+    }
+    // Repli : modal Bootstrap empilé
+    var img = document.getElementById('fichePhotoLightboxImg');
+    var tit = document.getElementById('fichePhotoLightboxTitle');
+    if (img) {
+      img.src = url;
+      img.alt = title || 'Photo';
+    }
+    if (tit) tit.textContent = title || 'Photo';
+    var modalEl = document.getElementById('fichePhotoLightbox');
+    if (modalEl && api.showStackedModal) api.showStackedModal(modalEl);
+    else if (window.bootstrap && modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  }
 
   document.getElementById('ficheModal')?.addEventListener('show.bs.modal', function (e) {
     var trigger = e.relatedTarget;
     if (!trigger) return;
     var btn = trigger.closest('.fiche-edit');
     if (btn) openFiche(btn);
-  });
-
-  document.querySelectorAll('.print-btn').forEach(function (b) {
-    b.addEventListener('click', function () {
-      var f = {}, ecole = null, chef = null, ordre = null;
-      try { f = JSON.parse(b.getAttribute('data-json') || '{}'); } catch (e) {}
-      try { ecole = JSON.parse(b.getAttribute('data-ecole') || 'null'); } catch (e) {}
-      try { chef = JSON.parse(b.getAttribute('data-chef') || 'null'); } catch (e) {}
-      try { ordre = JSON.parse(b.getAttribute('data-ordre') || 'null'); } catch (e) {}
-      var html = window.buildFichePrintHtml ? window.buildFichePrintHtml(f, ecole, chef, ordre) : null;
-      if (window.openPrintPreview) window.openPrintPreview(b.dataset.title || 'Fiche', html);
-      else window.print();
-    });
   });
 
   goStep(1);

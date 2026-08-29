@@ -243,7 +243,7 @@ public class AuthController : Controller
             return RedirectToAction(nameof(Login));
 
         model.Role = current.Role;
-        model.Equipe = current.Equipe;
+        model.AgentNom = current.AgentNom;
         model.EcoleNom = current.EcoleNom;
 
         if (!ModelState.IsValid)
@@ -281,7 +281,7 @@ public class AuthController : Controller
         Contact = p.Contact,
         Telephone = p.Telephone,
         Role = p.Role,
-        Equipe = p.Equipe,
+        AgentNom = p.AgentNom,
         EcoleNom = p.EcoleNom
     };
 }

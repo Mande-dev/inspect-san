@@ -1,28 +1,26 @@
 namespace inspect_san.Models.Entities;
 
-/// <summary>
-/// Clés métier en string (ex. "eco-001") pour rester compatible avec le mock en mémoire.
-/// </summary>
+/// <summary>Établissement scolaire — table Etablissement.</summary>
 public class Ecole
 {
+    /// <summary>Clé métier (PK).</summary>
+    public string NumAgrement { get; set; } = "";
+    /// <summary>Clé technique pour AspNetUsers.EcoleId et liens internes.</summary>
     public string Id { get; set; } = "";
     public string Denomination { get; set; } = "";
-    public string RegimeId { get; set; } = "";
-    public string CommuneId { get; set; } = "";
+    /// <summary>Code constante <see cref="Constants.RegGes"/>.</summary>
+    public string RegGes { get; set; } = "";
+    /// <summary>Code sous-province (<c>SP001</c>…, table <c>SousProvince</c>).</summary>
+    public string SousDivision { get; set; } = "";
     public string IdDinacope { get; set; } = "";
-    public string? NumAgrement { get; set; }
     public string? NumNotification { get; set; }
-    public List<DocumentMeta> Documents { get; set; } = new();
-    public Adresse Adresse { get; set; } = new();
-    public string Statut { get; set; } = "active";
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public string Adresse { get; set; } = "";
+    /// <summary>FK → ChefEtablissement.Matricule.</summary>
+    public string? MatriculeChef { get; set; }
+    public int CodeCategories { get; set; }
 
-    public Regime? Regime { get; set; }
-    public Commune? Commune { get; set; }
-    public ICollection<Chef> Chefs { get; set; } = new List<Chef>();
-    public ICollection<OrdreMission> OrdresMission { get; set; } = new List<OrdreMission>();
-    public ICollection<FicheControle> FichesControle { get; set; } = new List<FicheControle>();
-    public ICollection<Rapport> Rapports { get; set; } = new List<Rapport>();
+    public Categorie? Categorie { get; set; }
+    public Chef? ChefEtablissement { get; set; }
+    public ICollection<Mission> Missions { get; set; } = new List<Mission>();
     public ICollection<Decision> Decisions { get; set; } = new List<Decision>();
 }

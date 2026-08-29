@@ -45,8 +45,7 @@ public static class IdentitySeeder
                 Nom = AdminNom,
                 Role = AdminRole,
                 Statut = "actif",
-                Equipe = null,
-                EquipeId = null,
+                AgentId = null,
                 EcoleId = null,
                 Telephone = null,
                 CreatedAt = DateTime.UtcNow
@@ -66,17 +65,14 @@ public static class IdentitySeeder
             admin.Nom = AdminNom;
             admin.Role = AdminRole;
             admin.Statut = "actif";
-            // Ne pas effacer EquipeId/EcoleId d’autres users ; admin reste sans périmètre.
-            admin.Equipe = null;
-            admin.EquipeId = null;
+            // Admin reste sans périmètre (pas d’AgentId / EcoleId).
+            admin.AgentId = null;
             admin.EcoleId = null;
-            admin.ControleurId = null;
             var update = await userManager.UpdateAsync(admin);
             if (!update.Succeeded)
                 throw new InvalidOperationException(
                     $"Échec MAJ admin: {string.Join("; ", update.Errors.Select(e => e.Description))}");
 
-            // Réaligner le MDP démo seulement s’il a divergé (évite dépendance token si déjà OK).
             if (!await userManager.CheckPasswordAsync(admin, AdminPassword))
             {
                 var token = await userManager.GeneratePasswordResetTokenAsync(admin);

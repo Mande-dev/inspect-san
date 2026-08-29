@@ -10,15 +10,13 @@ public class Utilisateur
     public string Nom { get; set; } = "";
     public string Contact { get; set; } = "";
     public string Role { get; set; } = "";
-    public string? Equipe { get; set; }
     public string Statut { get; set; } = "actif";
     public string Identifiant { get; set; } = "";
     public string MotDePasse { get; set; } = "";
     public string? ConfirmationMotDePasse { get; set; }
     public string? Telephone { get; set; }
     public string? EcoleId { get; set; }
-    public string? EquipeId { get; set; }
-    public string? ControleurId { get; set; }
+    public string? AgentId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 

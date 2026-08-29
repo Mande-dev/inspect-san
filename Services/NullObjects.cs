@@ -1,15 +1,6 @@
-using inspect_san.Services;
-
 namespace inspect_san.Services;
 
 /// <summary>Fallbacks pour tests / construction manuelle des services.</summary>
-public sealed class UnrestrictedUserScope : ICurrentUserScope
-{
-    public static readonly UnrestrictedUserScope Instance = new();
-    public string? UserId => null;
-    public Task<UserDataScope> GetAsync() => Task.FromResult(new UserDataScope { Unrestricted = true });
-}
-
 public sealed class NullDomainEmailNotifier : IDomainEmailNotifier
 {
     public static readonly NullDomainEmailNotifier Instance = new();
