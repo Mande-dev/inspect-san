@@ -58,7 +58,9 @@ public class EcolesService : IEcolesService
             }).ToListAsync();
 
     private static IQueryable<Ecole> BaseQuery(InspectSanDbContext db)
-        => db.Ecoles.AsNoTracking().Include(e => e.Categorie);
+        => db.Ecoles.AsNoTracking()
+            .Include(e => e.Categorie)
+            .Include(e => e.ChefEtablissement);
 
     private static IQueryable<Ecole> ApplyFilter(IQueryable<Ecole> q, EcoleFilterDto filter)
     {

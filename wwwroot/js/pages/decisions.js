@@ -44,14 +44,21 @@
     });
   }
 
-  function ensureFicheOption(ficheId, ecoleId, ecoleNom, numero) {
+  function ensureFicheOption(ficheId, ecoleId, ecoleNom, numero, chefNom) {
     if (!fiche || !ficheId) return;
     var exists = Array.from(fiche.options).some(function (o) { return o.value === ficheId; });
-    if (exists) return;
+    if (exists) {
+      var optExisting = Array.from(fiche.options).find(function (o) { return o.value === ficheId; });
+      if (optExisting && chefNom && !optExisting.dataset.chefNom) {
+        optExisting.dataset.chefNom = chefNom;
+      }
+      return;
+    }
     var opt = document.createElement('option');
     opt.value = ficheId;
     opt.dataset.ecole = ecoleId || '';
     opt.dataset.ecoleNom = ecoleNom || '';
+    opt.dataset.chefNom = chefNom || '';
     opt.dataset.eligible = '0';
     opt.textContent = (numero || ficheId) + (ecoleNom ? ' — ' + ecoleNom : '');
     fiche.appendChild(opt);
@@ -230,7 +237,8 @@
     var ficheId = api.dataAttr(el, 'fiche') || '';
     var ecoleId = api.dataAttr(el, 'ecole') || '';
     var ecoleNom = api.dataAttr(el, 'ecole-nom') || '';
-    ensureFicheOption(ficheId, ecoleId, ecoleNom, ficheId);
+    var chefNom = api.dataAttr(el, 'chef-nom') || '';
+    ensureFicheOption(ficheId, ecoleId, ecoleNom, ficheId, chefNom);
     filterFicheOptions(true);
     document.getElementById('decId').value = api.dataAttr(el, 'id') || '';
     fiche.value = ficheId;
@@ -247,11 +255,17 @@
     var ficheId = opts.ficheId || '';
     var f = fichesById[ficheId] || {};
     var ecoleNom = opts.ecoleNom || '';
+    var chefNom = opts.chefNom || f.ChefNom || f.chefNom || '';
+    if (!chefNom && fiche) {
+      var sel = fiche.selectedOptions && fiche.selectedOptions[0];
+      if (sel) chefNom = sel.dataset.chefNom || '';
+    }
     var payload = {
       Numero: opts.numero || '',
       TypeDecision: opts.typeCode || '',
       Type: opts.typeLabel || '',
       EcoleNom: ecoleNom,
+      ChefNom: chefNom,
       EtatGeneral: f.EtatGeneral || f.etatGeneral || f.EtatBatiment || f.etatBatiment || ''
     };
     if (!window.buildDecisionPrintHtml) {
@@ -260,11 +274,12 @@
     }
     var html = window.buildDecisionPrintHtml(
       payload,
-      { Denomination: ecoleNom },
+      { Denomination: ecoleNom, ChefNom: chefNom },
       {
         typeCode: payload.TypeDecision,
         typeLabel: payload.Type,
-        etatGeneral: payload.EtatGeneral
+        etatGeneral: payload.EtatGeneral,
+        chefNom: chefNom
       }
     );
     if (window.openPrintPreview) {
@@ -279,6 +294,7 @@
     var typeCode = d.typeDecision || d.TypeDecision || '';
     var ecoleNom = d.ecoleNom || d.EcoleNom || '—';
     var ecoleId = d.ecoleId || d.EcoleId || '';
+    var chefNom = d.chefNom || d.ChefNom || '';
     var ficheId = d.ficheControleId || d.FicheControleId || '';
     var data =
       ' data-id="' + api.attr(id) +
@@ -286,6 +302,7 @@
       '" data-fiche="' + api.attr(ficheId) +
       '" data-ecole="' + api.attr(ecoleId) +
       '" data-ecole-nom="' + api.attr(ecoleNom) +
+      '" data-chef-nom="' + api.attr(chefNom) +
       '" data-type="' + api.attr(typeCode) +
       '" data-type-label="' + api.attr(typeLabel) + '"';
     var actions =
@@ -326,14 +343,16 @@
         var numero = f.numero || f.Numero;
         var ecoleId = f.ecoleId || f.EcoleId;
         var ecoleNom = f.ecoleNom || f.EcoleNom || '';
-        fichesById[id] = Object.assign({}, fichesById[id] || {}, f, { EcoleNom: ecoleNom });
+        var chefNom = f.chefNom || f.ChefNom || '';
+        fichesById[id] = Object.assign({}, fichesById[id] || {}, f, { EcoleNom: ecoleNom, ChefNom: chefNom });
         return (
           '<li class="mb-2">' + api.esc(numero) + ' — ' + api.esc(ecoleNom) +
           ' <button type="button" class="btn btn-sm btn-outline-secondary ms-2 btn-voir-fiche" data-fiche-id="' +
           api.attr(id) + '">Voir la fiche</button>' +
           ' <button type="button" class="btn btn-sm btn-outline-dark ms-1 decide-from" data-fiche="' +
           api.attr(id) + '" data-ecole="' + api.attr(ecoleId) + '" data-ecole-nom="' +
-          api.attr(ecoleNom) + '" data-bs-toggle="modal" data-bs-target="#decisionModal">Prendre une décision</button></li>'
+          api.attr(ecoleNom) + '" data-chef-nom="' + api.attr(chefNom) +
+          '" data-bs-toggle="modal" data-bs-target="#decisionModal">Prendre une décision</button></li>'
         );
       })
       .join('');
@@ -395,9 +414,12 @@
       form.reset();
       document.getElementById('decId').value = '';
       filterFicheOptions(false);
-      ensureFicheOption(from.dataset.fiche, from.dataset.ecole, from.dataset.ecoleNom || '', from.dataset.fiche);
+      ensureFicheOption(from.dataset.fiche, from.dataset.ecole, from.dataset.ecoleNom || '', from.dataset.fiche, from.dataset.chefNom || '');
       var opt = Array.from(fiche.options).find(function (o) { return o.value === from.dataset.fiche; });
-      if (opt) opt.dataset.eligible = '1';
+      if (opt) {
+        opt.dataset.eligible = '1';
+        if (from.dataset.chefNom) opt.dataset.chefNom = from.dataset.chefNom;
+      }
       fiche.value = from.dataset.fiche;
       syncEcoleFromFiche();
       document.getElementById('decisionTitle').textContent = 'Nouvelle décision';
@@ -472,6 +494,7 @@
       numero: btn.getAttribute('data-numero') || btn.getAttribute('data-id') || '',
       ficheId: btn.getAttribute('data-fiche') || '',
       ecoleNom: btn.getAttribute('data-ecole-nom') || '',
+      chefNom: btn.getAttribute('data-chef-nom') || '',
       typeCode: btn.getAttribute('data-type') || '',
       typeLabel: btn.getAttribute('data-type-label') || ''
     });
@@ -481,10 +504,12 @@
     var typeSel = document.getElementById('decType');
     var typeCode = typeSel ? typeSel.value : '';
     var typeLabel = typeSel && typeSel.selectedOptions[0] ? typeSel.selectedOptions[0].textContent : '';
+    var ficheOpt = fiche && fiche.selectedOptions[0];
     printDecisionLetter({
       numero: document.getElementById('decId')?.value || '',
       ficheId: fiche ? fiche.value : '',
       ecoleNom: ecoleLabel ? ecoleLabel.value : '',
+      chefNom: (ficheOpt && ficheOpt.dataset.chefNom) || '',
       typeCode: typeCode,
       typeLabel: typeLabel
     });

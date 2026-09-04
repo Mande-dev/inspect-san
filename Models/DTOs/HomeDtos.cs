@@ -197,6 +197,7 @@ public class FicheListDto
     public string MissionId { get; set; } = "";
     public string EcoleId { get; set; } = "";
     public string? EcoleNom { get; set; }
+    public string? ChefNom { get; set; }
     public string Statut { get; set; } = "";
     public string EtatGeneral { get; set; } = "";
     public int NombreBatiments { get; set; }
@@ -245,6 +246,7 @@ public class DecisionListDto
     public string? FicheNumero { get; set; }
     public string EcoleId { get; set; } = "";
     public string? EcoleNom { get; set; }
+    public string? ChefNom { get; set; }
     public string Type { get; set; } = "";
     public string TypeDecision { get; set; } = "";
 }

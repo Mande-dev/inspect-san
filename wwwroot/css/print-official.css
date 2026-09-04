@@ -787,19 +787,44 @@ body.isp-preview-screen {
 }
 
 /* ===== Lettre de décision — gabarit officiel ===== */
-.isp-ld-meta {
-  margin: 8pt 0 18pt;
+.isp-ld-title {
+  margin: 10pt 0 4pt;
+  text-align: center;
+  font-family: var(--font-title);
+  font-size: 14pt;
+  font-weight: 700;
+  color: #000;
+  text-decoration: underline;
+  text-underline-offset: 3pt;
+  letter-spacing: 0.02em;
+}
+
+.isp-ld-ref {
+  margin: 0 0 16pt;
+  text-align: center;
   font-family: var(--font-body);
   font-size: 10pt;
   color: #222;
 }
 
-.isp-ld-meta p {
+.isp-ld-destinataire {
+  margin: 0 0 14pt;
+  text-align: right;
+  font-family: var(--font-body);
+  font-size: 10pt;
+  color: #222;
+}
+
+.isp-ld-destinataire p {
   margin: 0 0 3pt;
 }
 
-.isp-ld-doc .isp-om-title {
-  margin: 8pt 0 18pt;
+.isp-ld-objet {
+  margin: 0 0 16pt;
+  text-align: left;
+  font-family: var(--font-body);
+  font-size: 10pt;
+  color: #222;
 }
 
 .isp-ld-salut {
@@ -810,43 +835,20 @@ body.isp-preview-screen {
 }
 
 .isp-ld-intro {
-  margin: 0 0 14pt;
+  margin: 0 0 10pt;
   font-family: var(--font-body);
   font-size: 10pt;
   color: #222;
   text-align: justify;
 }
 
-.isp-ld-box {
-  border: 1.5pt solid #000;
-  padding: 14pt 16pt;
+.isp-ld-decision {
   margin: 0 0 16pt;
   font-family: var(--font-body);
-  font-size: 10pt;
-  color: #222;
-}
-
-.isp-ld-dec-title {
-  margin: 0 0 12pt;
-  color: #000;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-
-.isp-ld-option {
-  margin: 0 0 8pt;
-  line-height: 1.35;
-}
-
-.isp-ld-option:last-child {
-  margin-bottom: 0;
-}
-
-.isp-ld-check {
-  display: inline-block;
-  min-width: 1.1em;
   font-size: 11pt;
-  line-height: 1;
+  font-weight: 700;
+  color: #000;
+  text-align: center;
 }
 
 .isp-ld-close {
@@ -854,6 +856,7 @@ body.isp-preview-screen {
   font-family: var(--font-body);
   font-size: 10pt;
   color: #222;
+  text-align: justify;
 }
 
 .isp-ld-signs {
@@ -870,7 +873,7 @@ body.isp-preview-screen {
 }
 
 .isp-ld-sign-head {
-  margin-bottom: 6pt !important;
+  margin-bottom: 8pt !important;
   font-weight: 700;
 }
 
@@ -879,14 +882,7 @@ body.isp-preview-screen {
 }
 
 .isp-ld-sign-space {
-  min-height: 36pt;
-}
-
-@media print {
-  .isp-ld-box {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
+  min-height: 40pt;
 }
 
 @media print {

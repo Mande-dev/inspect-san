@@ -32,7 +32,7 @@ public class DecisionsService : IDecisionsService
     {
         var list = await _db.Decisions.AsNoTracking()
             .Include(d => d.Mission)
-            .Include(d => d.Ecole)
+            .Include(d => d.Ecole)!.ThenInclude(e => e!.ChefEtablissement)
             .OrderByDescending(d => d.NumDecision)
             .ToListAsync();
 
@@ -57,6 +57,7 @@ public class DecisionsService : IDecisionsService
             FicheNumero = d.NumOrdre,
             EcoleId = d.Ecole?.Id ?? "",
             EcoleNom = d.Ecole?.Denomination,
+            ChefNom = d.Ecole?.ChefEtablissement?.NomComplet,
             Type = DecisionTypes.LabelOf(d.DecisionFin),
             TypeDecision = d.DecisionFin
         }).ToList();
@@ -79,9 +80,14 @@ public class DecisionsService : IDecisionsService
     {
         var list = await QueryFichesSansDecisionAsync();
         var ecoleIds = list.Select(f => f.EcoleId).Distinct().ToList();
-        var noms = await _db.Ecoles.AsNoTracking()
+        var ecolesInfo = await _db.Ecoles.AsNoTracking()
+            .Include(e => e.ChefEtablissement)
             .Where(e => ecoleIds.Contains(e.Id))
-            .ToDictionaryAsync(e => e.Id, e => e.Denomination);
+            .ToDictionaryAsync(e => e.Id, e => new
+            {
+                e.Denomination,
+                ChefNom = e.ChefEtablissement != null ? e.ChefEtablissement.NomComplet : null
+            });
 
         var produitCodes = list.SelectMany(f => f.ControleProduits.Select(cp => cp.ProduitCode)).Distinct().ToList();
         var outilCodes = list.SelectMany(f => f.ControleOutils.Select(co => co.OutilCode)).Distinct().ToList();
@@ -98,7 +104,8 @@ public class DecisionsService : IDecisionsService
             Numero = f.Numero,
             MissionId = f.MissionId,
             EcoleId = f.EcoleId,
-            EcoleNom = noms.GetValueOrDefault(f.EcoleId),
+            EcoleNom = ecolesInfo.TryGetValue(f.EcoleId, out var eco) ? eco.Denomination : null,
+            ChefNom = ecolesInfo.TryGetValue(f.EcoleId, out var eco2) ? eco2.ChefNom : null,
             Statut = f.Statut,
             EtatGeneral = f.EtatGeneral,
             NombreBatiments = f.NombreBatiments,

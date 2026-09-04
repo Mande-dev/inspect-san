@@ -55,6 +55,7 @@
                             data-fiche-id="@f.Id">Voir la fiche</button>
                     <button type="button" class="btn btn-sm btn-outline-dark ms-1 decide-from"
                             data-fiche="@f.Id" data-ecole="@f.EcoleId" data-ecole-nom="@(eco?.Denomination ?? "")"
+                            data-chef-nom="@(eco?.ChefEtablissement?.NomComplet ?? "")"
                             data-bs-toggle="modal" data-bs-target="#decisionModal">Prendre une décision</button>
                 </li>
             }
@@ -90,12 +91,14 @@
                                 data-fiche="@d.FicheControleId"
                                 data-ecole="@d.EcoleId"
                                 data-ecole-nom="@(eco?.Denomination ?? "")"
+                                data-chef-nom="@(eco?.ChefEtablissement?.NomComplet ?? "")"
                                 data-type="@d.TypeDecision"
                                 data-type-label="@typeLabel"
                                 title="Imprimer la lettre de décision"><i class="ti ti-printer"></i></button>
                         <button type="button" class="btn btn-sm btn-outline-secondary btn-voir-decision"
                                 data-id="@d.Id" data-fiche="@d.FicheControleId" data-ecole="@d.EcoleId"
                                 data-ecole-nom="@(eco?.Denomination ?? "")"
+                                data-chef-nom="@(eco?.ChefEtablissement?.NomComplet ?? "")"
                                 data-type="@d.TypeDecision"
                                 data-readonly="1" data-bs-toggle="modal" data-bs-target="#decisionModal" title="Voir"><i class="ti ti-eye"></i></button>
                         @if (canCreer)
@@ -103,6 +106,7 @@
                             <button type="button" class="btn btn-sm btn-outline-primary btn-edit-decision"
                                     data-id="@d.Id" data-fiche="@d.FicheControleId" data-ecole="@d.EcoleId"
                                     data-ecole-nom="@(eco?.Denomination ?? "")"
+                                    data-chef-nom="@(eco?.ChefEtablissement?.NomComplet ?? "")"
                                     data-type="@d.TypeDecision"
                                     data-readonly="0" data-bs-toggle="modal" data-bs-target="#decisionModal" title="Modifier"><i class="ti ti-edit"></i></button>
                             <form class="d-inline js-delete-decision" data-id="@d.Id"><button type="submit" class="btn btn-sm btn-outline-danger"><i class="ti ti-trash"></i></button></form>
@@ -141,12 +145,12 @@
                                 @foreach (var f in sansDecision)
                                 {
                                     var eco = ecoles.FirstOrDefault(e => e.Id == f.EcoleId);
-                                    <option value="@f.Id" data-ecole="@f.EcoleId" data-ecole-nom="@(eco?.Denomination ?? "")" data-eligible="1">@f.Numero — @(eco?.Denomination)</option>
+                                    <option value="@f.Id" data-ecole="@f.EcoleId" data-ecole-nom="@(eco?.Denomination ?? "")" data-chef-nom="@(eco?.ChefEtablissement?.NomComplet ?? "")" data-eligible="1">@f.Numero — @(eco?.Denomination)</option>
                                 }
                                 @foreach (var f in fichesLiees)
                                 {
                                     var eco = ecoles.FirstOrDefault(e => e.Id == f.EcoleId);
-                                    <option value="@f.Id" data-ecole="@f.EcoleId" data-ecole-nom="@(eco?.Denomination ?? "")" data-eligible="0">@f.Numero — @(eco?.Denomination)</option>
+                                    <option value="@f.Id" data-ecole="@f.EcoleId" data-ecole-nom="@(eco?.Denomination ?? "")" data-chef-nom="@(eco?.ChefEtablissement?.NomComplet ?? "")" data-eligible="0">@f.Numero — @(eco?.Denomination)</option>
                                 }
                             </select>
                             <button type="button" class="btn btn-outline-secondary text-nowrap flex-shrink-0" id="btnVoirFicheDecision" title="Consulter la fiche">

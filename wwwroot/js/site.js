@@ -689,10 +689,18 @@ window.buildOrdrePrintHtml = window.buildMissionPrintHtml = function (o, ecole, 
 window.buildDecisionPrintHtml = function (d, ecole, ctx) {
   d = d || {};
   ctx = ctx || {};
-  var numero = d.Numero || d.numero || '';
+  var numero = (d.Numero || d.numero || '').toString().trim();
   var dateDoc = d.DecideLe || d.decideLe || d.CreatedAt || d.createdAt || null;
   var dateKin = fmtDate(dateDoc);
   if (dateKin === '—') dateKin = fmtDate(new Date());
+
+  var yearRef = new Date().getFullYear();
+  try {
+    var parsed = dateDoc ? new Date(dateDoc) : null;
+    if (parsed && !isNaN(parsed.getTime())) yearRef = parsed.getFullYear();
+  } catch (e) {
+    /* keep current year */
+  }
 
   var typeCode = (
     ctx.typeCode ||
@@ -707,10 +715,10 @@ window.buildDecisionPrintHtml = function (d, ecole, ctx) {
     ctx.typeLabel ||
     d.Type ||
     d.type ||
-    d.TypeDecision ||
-    d.typeDecision ||
     ''
-  ).toString();
+  )
+    .toString()
+    .trim();
 
   if (!typeCode && typeLabel) {
     var labelKey = typeLabel
@@ -719,9 +727,20 @@ window.buildDecisionPrintHtml = function (d, ecole, ctx) {
       .replace(/[\u0300-\u036f]/g, '');
     if (labelKey.indexOf('suspension') >= 0 || labelKey.indexOf('sanction') >= 0)
       typeCode = 'suspension_temporaire_chef';
-    else if (labelKey.indexOf('rehabilitation') >= 0 || labelKey.indexOf('réhabilitation') >= 0)
+    else if (labelKey.indexOf('rehabilitation') >= 0)
       typeCode = 'rehabilitation';
     else if (labelKey.indexOf('fermeture') >= 0) typeCode = 'fermeture_temporaire';
+  }
+
+  var decisionLabels = {
+    fermeture_temporaire: 'Fermeture temporaire de l\'établissement',
+    suspension_temporaire_chef: 'Suspension temporaire du chef d\'établissement',
+    rehabilitation: 'Réhabilitation'
+  };
+
+  var decisionText = typeLabel;
+  if (!decisionText || decisionText.toLowerCase() === typeCode) {
+    decisionText = decisionLabels[typeCode] || typeLabel || '—';
   }
 
   var ecoleLabel = ecoleNom(ecole);
@@ -729,65 +748,49 @@ window.buildDecisionPrintHtml = function (d, ecole, ctx) {
     ecoleLabel = (d.EcoleNom || d.ecoleNom).toString().trim() || '—';
   }
 
-  // Options du gabarit : la case cochée vient du type enregistré en BDD.
-  var options = [
-    {
-      code: 'fermeture_temporaire',
-      label: 'Fermeture temporaire de l\'établissement.'
-    },
-    {
-      code: 'suspension_temporaire_chef',
-      label: 'Sanction disciplinaire à l\'égard du chef d\'établissement.'
-    },
-    {
-      code: 'rehabilitation',
-      label: 'Réhabilitation des infrastructures sanitaires.'
-    }
-  ];
+  var chefNom = (
+    ctx.chefNom ||
+    d.ChefNom ||
+    d.chefNom ||
+    (ecole && (ecole.ChefNom || ecole.chefNom || (ecole.ChefEtablissement && (ecole.ChefEtablissement.NomComplet || ecole.ChefEtablissement.nomComplet)))) ||
+    ''
+  )
+    .toString()
+    .trim();
+  if (!chefNom) chefNom = '____________________';
 
-  var optionsHtml = options
-    .map(function (opt) {
-      var checked = typeCode === opt.code;
-      return (
-        '<p class="isp-ld-option">' +
-        '<span class="isp-ld-check" aria-hidden="true">' +
-        (checked ? '☑' : '☐') +
-        '</span> ' +
-        esc(opt.label) +
-        '</p>'
-      );
-    })
-    .join('');
+  var refNum = numero || '—';
+  var refLine = 'DP-KMA/EDNC/LD/' + yearRef + '/' + refNum;
 
   return (
     '<article class="isp-print-doc isp-om-doc isp-ld-doc">' +
     '<div class="isp-om-body">' +
-    buildOfficialOmHeader(dateKin, numero || '') +
-    '<div class="isp-ld-meta">' +
+    buildOfficialOmHeader(dateKin) +
+    '<h1 class="isp-ld-title">LETTRE DE DÉCISION</h1>' +
+    '<p class="isp-ld-ref"><strong>Réf :</strong> ' + esc(refLine) + '</p>' +
+    '<div class="isp-ld-destinataire">' +
     '<p><strong>À l\'attention de :</strong> Monsieur/Madame le Chef d\'Établissement</p>' +
     '<p><strong>Établissement :</strong> ' + esc(ecoleLabel) + '</p>' +
-    '<p><strong>Objet :</strong> Notification de décision suite à l\'inspection sanitaire</p>' +
     '</div>' +
-    '<h1 class="isp-om-title">LETTRE DE DÉCISION</h1>' +
+    '<p class="isp-ld-objet"><strong>Objet :</strong> Notification de décision suite à l\'inspection</p>' +
     '<p class="isp-ld-salut">Monsieur/Madame le Chef d\'Établissement,</p>' +
     '<p class="isp-ld-intro">' +
     'À la suite du rapport d\'inspection sanitaire transmis à nos services, le Directeur Provincial a arrêté la décision suivante concernant votre établissement :' +
     '</p>' +
-    '<div class="isp-ld-box">' +
-    '<p class="isp-ld-dec-title"><strong>DÉCISION FINALE</strong></p>' +
-    optionsHtml +
-    '</div>' +
+    '<p class="isp-ld-decision">' + esc(decisionText) + '</p>' +
     '<p class="isp-ld-close">Veuillez exécuter les présentes directives dès réception de cette notification.</p>' +
     '<div class="isp-ld-signs">' +
     '<div class="isp-ld-sign-col">' +
-    '<p class="isp-ld-sign-head">Pour Réception (Chef d\'Établissement) :</p>' +
+    '<p class="isp-ld-sign-head">Pour Réception (Chef d\'Établissement)</p>' +
+    '<p><strong>Nom :</strong> ' + esc(chefNom) + '</p>' +
     '<p class="isp-ld-sign-space">&nbsp;</p>' +
-    '<p><strong>Nom :</strong> ____________________</p>' +
+    '<p>Signature &amp; Cachet :</p>' +
     '</div>' +
     '<div class="isp-ld-sign-col isp-ld-sign-right">' +
     '<p class="isp-ld-sign-head">Pour la Direction Provinciale Kinshasa Mont-Amba :</p>' +
-    '<p class="isp-ld-sign-space">&nbsp;</p>' +
     '<p><strong>Le Directeur Provincial</strong></p>' +
+    '<p class="isp-ld-sign-space">&nbsp;</p>' +
+    '<p>Signature &amp; Sceau Administratif</p>' +
     '</div>' +
     '</div>' +
     '</div>' +
