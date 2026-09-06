@@ -330,9 +330,6 @@
     document.getElementById('missionStatut').value = m.statut || m.Statut || 'brouillon';
     document.getElementById('missionEmission').value = d(m.dateEmission || m.DateEmission);
     document.getElementById('missionFin').value = d(m.finValidite || m.FinValidite);
-    var mont = m.montPer ?? m.MontPer;
-    var montEl = document.getElementById('missionMontPer');
-    if (montEl) montEl.value = mont != null && mont !== '' ? mont : '';
     clearParts();
     var parts = m.participations || m.Participations || [];
     if (parts.length) {
@@ -414,12 +411,6 @@
           ecoleId: document.getElementById('missionEcole').value,
           dateEmission: document.getElementById('missionEmission').value || null,
           finValidite: document.getElementById('missionFin').value || null,
-          montPer: (function () {
-            var v = document.getElementById('missionMontPer')?.value;
-            if (v === undefined || v === null || String(v).trim() === '') return null;
-            var n = parseFloat(v);
-            return isNaN(n) ? null : n;
-          })(),
           participations: collectParticipations()
         };
         var result = await api.post('/Home/SaveMissionJson', body);

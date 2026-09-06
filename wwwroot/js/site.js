@@ -727,6 +727,8 @@ window.buildDecisionPrintHtml = function (d, ecole, ctx) {
       .replace(/[\u0300-\u036f]/g, '');
     if (labelKey.indexOf('suspension') >= 0 || labelKey.indexOf('sanction') >= 0)
       typeCode = 'suspension_temporaire_chef';
+    else if (labelKey.indexOf('felicitation') >= 0 || labelKey.indexOf('bien entretenue') >= 0)
+      typeCode = 'ecole_bien_entretenue';
     else if (labelKey.indexOf('rehabilitation') >= 0)
       typeCode = 'rehabilitation';
     else if (labelKey.indexOf('fermeture') >= 0) typeCode = 'fermeture_temporaire';
@@ -735,7 +737,8 @@ window.buildDecisionPrintHtml = function (d, ecole, ctx) {
   var decisionLabels = {
     fermeture_temporaire: 'Fermeture temporaire de l\'établissement',
     suspension_temporaire_chef: 'Suspension temporaire du chef d\'établissement',
-    rehabilitation: 'Réhabilitation'
+    rehabilitation: 'Réhabilitation',
+    ecole_bien_entretenue: 'École bien entretenue — Félicitations'
   };
 
   var decisionText = typeLabel;

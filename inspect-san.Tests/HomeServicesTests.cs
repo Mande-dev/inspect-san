@@ -195,6 +195,57 @@ public class MissionsServiceTests
         created.Affectations.Should().HaveCount(2);
         created.Affectations.Should().Contain(p => p.Fonction == RolesMissionCodes.ChefEquipe);
         created.Statut.Should().Be(MissionStatuts.Brouillon);
+        created.MontPer.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task SaveAsync_Create_IgnoresMontPer_LeavesNull()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var sut = new MissionsService(db, users);
+
+        var result = await sut.SaveAsync(new SaveMissionDto
+        {
+            EcoleId = "eco-001",
+            Objet = "Mission sans montant UI",
+            Participations =
+            [
+                new SaveParticipationDto { AgentId = "agt-001", RoleMission = RolesMissionCodes.ChefEquipe }
+            ]
+        });
+
+        result.Success.Should().BeTrue(result.Message);
+        var created = await db.Missions.AsNoTracking().FirstAsync(m => m.Objet == "Mission sans montant UI");
+        created.MontPer.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task SaveAsync_Update_PreservesExistingMontPer()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var sut = new MissionsService(db, users);
+        var mission = await db.Missions.FirstAsync(m => m.Validite == MissionStatuts.Brouillon);
+        var ecoleId = (await db.Ecoles.AsNoTracking().FirstAsync(e => e.NumAgrement == mission.NumAgrement)).Id;
+        mission.MontPer = 75000m;
+        await db.SaveChangesAsync();
+
+        var result = await sut.SaveAsync(new SaveMissionDto
+        {
+            Id = mission.Id,
+            EcoleId = ecoleId,
+            Statut = mission.Statut,
+            FinValidite = mission.FinValidite,
+            Objet = "Maj sans toucher montant",
+            Participations =
+            [
+                new SaveParticipationDto { AgentId = "agt-001", RoleMission = RolesMissionCodes.ChefEquipe }
+            ]
+        });
+
+        result.Success.Should().BeTrue(result.Message);
+        var updated = await db.Missions.AsNoTracking().FirstAsync(m => m.Id == mission.Id);
+        updated.MontPer.Should().Be(75000m);
+        updated.Objet.Should().Be("Maj sans toucher montant");
     }
 
     [Fact]
@@ -269,7 +320,7 @@ public class MissionsServiceTests
         var result = await sut.DeleteAsync(signe.Id);
 
         result.Success.Should().BeFalse();
-        result.Message.Should().Contain("non signées");
+        result.Message.Should().Contain("ne peut plus être retirée");
     }
 }
 
@@ -394,6 +445,59 @@ public class FichesControleServiceTests
     }
 
     [Fact]
+    public async Task SaveAsync_Create_PersistsMontPerOnMission()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var sut = new FichesControleService(db, users);
+        var mission = await db.Missions.AsNoTracking()
+            .FirstAsync(m => m.Validite == MissionStatuts.Signe);
+        var tracked = await db.Missions.FirstAsync(m => m.Id == mission.Id);
+        tracked.StatutFiche = null;
+        tracked.MontPer = null;
+        await db.SaveChangesAsync();
+
+        var result = await sut.SaveAsync(new SaveFicheControleDto
+        {
+            MissionId = mission.Id,
+            EtatGeneral = "Satisfaisant",
+            RecommandationPreliminaire = "Maintien",
+            MontPer = 125000.50m
+        });
+
+        result.Success.Should().BeTrue(result.Message);
+        var saved = await db.Missions.AsNoTracking().FirstAsync(m => m.Id == mission.Id);
+        saved.MontPer.Should().Be(125000.50m);
+    }
+
+    [Fact]
+    public async Task SaveAsync_Update_PersistsMontPerOnMission()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var sut = new FichesControleService(db, users);
+        var fiche = await db.FichesQuery().FirstAsync(m => m.StatutFiche == FicheStatuts.Brouillon);
+        fiche.MontPer = 1000m;
+        await db.SaveChangesAsync();
+
+        var result = await sut.SaveAsync(new SaveFicheControleDto
+        {
+            Id = fiche.Id,
+            MissionId = fiche.Id,
+            EtatGeneral = fiche.EtatBatiment,
+            RecommandationPreliminaire = fiche.RecommandationPreliminaire,
+            NombreBatiments = fiche.NbreBatiment,
+            NombreEleves = fiche.NbrEleve,
+            ToilettesFilles = fiche.NbrToiletteFille,
+            ToilettesGarcons = fiche.NbrToiletteGarcon,
+            Observations = fiche.Observation,
+            MontPer = 99000m
+        });
+
+        result.Success.Should().BeTrue(result.Message);
+        var saved = await db.Missions.AsNoTracking().FirstAsync(m => m.Id == fiche.Id);
+        saved.MontPer.Should().Be(99000m);
+    }
+
+    [Fact]
     public async Task SaveAsync_OnEnAttenteValidation_Fails()
     {
         var (db, users) = await TestDb.CreateSeededAsync();
@@ -427,7 +531,7 @@ public class FichesControleServiceTests
         var result = await sut.DeleteAsync(enAttente.Id);
 
         result.Success.Should().BeFalse();
-        result.Message.Should().Contain("brouillon");
+        result.Message.Should().Contain("ne peut plus être retirée");
         (await db.FichesQuery().AnyAsync(m => m.Id == enAttente.Id)).Should().BeTrue();
     }
 
@@ -508,6 +612,35 @@ public class DecisionsServiceTests
         var created = await db.Decisions.SingleAsync(d => d.NumOrdre == fiche.Numero);
         created.NumAgrement.Should().NotBeNullOrWhiteSpace();
         created.DecisionFin.Should().Be(DecisionTypes.SuspensionTemporaireChef);
+    }
+
+    [Fact]
+    public void DecisionTypes_EcoleBienEntretenue_IsValidAndLabeled()
+    {
+        DecisionTypes.IsValid(DecisionTypes.EcoleBienEntretenue).Should().BeTrue();
+        DecisionTypes.LabelOf(DecisionTypes.EcoleBienEntretenue)
+            .Should().Be("École bien entretenue — Félicitations");
+        DecisionTypes.All.Should().Contain(DecisionTypes.EcoleBienEntretenue);
+    }
+
+    [Fact]
+    public async Task SaveAsync_CreatesDecision_EcoleBienEntretenue()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var sut = new DecisionsService(db, users);
+        var fiche = await TestDb.EnsureFicheSansDecisionAsync(db);
+
+        var result = await sut.SaveAsync(new SaveDecisionDto
+        {
+            FicheControleId = fiche.Id,
+            TypeDecision = DecisionTypes.EcoleBienEntretenue
+        }, "usr-002");
+
+        result.Success.Should().BeTrue(result.Message);
+        var created = await db.Decisions.SingleAsync(d => d.NumOrdre == fiche.Numero);
+        created.DecisionFin.Should().Be(DecisionTypes.EcoleBienEntretenue);
+        DecisionTypes.LabelOf(created.DecisionFin)
+            .Should().Be("École bien entretenue — Félicitations");
     }
 
     [Fact]

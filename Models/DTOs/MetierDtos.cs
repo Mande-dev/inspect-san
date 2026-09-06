@@ -40,8 +40,6 @@ public class SaveMissionDto
     public DateTime? DateEmission { get; set; }
     public DateTime? FinValidite { get; set; }
     public string? Objet { get; set; }
-    /// <summary>Montant perçu (<see cref="Entities.Mission.MontPer"/>).</summary>
-    public decimal? MontPer { get; set; }
     /// <summary>Participations : AgentId + RoleMission (au moins 1 chef_equipe).</summary>
     public List<SaveParticipationDto>? Participations { get; set; }
 }
@@ -86,6 +84,8 @@ public class SaveFicheControleDto
     public int NbreOutil { get; set; }
     public string? Observations { get; set; }
     public string RecommandationPreliminaire { get; set; } = "Maintien";
+    /// <summary>Montant perçu — saisi via la fiche, persisté sur <see cref="Entities.Mission.MontPer"/>.</summary>
+    public decimal? MontPer { get; set; }
     public string? PhotosJson { get; set; }
 }
 

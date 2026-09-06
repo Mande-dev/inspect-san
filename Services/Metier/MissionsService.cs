@@ -141,7 +141,7 @@ public class MissionsService : IMissionsService
                 existing.Validite = dto.Statut;
             existing.DateDebut = dto.DateEmission;
             existing.DateFin = dto.FinValidite;
-            existing.MontPer = dto.MontPer;
+            // MontPer est saisi uniquement via la fiche de contrôle — ne pas écraser ici.
             if (dto.Objet != null)
                 existing.Objet = string.IsNullOrWhiteSpace(dto.Objet) ? null : dto.Objet.Trim();
 
@@ -173,7 +173,7 @@ public class MissionsService : IMissionsService
                 Validite = string.IsNullOrWhiteSpace(dto.Statut) ? MissionStatuts.Brouillon : dto.Statut,
                 DateDebut = dto.DateEmission,
                 DateFin = dto.FinValidite,
-                MontPer = dto.MontPer,
+                MontPer = null,
                 Objet = string.IsNullOrWhiteSpace(dto.Objet) ? null : dto.Objet.Trim(),
                 CreatedAt = DateTime.UtcNow
             };

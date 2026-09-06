@@ -81,6 +81,7 @@ public class FichesControleService : IFichesControleService
             Statut = f.Statut,
             EtatGeneral = f.EtatGeneral,
             RecommandationPreliminaire = f.RecommandationPreliminaire,
+            MontPer = f.MontPer,
             ControleProduits = f.ControleProduits.Select(cp => new ControleProduitListDto
             {
                 ProduitCode = cp.ProduitCode,
@@ -249,6 +250,7 @@ public class FichesControleService : IFichesControleService
         m.OutilsAutresQuantite = m.OutilsAutres != null ? dto.OutilsAutresQuantite : null;
         m.Observation = dto.Observations;
         m.RecommandationPreliminaire = dto.RecommandationPreliminaire ?? "Maintien";
+        m.MontPer = dto.MontPer;
 
         m.MissionProduits.Clear();
         foreach (var cp in controleProduits)

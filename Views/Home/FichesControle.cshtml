@@ -82,6 +82,7 @@
                     f.OutilsAutres, f.OutilsAutresQuantite,
                     f.CodeOutil, f.NbreOutil,
                     f.Observations, f.RecommandationPreliminaire,
+                    f.MontPer,
                     ControleProduits = controleProduits,
                     ControleOutils = controleOutils,
                     Photos = photosPayload
@@ -216,6 +217,10 @@
                             <div class="col-md-4">
                                 <label class="form-label">Toilettes garçons</label>
                                 <input type="number" min="0" name="ToilettesGarcons" id="ficheToilettesGarcons" class="form-control" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Montant perçu</label>
+                                <input type="number" step="0.01" min="0" name="MontPer" id="ficheMontPer" class="form-control" placeholder="0.00" />
                             </div>
                         </div>
                     </div>
@@ -577,6 +582,9 @@
     document.getElementById('ficheEleves').value = f.NombreEleves ?? f.nombreEleves ?? '';
     document.getElementById('ficheToilettesFilles').value = f.ToilettesFilles ?? f.toilettesFilles ?? 0;
     document.getElementById('ficheToilettesGarcons').value = f.ToilettesGarcons ?? f.toilettesGarcons ?? 0;
+    var mont = f.MontPer ?? f.montPer;
+    var montEl = document.getElementById('ficheMontPer');
+    if (montEl) montEl.value = mont != null && mont !== '' ? mont : '';
     document.getElementById('ficheProduitsAutres').value = f.ProduitsAutres || f.produitsAutres || '';
     document.getElementById('ficheProduitsAutresQte').value = f.ProduitsAutresQuantite ?? f.produitsAutresQuantite ?? '';
     document.getElementById('ficheOutilsAutres').value = f.OutilsAutres || f.outilsAutres || '';
@@ -737,6 +745,10 @@
         detailRow('Élèves', escHtml(String(f.NombreEleves ?? f.nombreEleves ?? '—'))) +
         detailRow('Toilettes filles', escHtml(String(f.ToilettesFilles ?? f.toilettesFilles ?? 0))) +
         detailRow('Toilettes garçons', escHtml(String(f.ToilettesGarcons ?? f.toilettesGarcons ?? 0))) +
+        detailRow('Montant perçu', escHtml((function () {
+          var m = f.MontPer ?? f.montPer;
+          return m != null && m !== '' ? String(m) : '—';
+        })())) +
         '</tbody></table></div></div>' +
         '<div class="row g-3 mb-1">' +
         '<div class="col-md-6"><div class="isp-fd-section"><h6 class="isp-fd-section-title"><i class="ti ti-flask"></i> Produits</h6>' +

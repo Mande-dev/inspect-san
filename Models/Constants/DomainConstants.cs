@@ -48,19 +48,22 @@ public static class DecisionTypes
     public const string SuspensionTemporaireChef = "suspension_temporaire_chef";
     public const string Rehabilitation = "rehabilitation";
     public const string FermetureTemporaire = "fermeture_temporaire";
+    public const string EcoleBienEntretenue = "ecole_bien_entretenue";
 
     public static readonly IReadOnlyDictionary<string, string> Labels = new Dictionary<string, string>
     {
         [SuspensionTemporaireChef] = "Suspension Temporaire du chef d'établissement",
         [Rehabilitation] = "Réhabilitation",
         [FermetureTemporaire] = "Fermeture temporaire de l'Établissement",
+        [EcoleBienEntretenue] = "École bien entretenue — Félicitations",
     };
 
     public static readonly IReadOnlyList<string> All =
     [
         SuspensionTemporaireChef,
         Rehabilitation,
-        FermetureTemporaire
+        FermetureTemporaire,
+        EcoleBienEntretenue
     ];
 
     public static bool IsValid(string? code)

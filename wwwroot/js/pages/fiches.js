@@ -72,6 +72,12 @@
           controleProduits: collectControleProduits(),
           controleOutils: collectControleOutils(),
           observations: document.getElementById('ficheObs').value,
+          montPer: (function () {
+            var v = document.getElementById('ficheMontPer')?.value;
+            if (v === undefined || v === null || String(v).trim() === '') return null;
+            var n = parseFloat(v);
+            return isNaN(n) ? null : n;
+          })(),
           photosJson: document.getElementById('photosJson').value
         };
         var result = await api.post('/Home/SaveFicheJson', body);

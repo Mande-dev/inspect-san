@@ -23,6 +23,8 @@ public class FicheControle
     public DateTime? ValideeLe { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>Montant perçu (persisté sur Mission.MontPer).</summary>
+    public decimal? MontPer { get; set; }
 
     public int? CodeProduit { get; set; }
     public int NbreProduit { get; set; }
@@ -76,6 +78,7 @@ public class FicheControle
             ValideeLe = m.ValideeLe,
             CreatedAt = m.CreatedAt,
             UpdatedAt = m.CreatedAt,
+            MontPer = m.MontPer,
             CodeProduit = cp.FirstOrDefault()?.ProduitCode ?? m.CodeProduit,
             NbreProduit = cp.Sum(x => x.Quantite),
             CodeOutil = co.FirstOrDefault()?.OutilCode ?? m.CodeOutil,

@@ -210,6 +210,8 @@ public class FicheListDto
     public int? OutilsAutresQuantite { get; set; }
     public string? Observations { get; set; }
     public string RecommandationPreliminaire { get; set; } = "";
+    /// <summary>Montant perçu (Mission.MontPer).</summary>
+    public decimal? MontPer { get; set; }
     public List<ControleProduitListDto> ControleProduits { get; set; } = new();
     public List<ControleOutilListDto> ControleOutils { get; set; } = new();
     public List<FichePhotoListDto> Photos { get; set; } = new();
