@@ -12,19 +12,24 @@
     <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4 isp-page-head">
         <div>
             <h2 class="mb-1">Rapport d'inspection</h2>
-            <p class="text-secondary mb-0">Fiches validées par sous-division — dépôt équipe / secrétariat puis clôture.</p>
+            <p class="text-secondary mb-0">
+                Après contrôle : imprimer (2 exemplaires) → déposer au secrétariat → transfert au Directeur Provincial → décisions.
+            </p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
+            <button type="button" class="btn btn-primary" id="btnPrintRapport" disabled>
+                <i class="ti ti-printer me-1"></i>Imprimer (2 exemplaires)
+            </button>
             @if (canDeposerEquipe)
             {
                 <button type="button" class="btn btn-outline-primary" id="btnDeposerEquipe" disabled>
-                    <i class="ti ti-upload me-1"></i>Déposer rapport équipe
+                    <i class="ti ti-upload me-1"></i>Déposer au secrétariat
                 </button>
             }
             @if (canDeposerSecretariat)
             {
                 <button type="button" class="btn btn-outline-primary" id="btnDeposerSecretariat" disabled>
-                    <i class="ti ti-upload me-1"></i>Déposer rapport secrétariat
+                    <i class="ti ti-transfer me-1"></i>Transférer au Directeur Provincial
                 </button>
             }
             @if (canCloturer)
@@ -33,9 +38,6 @@
                     <i class="ti ti-lock me-1"></i>Clôturer
                 </button>
             }
-            <button type="button" class="btn btn-primary" id="btnPrintRapport" disabled>
-                <i class="ti ti-printer me-1"></i>Aperçu / Imprimer
-            </button>
         </div>
     </div>
 

@@ -66,12 +66,15 @@ public class DecisionsService : IDecisionsService
     public async Task<List<FicheControle>> QueryFichesSansDecisionAsync()
     {
         var decided = await _db.Decisions.AsNoTracking().Select(d => d.NumOrdre).ToListAsync();
+        // Décision uniquement après transfert secrétariat → DP (RapportSecretariatDeposeLe).
         var missions = await _db.Missions.AsNoTracking()
             .Include(m => m.Ecole)
             .Include(m => m.MissionProduits)
             .Include(m => m.MissionOutils)
             .Include(m => m.Photos)
-            .Where(m => m.StatutFiche == FicheStatuts.Validee && !decided.Contains(m.NumOrdre))
+            .Where(m => m.StatutFiche == FicheStatuts.Validee
+                        && m.RapportSecretariatDeposeLe != null
+                        && !decided.Contains(m.NumOrdre))
             .ToListAsync();
         return missions.Select(m => FicheControle.FromMission(m, m.Ecole?.Id)).ToList();
     }
@@ -167,11 +170,17 @@ public class DecisionsService : IDecisionsService
                 return ApiResultDto.Fail("Une décision ne peut être prise que sur une fiche validée.");
             if (await _db.Decisions.AnyAsync(d => d.NumOrdre == mission.NumOrdre))
                 return ApiResultDto.Fail("Cette fiche a déjà une décision.");
+            if (mission.RapportSecretariatDeposeLe == null)
+                return ApiResultDto.Fail(
+                    "Décision impossible : le rapport d'inspection doit d'abord être transféré au Directeur Provincial par le secrétariat.");
         }
         else
         {
             var existing = await _db.Decisions.FirstOrDefaultAsync(d => d.NumDecision == dto.Id);
             if (existing == null) return ApiResultDto.Fail("Décision introuvable.");
+            if (mission.RapportSecretariatDeposeLe == null)
+                return ApiResultDto.Fail(
+                    "Décision impossible : le rapport d'inspection doit d'abord être transféré au Directeur Provincial par le secrétariat.");
             existing.DecisionFin = typeCode;
             await _db.SaveChangesAsync();
             _users.AddJournal("Décisions", "modification", $"Décision {existing.NumDecision} modifiée", userId);

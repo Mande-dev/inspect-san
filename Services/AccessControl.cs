@@ -80,7 +80,7 @@ public static class AccessControl
     public static readonly (string Key, string Path, string Label, string Icon)[] Nav =
     {
         ("dashboard", "/Home/Index", "Tableau de bord", "ti-layout-dashboard"),
-        ("ecoles", "/Home/Ecoles", "Écoles", "ti-building-community"),
+        ("ecoles", "/Home/Ecoles", "Établissements", "ti-building-community"),
         ("chefs", "/Home/Chefs", "Chefs d'établissement", "ti-user-star"),
         ("agents", "/Home/Agents", "Agents", "ti-users-group"),
         ("utilisateurs", "/Home/Utilisateurs", "Utilisateurs", "ti-users"),

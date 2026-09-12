@@ -83,8 +83,6 @@ public class AuthController : Controller
         }
 
         _store.AddJournal("Authentification", "connexion", $"Connexion de {user.Nom}", user.Id);
-        TempData["Toast"] = $"Bienvenue, {user.Nom}";
-        TempData["ToastType"] = "success";
 
         return RedirectAfterAuth(user, model.ReturnUrl);
     }

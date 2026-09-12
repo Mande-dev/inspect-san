@@ -1029,7 +1029,7 @@ public class HomeController : Controller
     public async Task<IActionResult> DeposerRapportEquipeJson([FromBody] SousDivisionCodeRequest dto)
     {
         if (!string.Equals(Role, DataScope.RoleControleur, StringComparison.Ordinal))
-            return Json(ApiResultDto.Fail("Seul un contrôleur peut déposer le rapport d'équipe."));
+            return Json(ApiResultDto.Fail("Seul le chef d'équipe (contrôleur) peut déposer le rapport au secrétariat."));
         var scope = await ScopeAsync();
         return Json(await _statistiques.DeposerRapportEquipeAsync(dto.SousDivisionCode, UserId, scope.AgentId));
     }
@@ -1039,7 +1039,7 @@ public class HomeController : Controller
     {
         if (!string.Equals(Role, DataScope.RoleSecretariat, StringComparison.Ordinal)
             && !string.Equals(Role, DataScope.RoleAdmin, StringComparison.Ordinal))
-            return Json(ApiResultDto.Fail("Seul le secrétariat (ou admin) peut déposer ce rapport."));
+            return Json(ApiResultDto.Fail("Seul le secrétariat (ou admin) peut transférer ce rapport au Directeur Provincial."));
         return Json(await _statistiques.DeposerRapportSecretariatAsync(dto.SousDivisionCode, UserId));
     }
 

@@ -31,7 +31,7 @@
 <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4 isp-page-head">
     <div>
         <h2 class="mb-1">Décisions</h2>
-        <p class="text-secondary mb-0">@(canCreer ? "Une décision par fiche validée. Consultez la fiche avant de décider." : "Suivi des décisions concernant votre établissement.")</p>
+        <p class="text-secondary mb-0">@(canCreer ? "Une décision par fiche validée, après transfert du rapport par le secrétariat. Consultez la fiche avant de décider." : "Suivi des décisions concernant votre établissement.")</p>
     </div>
     @if (canCreer)
     {
@@ -44,7 +44,7 @@
 <div id="sansDecisionAlert" class="alert alert-warning @(sansDecision.Any() ? "" : "d-none")">
 @if (sansDecision.Any())
 {
-        <strong>Fiches validées sans décision :</strong>
+        <strong>Fiches transférées (rapport) sans décision :</strong>
         <ul class="mb-0 mt-2">
             @foreach (var f in sansDecision)
             {
@@ -157,7 +157,7 @@
                                 <i class="ti ti-file-search"></i> Voir la fiche
                             </button>
                         </div>
-                        <div class="form-text">Consultez la fiche avant d’enregistrer. Création : fiches validées sans décision uniquement.</div>
+                        <div class="form-text">Consultez la fiche avant d’enregistrer. Création : fiches validées déjà transférées au DP, sans décision.</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">École (issue de la fiche)</label>

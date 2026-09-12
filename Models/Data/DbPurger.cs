@@ -43,9 +43,12 @@ public static class DbPurger
             SET FOREIGN_KEY_CHECKS = 0;
             DELETE FROM `Decision`;
             DELETE FROM `Photos`;
+            DELETE FROM `MissionProduit`;
+            DELETE FROM `MissionOutil`;
             DELETE FROM `Affectation`;
             DELETE FROM `Mission`;
             DELETE FROM `Etablissement`;
+            DELETE FROM `ChefEtablissement`;
             DELETE FROM `Agents`;
             DELETE FROM `ProduitUtilise`;
             DELETE FROM `OutilUtilise`;

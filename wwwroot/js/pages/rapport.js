@@ -88,11 +88,11 @@
     status.textContent =
       'Missions : ' +
       total +
-      ' — Dépôt équipe : ' +
+      ' — Déposé secrétariat : ' +
       eq +
       '/' +
       total +
-      ' — Dépôt secrétariat : ' +
+      ' — Transféré DP : ' +
       sec +
       '/' +
       total +
@@ -112,12 +112,12 @@
       '<th>N° ORDRE</th><th>DÉNOM.</th><th>FONCT. CONTR.</th><th>N° AGR.</th><th>NOM AGENT</th>' +
       '<th>ÉTAT BÂT.</th><th>NBRE BÂT.</th><th>TOIL. F.</th><th>TOIL. G.</th><th>NBRE ÉLÈVES</th>' +
       '<th>DÉS. PRODUIT</th><th>DÉS. OUTIL</th><th>ID DINACOPE</th><th>NOM CHEF ÉTAB.</th>' +
-      '<th>REG GES</th><th>MONT. PERÇU</th><th>DÉPÔTS</th>' +
+      '<th>REG GES</th><th>MONT. PERÇU</th><th>CIRCUIT</th>' +
       '</tr></thead><tbody>';
     lignes.forEach(function (l) {
       var flags = [];
-      if (l.rapportEquipeDepose || l.RapportEquipeDepose) flags.push('Équipe');
-      if (l.rapportSecretariatDepose || l.RapportSecretariatDepose) flags.push('Secrétariat');
+      if (l.rapportEquipeDepose || l.RapportEquipeDepose) flags.push('Déposé');
+      if (l.rapportSecretariatDepose || l.RapportSecretariatDepose) flags.push('Transféré DP');
       if (l.rapportClos || l.RapportClos) flags.push('Clos');
       html +=
         '<tr>' +
@@ -220,13 +220,13 @@
     renderSections(lastDto);
   }
 
-  async function postAction(url, confirmMsg) {
+  async function postAction(url, confirmMsg, skipConfirm) {
     var code = selectedCode();
     if (!code) {
       api.showToast('Choisissez une sous-division.', 'warning');
       return;
     }
-    if (!(await api.confirm(confirmMsg))) return;
+    if (!skipConfirm && !(await api.confirm(confirmMsg))) return;
     var result = await api.post(url, { sousDivisionCode: code });
     api.bindAjaxResult(result, function () {
       refresh().catch(function (err) {
@@ -242,17 +242,18 @@
   });
 
   document.getElementById('btnDeposerEquipe')?.addEventListener('click', function () {
-    postAction('/Home/DeposerRapportEquipeJson', 'Déposer le rapport d\'équipe pour cette sous-division ?').catch(
-      function (err) {
-        api.showToast(err.message, 'danger');
-      }
-    );
+    postAction(
+      '/Home/DeposerRapportEquipeJson',
+      'Déposer ce rapport au secrétariat pour cette sous-division ?'
+    ).catch(function (err) {
+      api.showToast(err.message, 'danger');
+    });
   });
 
   document.getElementById('btnDeposerSecretariat')?.addEventListener('click', function () {
     postAction(
       '/Home/DeposerRapportSecretariatJson',
-      'Déposer le rapport secrétariat pour cette sous-division ?'
+      'Transférer ce rapport au Directeur Provincial ?'
     ).catch(function (err) {
       api.showToast(err.message, 'danger');
     });
@@ -282,10 +283,25 @@
       ? window.buildRapportInspectionPrintHtml(lastDto)
       : null;
     if (window.openPrintPreview) {
-      window.openPrintPreview("Rapport d'inspection formel", html);
+      window.openPrintPreview("Rapport d'inspection formel (2 exemplaires)", html);
     } else {
       window.print();
     }
+
+    // Après impression : proposer le dépôt au secrétariat si le chef d'équipe peut le faire.
+    var canDepositNow = canEquipeUi && !!pick(lastDto, 'canDeposerEquipe', 'CanDeposerEquipe');
+    if (!canDepositNow) return;
+    api
+      .confirm(
+        'Impression lancée. Déposer maintenant ce rapport au secrétariat dans le système ?'
+      )
+      .then(function (ok) {
+        if (!ok) return;
+        return postAction('/Home/DeposerRapportEquipeJson', '', true);
+      })
+      .catch(function (err) {
+        api.showToast(err.message, 'danger');
+      });
   });
 
   refresh().catch(function (err) {

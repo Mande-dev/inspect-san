@@ -183,9 +183,17 @@ public class StatistiquesService : IStatistiquesService
                                 || string.Equals(role, DataScope.RoleAdmin, StringComparison.Ordinal);
 
         response.CanDeposerEquipe = isControleur
-            && fiches.Any(m => !m.RapportClos && m.RapportEquipeDeposeLe == null);
+            && !string.IsNullOrWhiteSpace(agentId)
+            && fiches.Any(m => !m.RapportClos
+                               && m.RapportEquipeDeposeLe == null
+                               && m.Affectations.Any(a =>
+                                   string.Equals(a.MatrAgent, agentId, StringComparison.Ordinal)
+                                   && a.Fonction == RolesMissionCodes.ChefEquipe));
+        // Transfert secrétariat : uniquement après dépôt équipe.
         response.CanDeposerSecretariat = isSecretariatLike
-            && fiches.Any(m => !m.RapportClos && m.RapportSecretariatDeposeLe == null);
+            && fiches.Any(m => !m.RapportClos
+                               && m.RapportEquipeDeposeLe != null
+                               && m.RapportSecretariatDeposeLe == null);
         response.CanCloturer = isSecretariatLike
             && fiches.Any(m => !m.RapportClos && m.RapportSecretariatDeposeLe != null);
 
@@ -201,10 +209,12 @@ public class StatistiquesService : IStatistiquesService
         var missions = await LoadMissionsForSousDivisionAsync(sdCode);
         missions = missions
             .Where(m => m.Affectations.Any(a =>
-                string.Equals(a.MatrAgent, agentId, StringComparison.Ordinal)))
+                string.Equals(a.MatrAgent, agentId, StringComparison.Ordinal)
+                && a.Fonction == RolesMissionCodes.ChefEquipe))
             .ToList();
         if (missions.Count == 0)
-            return ApiResultDto.Fail("Aucune mission éligible pour votre équipe sur cette sous-division.");
+            return ApiResultDto.Fail(
+                "Aucune mission éligible : seul le chef d'équipe peut déposer le rapport pour ses missions.");
 
         var clos = missions.Where(m => m.RapportClos).ToList();
         if (clos.Count == missions.Count)
@@ -213,7 +223,7 @@ public class StatistiquesService : IStatistiquesService
         var deja = missions.Where(m => !m.RapportClos && m.RapportEquipeDeposeLe != null).ToList();
         var aDeposer = missions.Where(m => !m.RapportClos && m.RapportEquipeDeposeLe == null).ToList();
         if (aDeposer.Count == 0)
-            return ApiResultDto.Fail("Le rapport d'équipe a déjà été déposé pour ces missions.");
+            return ApiResultDto.Fail("Le rapport a déjà été déposé au secrétariat pour ces missions.");
 
         var now = DateTime.UtcNow;
         foreach (var m in aDeposer)
@@ -223,7 +233,7 @@ public class StatistiquesService : IStatistiquesService
         }
         await _db.SaveChangesAsync();
         return ApiResultDto.Ok(
-            $"Rapport d'équipe déposé ({aDeposer.Count} mission(s))."
+            $"Rapport déposé au secrétariat ({aDeposer.Count} mission(s))."
             + (deja.Count > 0 ? $" {deja.Count} déjà déposée(s) ignorée(s)." : ""));
     }
 
@@ -240,18 +250,31 @@ public class StatistiquesService : IStatistiquesService
         if (missions.All(m => m.RapportClos))
             return ApiResultDto.Fail("Rapport déjà clôturé.");
 
-        var aDeposer = missions.Where(m => !m.RapportClos && m.RapportSecretariatDeposeLe == null).ToList();
-        if (aDeposer.Count == 0)
-            return ApiResultDto.Fail("Le rapport secrétariat a déjà été déposé pour ces missions.");
+        var sansDepotEquipe = missions
+            .Where(m => !m.RapportClos && m.RapportEquipeDeposeLe == null)
+            .ToList();
+        var aTransferer = missions
+            .Where(m => !m.RapportClos
+                        && m.RapportEquipeDeposeLe != null
+                        && m.RapportSecretariatDeposeLe == null)
+            .ToList();
+        if (aTransferer.Count == 0)
+        {
+            if (sansDepotEquipe.Count > 0)
+                return ApiResultDto.Fail(
+                    "Transfert impossible : le chef d'équipe doit d'abord déposer le rapport au secrétariat.");
+            return ApiResultDto.Fail("Le rapport a déjà été transféré au Directeur Provincial pour ces missions.");
+        }
 
         var now = DateTime.UtcNow;
-        foreach (var m in aDeposer)
+        foreach (var m in aTransferer)
         {
             m.RapportSecretariatDeposeLe = now;
             m.RapportSecretariatDeposePar = userId;
         }
         await _db.SaveChangesAsync();
-        return ApiResultDto.Ok($"Rapport secrétariat déposé ({aDeposer.Count} mission(s)).");
+        return ApiResultDto.Ok(
+            $"Rapport transféré au Directeur Provincial ({aTransferer.Count} mission(s)).");
     }
 
     public async Task<ApiResultDto> CloturerRapportAsync(string sousDivisionCode, string? userId, bool forceAdmin = false)
@@ -269,7 +292,8 @@ public class StatistiquesService : IStatistiquesService
             return ApiResultDto.Ok("Rapport déjà clôturé.");
 
         if (!forceAdmin && aCloturer.Any(m => m.RapportSecretariatDeposeLe == null))
-            return ApiResultDto.Fail("Déposez d'abord le rapport secrétariat avant de clôturer.");
+            return ApiResultDto.Fail(
+                "Transférez d'abord le rapport au Directeur Provincial avant de clôturer.");
 
         var now = DateTime.UtcNow;
         foreach (var m in aCloturer)
