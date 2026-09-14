@@ -13,6 +13,7 @@ public class MockUserStore
     private readonly InspectSanDbContext _db;
     private int _seq;
 
+    /// <summary>Initialise le store avec le contexte EF.</summary>
     public MockUserStore(InspectSanDbContext db) => _db = db;
 
     public List<NotificationItem> Notifications =>
@@ -25,6 +26,7 @@ public class MockUserStore
             .OrderByDescending(j => j.CreatedAt)
             .ToList();
 
+    /// <summary>Retourne les notifications visibles pour un utilisateur.</summary>
     public List<NotificationItem> NotificationsForUser(string? userId)
     {
         var q = _db.Notifications.AsNoTracking().AsQueryable();
@@ -35,12 +37,14 @@ public class MockUserStore
         return q.OrderByDescending(n => n.CreatedAt).ToList();
     }
 
+    /// <summary>Génère un identifiant unique préfixé.</summary>
     private string Uid(string prefix)
     {
         Interlocked.Increment(ref _seq);
         return $"{prefix}-{DateTime.UtcNow:yyyyMMddHHmmss}-{_seq}-{Guid.NewGuid():N}"[..36];
     }
 
+    /// <summary>Ajoute une entrée au journal d'activité.</summary>
     public void AddJournal(string module, string action, string detail, string? userId = null)
     {
         _db.JournalEntries.Add(new JournalEntry
@@ -55,6 +59,7 @@ public class MockUserStore
         _db.SaveChanges();
     }
 
+    /// <summary>Ajoute une notification utilisateur ou globale.</summary>
     public void AddNotification(string titre, string message, string? userId = null)
     {
         _db.Notifications.Add(new NotificationItem
@@ -69,6 +74,7 @@ public class MockUserStore
         _db.SaveChanges();
     }
 
+    /// <summary>Marque une notification comme lue.</summary>
     public void MarkNotificationRead(string id)
     {
         var n = _db.Notifications.FirstOrDefault(x => x.Id == id);
@@ -79,6 +85,7 @@ public class MockUserStore
         }
     }
 
+    /// <summary>Marque comme lues toutes les notifications non lues de l'utilisateur.</summary>
     public void MarkAllNotificationsRead(string? userId = null)
     {
         var q = _db.Notifications.Where(n => !n.Lu);

@@ -7,11 +7,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace inspect_san.Services;
 
+/// <summary>Statistiques, exports et rapports d'inspection.</summary>
 public class StatistiquesService : IStatistiquesService
 {
     private readonly InspectSanDbContext _db;
+    /// <summary>Initialise le service statistiques avec le contexte EF.</summary>
     public StatistiquesService(InspectSanDbContext db) => _db = db;
 
+    /// <summary>Calcule les statistiques selon le filtre fourni.</summary>
     public async Task<StatistiquesDto> GetAsync(StatistiquesFilterDto filter)
     {
         bool InRange(DateTime? iso)
@@ -94,6 +97,7 @@ public class StatistiquesService : IStatistiquesService
         };
     }
 
+    /// <summary>Exporte les statistiques au format CSV.</summary>
     public async Task<string> ExportCsvAsync(StatistiquesFilterDto filter)
     {
         var s = await GetAsync(filter);
@@ -112,9 +116,11 @@ public class StatistiquesService : IStatistiquesService
         return string.Join('\n', lines);
     }
 
+    /// <summary>Échappe une valeur pour le CSV.</summary>
     private static string Escape(string label)
         => label.Replace(',', '_').Replace('\n', ' ');
 
+    /// <summary>Construit le rapport d'inspection pour une sous-division.</summary>
     public async Task<RapportInspectionResponseDto> GetRapportInspectionAsync(
         RapportInspectionFilterDto filter,
         string? role = null,
@@ -200,6 +206,7 @@ public class StatistiquesService : IStatistiquesService
         return response;
     }
 
+    /// <summary>Dépose le rapport côté équipe pour une sous-division.</summary>
     public async Task<ApiResultDto> DeposerRapportEquipeAsync(string sousDivisionCode, string? userId, string? agentId)
     {
         var sdCode = SousProvinceCatalog.CodeFromLegacyOrCode(sousDivisionCode);
@@ -237,6 +244,7 @@ public class StatistiquesService : IStatistiquesService
             + (deja.Count > 0 ? $" {deja.Count} déjà déposée(s) ignorée(s)." : ""));
     }
 
+    /// <summary>Dépose le rapport côté secrétariat pour une sous-division.</summary>
     public async Task<ApiResultDto> DeposerRapportSecretariatAsync(string sousDivisionCode, string? userId)
     {
         var sdCode = SousProvinceCatalog.CodeFromLegacyOrCode(sousDivisionCode);
@@ -277,6 +285,7 @@ public class StatistiquesService : IStatistiquesService
             $"Rapport transféré au Directeur Provincial ({aTransferer.Count} mission(s)).");
     }
 
+    /// <summary>Clôture le rapport d'une sous-division.</summary>
     public async Task<ApiResultDto> CloturerRapportAsync(string sousDivisionCode, string? userId, bool forceAdmin = false)
     {
         var sdCode = SousProvinceCatalog.CodeFromLegacyOrCode(sousDivisionCode);
@@ -306,6 +315,7 @@ public class StatistiquesService : IStatistiquesService
         return ApiResultDto.Ok($"Rapport clôturé ({aCloturer.Count} mission(s)).");
     }
 
+    /// <summary>Charge les missions d'une sous-division.</summary>
     private async Task<List<Mission>> LoadMissionsForSousDivisionAsync(string sdCode)
         => await _db.Missions
             .Include(m => m.Affectations)
@@ -315,6 +325,7 @@ public class StatistiquesService : IStatistiquesService
                         && m.Ecole.SousDivision == sdCode)
             .ToListAsync();
 
+    /// <summary>Résout le libellé d'une sous-province.</summary>
     private async Task<string> ResolveSousProvinceLabelAsync(string sdCode)
     {
         var fromDb = await _db.SousProvinces.AsNoTracking()
@@ -324,6 +335,7 @@ public class StatistiquesService : IStatistiquesService
         return fromDb ?? SousProvinceCatalog.LabelOf(sdCode);
     }
 
+    /// <summary>Construit une section du rapport d'inspection.</summary>
     private static RapportInspectionDto BuildRapportSection(
         string sousDivisionCode,
         string sdLabel,
@@ -394,6 +406,7 @@ public class StatistiquesService : IStatistiquesService
         return dto;
     }
 
+    /// <summary>Mappe une mission vers une ligne de rapport.</summary>
     private static RapportInspectionLigneDto MapLigne(Mission m)
     {
         var ecole = m.Ecole!;
@@ -455,6 +468,7 @@ public class StatistiquesService : IStatistiquesService
         };
     }
 
+    /// <summary>Rédige le texte de synthèse du rapport.</summary>
     private static string BuildSyntheseTexte(string sdLabel, string periodeLabel, RapportInspectionDto dto)
     {
         var parts = new List<string>

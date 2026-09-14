@@ -7,17 +7,20 @@ using Microsoft.EntityFrameworkCore;
 
 namespace inspect_san.Services;
 
+/// <summary>CRUD du vivier d'agents d'inspection.</summary>
 public class AgentsService : IAgentsService
 {
     private readonly InspectSanDbContext _db;
     private readonly MockUserStore _users;
 
+    /// <summary>Initialise le service agents avec EF et le journal.</summary>
     public AgentsService(InspectSanDbContext db, MockUserStore users)
     {
         _db = db;
         _users = users;
     }
 
+    /// <summary>Applique les filtres recherche et statut actif.</summary>
     private static IQueryable<Agent> ApplyFilter(IQueryable<Agent> q, AgentFilterDto filter)
     {
         if (!string.IsNullOrWhiteSpace(filter.Q))
@@ -32,11 +35,13 @@ public class AgentsService : IAgentsService
         return q;
     }
 
+    /// <summary>Retourne les entités agent correspondant au filtre.</summary>
     public async Task<List<Agent>> QueryEntitiesAsync(AgentFilterDto filter)
         => await ApplyFilter(_db.Agents.AsNoTracking(), filter)
             .OrderBy(a => a.NomAgent)
             .ToListAsync();
 
+    /// <summary>Liste les agents filtrés sous forme de DTO.</summary>
     public async Task<IReadOnlyList<AgentListDto>> ListAsync(AgentFilterDto filter)
     {
         var list = await QueryEntitiesAsync(filter);
@@ -49,6 +54,7 @@ public class AgentsService : IAgentsService
         }).ToList();
     }
 
+    /// <summary>Crée ou met à jour un agent.</summary>
     public async Task<ApiResultDto> SaveAsync(SaveAgentDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.NomComplet))
@@ -89,6 +95,7 @@ public class AgentsService : IAgentsService
         return ApiResultDto.Ok("Agent enregistré.");
     }
 
+    /// <summary>Supprime un agent s'il n'est plus utilisé.</summary>
     public async Task<ApiResultDto> DeleteAsync(string id)
     {
         var a = await _db.Agents.FirstOrDefaultAsync(x => x.MatrAgent == id);

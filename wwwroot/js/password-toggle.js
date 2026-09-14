@@ -5,6 +5,7 @@
 (function () {
   'use strict';
 
+  // Ajoute le bouton œil sur un champ mot de passe.
   function enhance(input) {
     if (!input || input.dataset.ispPwdReady === '1') return;
     if (input.type !== 'password' && input.getAttribute('type') !== 'password') return;
@@ -45,6 +46,7 @@
     wrap.appendChild(btn);
   }
 
+  // Parcourt et enrichit les champs password du DOM.
   function scan(root) {
     (root || document).querySelectorAll('input[type="password"]').forEach(enhance);
   }
@@ -60,5 +62,6 @@
     scan(e.target);
   });
 
+  // Expose le scan des champs password globalement.
   window.ispEnhancePasswordFields = scan;
 })();

@@ -10,6 +10,7 @@ namespace inspect_san.Models.Data;
 /// </summary>
 public class InspectSanDbContext : IdentityDbContext<ApplicationUser>
 {
+    /// <summary>Crée le contexte EF Core Inspect-San.</summary>
     public InspectSanDbContext(DbContextOptions<InspectSanDbContext> options) : base(options)
     {
     }
@@ -30,6 +31,7 @@ public class InspectSanDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<NotificationItem> Notifications => Set<NotificationItem>();
     public DbSet<SousProvince> SousProvinces => Set<SousProvince>();
 
+    /// <summary>Applique les configurations d’entités et les contraintes Identity.</summary>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

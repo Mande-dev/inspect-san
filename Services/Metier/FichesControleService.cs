@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace inspect_san.Services;
 
+/// <summary>Gestion des fiches de contrôle et de leur validation.</summary>
 public class FichesControleService : IFichesControleService
 {
     private readonly InspectSanDbContext _db;
@@ -19,6 +20,7 @@ public class FichesControleService : IFichesControleService
     private readonly IMissionsService? _missions;
     private readonly IMissionAccessService _access;
 
+    /// <summary>Initialise le service fiches avec ses dépendances.</summary>
     public FichesControleService(
         InspectSanDbContext db,
         MockUserStore users,
@@ -37,6 +39,7 @@ public class FichesControleService : IFichesControleService
         _access = access ?? new MissionAccessService(db);
     }
 
+    /// <summary>Construit la requête des missions portant une fiche.</summary>
     private IQueryable<Mission> FichesQuery()
         => _db.Missions.AsNoTracking()
             .Include(m => m.Ecole)
@@ -45,6 +48,7 @@ public class FichesControleService : IFichesControleService
             .Include(m => m.MissionOutils)
             .Where(m => m.StatutFiche != null);
 
+    /// <summary>Applique les filtres de recherche sur les fiches.</summary>
     private static IQueryable<Mission> ApplyFilter(IQueryable<Mission> q, FicheFilterDto filter)
     {
         if (!string.IsNullOrWhiteSpace(filter.Q))
@@ -57,6 +61,7 @@ public class FichesControleService : IFichesControleService
         return q;
     }
 
+    /// <summary>Retourne les entités fiche correspondant au filtre.</summary>
     public async Task<List<FicheControle>> QueryEntitiesAsync(FicheFilterDto filter)
     {
         var missions = await ApplyFilter(FichesQuery(), filter)
@@ -64,6 +69,7 @@ public class FichesControleService : IFichesControleService
         return missions.Select(m => FicheControle.FromMission(m, m.Ecole?.Id)).ToList();
     }
 
+    /// <summary>Liste les fiches filtrées sous forme de DTO.</summary>
     public async Task<IReadOnlyList<FicheListDto>> ListAsync(FicheFilterDto filter)
     {
         var fiches = await QueryEntitiesAsync(filter);
@@ -95,9 +101,11 @@ public class FichesControleService : IFichesControleService
         }).ToList();
     }
 
+    /// <summary>Indique si la mission autorise la saisie de fiche.</summary>
     private static bool IsMissionOperational(string? statut)
         => statut is MissionStatuts.Signe or MissionStatuts.EnCours;
 
+    /// <summary>Crée ou met à jour une fiche de contrôle.</summary>
     public async Task<ApiResultDto> SaveAsync(SaveFicheControleDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.MissionId))
@@ -233,6 +241,7 @@ public class FichesControleService : IFichesControleService
         return ApiResultDto.Ok("Fiche enregistrée.", new { id = mission.Id });
     }
 
+    /// <summary>Applique les champs du DTO sur l'entité mission/fiche.</summary>
     private static void ApplyFicheDto(
         Mission m,
         SaveFicheControleDto dto,
@@ -279,6 +288,7 @@ public class FichesControleService : IFichesControleService
         m.NbreOutil = controleOutils.Sum(c => c.Quantite);
     }
 
+    /// <summary>Normalise la liste des produits contrôlés.</summary>
     private static List<SaveControleProduitDto> NormalizeControleProduits(List<SaveControleProduitDto>? raw)
         => (raw ?? [])
             .Where(c => c.ProduitCode > 0)
@@ -290,6 +300,7 @@ public class FichesControleService : IFichesControleService
             })
             .ToList();
 
+    /// <summary>Normalise la liste des outils contrôlés.</summary>
     private static List<SaveControleOutilDto> NormalizeControleOutils(SaveFicheControleDto dto)
     {
         var fromList = (dto.ControleOutils ?? [])
@@ -307,6 +318,7 @@ public class FichesControleService : IFichesControleService
             return [new SaveControleOutilDto { OutilCode = dto.CodeOutil.Value, Quantite = dto.NbreOutil }];
         return [];
     }
+    /// <summary>Ajoute une photo à une fiche de contrôle.</summary>
     public async Task<ApiResultDto> UploadPhotoAsync(string ficheId, IFormFile file, string? legende = null)
     {
         if (_files == null)
@@ -346,6 +358,7 @@ public class FichesControleService : IFichesControleService
         return ApiResultDto.Ok("Photo enregistrée.", new { photo.Nom, photo.Legende, photo.Url, NumOrdre = f.NumOrdre, MissionId = f.Id });
     }
 
+    /// <summary>Soumet une fiche pour validation.</summary>
     public async Task<ApiResultDto> SoumettrePourValidationAsync(string id, string? userId)
     {
         var f = await _db.Missions.Include(m => m.Ecole).Include(m => m.Affectations)
@@ -373,6 +386,7 @@ public class FichesControleService : IFichesControleService
         return ApiResultDto.Ok("Fiche prête pour validation par le chef d'établissement (tablette).");
     }
 
+    /// <summary>Valide une fiche en attente.</summary>
     public async Task<ApiResultDto> ValiderAsync(string id, string? userId)
     {
         var f = await _db.Missions
@@ -402,6 +416,7 @@ public class FichesControleService : IFichesControleService
         return ApiResultDto.Ok("Fiche validée : Lu et approuvé.");
     }
 
+    /// <summary>Supprime une fiche de contrôle.</summary>
     public async Task<ApiResultDto> DeleteAsync(string id)
     {
         var f = await _db.Missions
@@ -437,6 +452,7 @@ public class FichesControleService : IFichesControleService
     private static string PhotoStamp(string numOrdre, int index)
         => $"{numOrdre}-{index}";
 
+    /// <summary>DTO JSON interne pour les métadonnées de photo.</summary>
     private sealed class PhotoJsonDto
     {
         public string? Nom { get; set; }

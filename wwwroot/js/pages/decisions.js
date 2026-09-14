@@ -21,6 +21,7 @@
     });
   } catch (e) { /* ignore */ }
 
+  // Synchronise l’école depuis la fiche choisie.
   function syncEcoleFromFiche() {
     var o = fiche && fiche.selectedOptions[0];
     if (!o || !o.value) {
@@ -32,6 +33,7 @@
     if (ecoleLabel) ecoleLabel.value = o.dataset.ecoleNom || o.dataset.ecole || '—';
   }
 
+  // Filtre les options de fiche selon le mode.
   function filterFicheOptions(modeEdit) {
     if (!fiche) return;
     Array.from(fiche.options).forEach(function (opt) {
@@ -44,6 +46,7 @@
     });
   }
 
+  // Garantit la présence d’une option fiche.
   function ensureFicheOption(ficheId, ecoleId, ecoleNom, numero, chefNom) {
     if (!fiche || !ficheId) return;
     var exists = Array.from(fiche.options).some(function (o) { return o.value === ficheId; });
@@ -64,11 +67,13 @@
     fiche.appendChild(opt);
   }
 
+  // Construit le tampon photo mission-index.
   function photoStamp(numOrdre, index) {
     var ordre = (numOrdre || '').trim() || 'MISSION';
     return ordre + '-' + index;
   }
 
+  // Libellé d’affichage d’une photo.
   function displayPhotoLabel(p, f, index) {
     var existing = (p.Nom || p.nom || p.Legende || p.legende || '').trim();
     if (/^.+-\d+$/.test(existing) && existing.indexOf('.') < 0) return existing;
@@ -76,13 +81,16 @@
     return photoStamp(ordre, index + 1);
   }
 
+  // Rend l’aperçu HTML détaillé d’une fiche.
   function renderFichePreview(f) {
     if (!f) {
       return '<p class="text-secondary mb-0">Fiche introuvable.</p>';
     }
+    // Ligne clé/valeur pour l’aperçu fiche.
     function row(label, value) {
       return '<tr><th>' + api.esc(label) + '</th><td>' + (value || '—') + '</td></tr>';
     }
+    // Lignes de table produits ou outils.
     function tableRows(items) {
       if (!items.length) {
         return '<tr><td colspan="2" class="isp-fd-empty">Aucun élément</td></tr>';
@@ -204,6 +212,7 @@
     );
   }
 
+  // Affiche le modal d’aperçu d’une fiche.
   function showFichePreview(ficheId) {
     var body = document.getElementById('fichePreviewBody');
     if (!body) return;
@@ -223,6 +232,7 @@
 
   fiche?.addEventListener('change', syncEcoleFromFiche);
 
+  // Active ou désactive le mode lecture seule.
   function setReadonly(ro, lockFiche) {
     ['decFiche', 'decType'].forEach(function (id) {
       var el = document.getElementById(id);
@@ -232,6 +242,7 @@
     document.getElementById('decisionSave').style.display = ro ? 'none' : '';
   }
 
+  // Remplit le formulaire décision depuis un bouton.
   function fillDecision(btn) {
     var el = btn.closest ? btn.closest('.btn-voir-decision, .btn-edit-decision') || btn : btn;
     var ficheId = api.dataAttr(el, 'fiche') || '';
@@ -250,6 +261,7 @@
     setReadonly(ro, !ro);
   }
 
+  // Imprime la lettre de décision.
   function printDecisionLetter(opts) {
     opts = opts || {};
     var ficheId = opts.ficheId || '';
@@ -287,6 +299,7 @@
     }
   }
 
+  // Construit une ligne du tableau décisions.
   function rowHtml(d) {
     var id = d.id || d.Id || '';
     var numero = d.numero || d.Numero || id;
@@ -329,6 +342,7 @@
     );
   }
 
+  // Affiche l’alerte des fiches sans décision.
   function renderSansDecision(list) {
     if (!alertBox) return;
     if (!list || !list.length) {
@@ -359,6 +373,7 @@
     alertBox.innerHTML = '<strong>Fiches validées sans décision :</strong><ul class="mb-0 mt-2">' + ul + '</ul>';
   }
 
+  // Charge décisions et fiches sans décision.
   async function loadList() {
     var data = await api.get('/Home/GetDecisions');
     var decisions = data.decisions || data.Decisions || [];

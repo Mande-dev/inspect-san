@@ -4,8 +4,10 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace inspect_san.Models.Data.Configurations;
 
+/// <summary>Configuration EF Core de <see cref="Categorie"/>.</summary>
 public class CategorieConfiguration : IEntityTypeConfiguration<Categorie>
 {
+    /// <summary>Mappe la table Categories.</summary>
     public void Configure(EntityTypeBuilder<Categorie> builder)
     {
         builder.ToTable("Categories");
@@ -15,8 +17,10 @@ public class CategorieConfiguration : IEntityTypeConfiguration<Categorie>
     }
 }
 
+/// <summary>Configuration EF Core de <see cref="Outil"/>.</summary>
 public class OutilConfiguration : IEntityTypeConfiguration<Outil>
 {
+    /// <summary>Mappe la table OutilUtilise.</summary>
     public void Configure(EntityTypeBuilder<Outil> builder)
     {
         builder.ToTable("OutilUtilise");
@@ -26,8 +30,10 @@ public class OutilConfiguration : IEntityTypeConfiguration<Outil>
     }
 }
 
+/// <summary>Configuration EF Core de <see cref="Agent"/>.</summary>
 public class AgentConfiguration : IEntityTypeConfiguration<Agent>
 {
+    /// <summary>Mappe la table Agents.</summary>
     public void Configure(EntityTypeBuilder<Agent> builder)
     {
         builder.ToTable("Agents");
@@ -41,8 +47,10 @@ public class AgentConfiguration : IEntityTypeConfiguration<Agent>
     }
 }
 
+/// <summary>Configuration EF Core de <see cref="Mission"/>.</summary>
 public class MissionConfiguration : IEntityTypeConfiguration<Mission>
 {
+    /// <summary>Mappe la table Mission, relations et propriétés ignorées.</summary>
     public void Configure(EntityTypeBuilder<Mission> builder)
     {
         builder.ToTable("Mission");
@@ -102,8 +110,10 @@ public class MissionConfiguration : IEntityTypeConfiguration<Mission>
     }
 }
 
+/// <summary>Configuration EF Core de <see cref="Affectation"/>.</summary>
 public class AffectationConfiguration : IEntityTypeConfiguration<Affectation>
 {
+    /// <summary>Mappe la table Affectation et ses relations.</summary>
     public void Configure(EntityTypeBuilder<Affectation> builder)
     {
         builder.ToTable("Affectation");
@@ -130,8 +140,10 @@ public class AffectationConfiguration : IEntityTypeConfiguration<Affectation>
     }
 }
 
+/// <summary>Configuration EF Core de <see cref="MissionProduit"/>.</summary>
 public class MissionProduitConfiguration : IEntityTypeConfiguration<MissionProduit>
 {
+    /// <summary>Mappe la table MissionProduit et ses relations.</summary>
     public void Configure(EntityTypeBuilder<MissionProduit> builder)
     {
         builder.ToTable("MissionProduit");
@@ -154,8 +166,10 @@ public class MissionProduitConfiguration : IEntityTypeConfiguration<MissionProdu
     }
 }
 
+/// <summary>Configuration EF Core de <see cref="MissionOutil"/>.</summary>
 public class MissionOutilConfiguration : IEntityTypeConfiguration<MissionOutil>
 {
+    /// <summary>Mappe la table MissionOutil et ses relations.</summary>
     public void Configure(EntityTypeBuilder<MissionOutil> builder)
     {
         builder.ToTable("MissionOutil");
@@ -179,8 +193,10 @@ public class MissionOutilConfiguration : IEntityTypeConfiguration<MissionOutil>
     }
 }
 
+/// <summary>Configuration EF Core de <see cref="Produit"/>.</summary>
 public class ProduitConfiguration : IEntityTypeConfiguration<Produit>
 {
+    /// <summary>Mappe la table ProduitUtilise.</summary>
     public void Configure(EntityTypeBuilder<Produit> builder)
     {
         builder.ToTable("ProduitUtilise");
@@ -191,8 +207,10 @@ public class ProduitConfiguration : IEntityTypeConfiguration<Produit>
     }
 }
 
+/// <summary>Configuration EF Core de <see cref="Photo"/>.</summary>
 public class PhotoConfiguration : IEntityTypeConfiguration<Photo>
 {
+    /// <summary>Mappe la table Photos liée aux missions.</summary>
     public void Configure(EntityTypeBuilder<Photo> builder)
     {
         builder.ToTable("Photos");
@@ -212,8 +230,10 @@ public class PhotoConfiguration : IEntityTypeConfiguration<Photo>
     }
 }
 
+/// <summary>Configuration EF Core de <see cref="Ecole"/>.</summary>
 public class EcoleConfiguration : IEntityTypeConfiguration<Ecole>
 {
+    /// <summary>Mappe la table Etablissement et ses relations.</summary>
     public void Configure(EntityTypeBuilder<Ecole> builder)
     {
         builder.ToTable("Etablissement");
@@ -243,8 +263,10 @@ public class EcoleConfiguration : IEntityTypeConfiguration<Ecole>
     }
 }
 
+/// <summary>Configuration EF Core de <see cref="Chef"/>.</summary>
 public class ChefEtablissementConfiguration : IEntityTypeConfiguration<Chef>
 {
+    /// <summary>Mappe la table ChefEtablissement.</summary>
     public void Configure(EntityTypeBuilder<Chef> builder)
     {
         builder.ToTable("ChefEtablissement");
@@ -257,8 +279,10 @@ public class ChefEtablissementConfiguration : IEntityTypeConfiguration<Chef>
     }
 }
 
+/// <summary>Configuration EF Core de <see cref="Decision"/>.</summary>
 public class DecisionConfiguration : IEntityTypeConfiguration<Decision>
 {
+    /// <summary>Mappe la table Decision, relations et propriétés ignorées.</summary>
     public void Configure(EntityTypeBuilder<Decision> builder)
     {
         builder.ToTable("Decision");
@@ -295,8 +319,10 @@ public class DecisionConfiguration : IEntityTypeConfiguration<Decision>
     }
 }
 
+/// <summary>Configuration EF Core de <see cref="JournalEntry"/>.</summary>
 public class JournalEntryConfiguration : IEntityTypeConfiguration<JournalEntry>
 {
+    /// <summary>Mappe la table JournalEntries.</summary>
     public void Configure(EntityTypeBuilder<JournalEntry> builder)
     {
         builder.ToTable("JournalEntries");
@@ -310,8 +336,10 @@ public class JournalEntryConfiguration : IEntityTypeConfiguration<JournalEntry>
     }
 }
 
+/// <summary>Configuration EF Core de <see cref="NotificationItem"/>.</summary>
 public class NotificationItemConfiguration : IEntityTypeConfiguration<NotificationItem>
 {
+    /// <summary>Mappe la table Notifications.</summary>
     public void Configure(EntityTypeBuilder<NotificationItem> builder)
     {
         builder.ToTable("Notifications");
@@ -325,8 +353,10 @@ public class NotificationItemConfiguration : IEntityTypeConfiguration<Notificati
     }
 }
 
+/// <summary>Configuration EF Core de <see cref="SousProvince"/>.</summary>
 public class SousProvinceConfiguration : IEntityTypeConfiguration<SousProvince>
 {
+    /// <summary>Mappe la table SousProvince.</summary>
     public void Configure(EntityTypeBuilder<SousProvince> builder)
     {
         builder.ToTable("SousProvince");

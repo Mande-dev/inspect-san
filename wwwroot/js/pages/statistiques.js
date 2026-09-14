@@ -4,11 +4,13 @@
 
   var charts = [];
 
+  // Détruit les graphiques de statistiques.
   function destroyCharts() {
     charts.forEach(function (c) { try { c.destroy(); } catch (e) {} });
     charts = [];
   }
 
+  // Lit les filtres de la page statistiques.
   function filters() {
     return {
       dateFrom: document.getElementById('filterDateFrom').value || '',
@@ -18,6 +20,7 @@
     };
   }
 
+  // Rafraîchit KPI et graphiques statistiques.
   async function refresh() {
     destroyCharts();
     var dto = await api.get('/Home/GetStatistiques', filters());
@@ -36,10 +39,12 @@
     var evolution = dto.evolution || dto.Evolution || [];
 
     if (window.ApexCharts) {
+      // Extrait les libellés d’une série.
       function labelsOf(arr) {
         var labels = (arr || []).map(function (x) { return x.label || x.Label; }).filter(Boolean);
         return labels.length ? labels : ['—'];
       }
+      // Extrait les valeurs d’une série.
       function valuesOf(arr) {
         var values = (arr || []).map(function (x) { return x.value ?? x.Value ?? 0; });
         return values.length ? values : [0];

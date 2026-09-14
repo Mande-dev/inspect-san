@@ -7,17 +7,20 @@ using Microsoft.EntityFrameworkCore;
 
 namespace inspect_san.Services;
 
+/// <summary>CRUD des chefs d'établissement.</summary>
 public class ChefsService : IChefsService
 {
     private readonly InspectSanDbContext _db;
     private readonly MockUserStore _users;
 
+    /// <summary>Initialise le service chefs avec EF et le journal.</summary>
     public ChefsService(InspectSanDbContext db, MockUserStore users)
     {
         _db = db;
         _users = users;
     }
 
+    /// <summary>Construit la requête chefs filtrée.</summary>
     private IQueryable<Chef> BaseQuery(ChefFilterDto filter)
     {
         var q = _db.ChefEtablissements.AsNoTracking().AsQueryable();
@@ -35,6 +38,7 @@ public class ChefsService : IChefsService
         return q;
     }
 
+    /// <summary>Associe chaque matricule chef au nom d'établissement.</summary>
     private async Task<Dictionary<string, string>> EcoleNomsByMatriculeAsync(IEnumerable<string> matricules)
     {
         var set = matricules.ToHashSet();
@@ -46,6 +50,7 @@ public class ChefsService : IChefsService
             .ToDictionaryAsync(x => x.Matricule, x => x.Nom);
     }
 
+    /// <summary>Mappe une entité chef vers son DTO de liste.</summary>
     private static ChefListDto Map(Chef c, string? ecoleNom) => new()
     {
         Id = c.Matricule,
@@ -55,9 +60,11 @@ public class ChefsService : IChefsService
         AnneeDebutActivite = c.AnneeDebutActivite
     };
 
+    /// <summary>Retourne les entités chef correspondant au filtre.</summary>
     public async Task<List<Chef>> QueryEntitiesAsync(ChefFilterDto filter)
         => await BaseQuery(filter).OrderBy(c => c.NomComplet).ToListAsync();
 
+    /// <summary>Liste les chefs filtrés sous forme de DTO.</summary>
     public async Task<IReadOnlyList<ChefListDto>> ListAsync(ChefFilterDto filter)
     {
         var list = await BaseQuery(filter).OrderBy(c => c.NomComplet).ToListAsync();
@@ -65,6 +72,7 @@ public class ChefsService : IChefsService
         return list.Select(c => Map(c, noms.GetValueOrDefault(c.Matricule))).ToList();
     }
 
+    /// <summary>Retourne un chef par matricule.</summary>
     public async Task<ChefListDto?> GetAsync(string id)
     {
         var c = await _db.ChefEtablissements.AsNoTracking().FirstOrDefaultAsync(x => x.Matricule == id);
@@ -73,6 +81,7 @@ public class ChefsService : IChefsService
         return Map(c, noms.GetValueOrDefault(c.Matricule));
     }
 
+    /// <summary>Crée ou met à jour un chef d'établissement.</summary>
     public async Task<ApiResultDto> SaveAsync(SaveChefDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.NomComplet))
@@ -117,6 +126,7 @@ public class ChefsService : IChefsService
         return ApiResultDto.Ok("Chef d'établissement enregistré.", new { id = chef.Matricule });
     }
 
+    /// <summary>Supprime un chef s'il n'est plus rattaché à une école.</summary>
     public async Task<ApiResultDto> DeleteAsync(string id)
     {
         var chef = await _db.ChefEtablissements.FirstOrDefaultAsync(c => c.Matricule == id);

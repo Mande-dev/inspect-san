@@ -3,8 +3,10 @@ using inspect_san.Services.Mock;
 
 namespace inspect_san.Services;
 
+/// <summary>Extensions DI pour enregistrer les services métier Home.</summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>Enregistre les services métier et utilitaires de l'application.</summary>
     public static IServiceCollection AddHomeServices(this IServiceCollection services)
     {
         services.AddScoped<MockUserStore>();

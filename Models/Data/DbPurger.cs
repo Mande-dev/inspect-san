@@ -5,8 +5,10 @@ using Microsoft.Extensions.Logging;
 
 namespace inspect_san.Models.Data;
 
+/// <summary>Purge ciblée des données métier et des uploads.</summary>
 public static class DbPurger
 {
+    /// <summary>Vide les tables métier tout en conservant les utilisateurs.</summary>
     public static async Task PurgeEntitiesMetierAsync(
         InspectSanDbContext db,
         ILogger logger,
@@ -31,6 +33,7 @@ public static class DbPurger
         logger.LogWarning("PURGE entités métier terminée.");
     }
 
+    /// <summary>Purge complète sauf le compte administrateur.</summary>
     public static async Task PurgeKeepAdminAsync(
         InspectSanDbContext db,
         UserManager<ApplicationUser> users,
@@ -81,6 +84,7 @@ public static class DbPurger
         }
     }
 
+    /// <summary>Supprime le contenu du dossier uploads.</summary>
     public static void ClearUploads(string webRootPath, ILogger logger)
     {
         var uploads = Path.Combine(webRootPath, "uploads");

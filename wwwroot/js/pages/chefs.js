@@ -9,6 +9,7 @@
   var canGerer = table && table.getAttribute('data-can-gerer') === '1';
   var fields = ['chefMatricule', 'chefNom', 'chefTel', 'chefAnneeDebut'];
 
+  // Construit une ligne du tableau chefs.
   function rowHtml(c) {
     var id = c.id || c.Id || '';
     var payload = {
@@ -45,11 +46,13 @@
     );
   }
 
+  // Met à jour un compteur statistique chefs.
   function setStat(id, value) {
     var el = document.getElementById(id);
     if (el) el.textContent = value;
   }
 
+  // Recalcule les statistiques chefs.
   function refreshStats(list) {
     var all = list || [];
     var assignes = all.filter(function (c) {
@@ -67,6 +70,7 @@
     );
   }
 
+  // Charge et affiche la liste des chefs.
   async function loadList() {
     if (!tbody || !filterForm) return;
     var fd = new FormData(filterForm);
@@ -80,6 +84,7 @@
     refreshStats(all);
   }
 
+  // Ouvre le modal chef en vue ou édition.
   function openChef(btn) {
     var el = btn && btn.closest ? btn.closest('.chef-open') || btn : btn;
     var c = api.parseJsonAttr(el, 'json') || {};

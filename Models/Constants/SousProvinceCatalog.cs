@@ -5,6 +5,7 @@ namespace inspect_san.Models.Constants;
 /// </summary>
 public static class SousProvinceCatalog
 {
+    /// <summary>Ligne catalogue : code officiel, libellé et code legacy.</summary>
     public sealed record Row(string Code, string Libelle, string LegacyCode);
 
     public static readonly IReadOnlyList<Row> Rows =
@@ -21,6 +22,7 @@ public static class SousProvinceCatalog
         new("SP010", "Ngaba", "ngaba"),
     ];
 
+    /// <summary>Résout un code SP00x, un legacy ou un libellé vers le code officiel.</summary>
     public static string? CodeFromLegacyOrCode(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
@@ -35,6 +37,7 @@ public static class SousProvinceCatalog
         return byLabel?.Code;
     }
 
+    /// <summary>Libellé pour un code SP00x ou legacy.</summary>
     public static string LabelOf(string? code)
     {
         if (string.IsNullOrWhiteSpace(code)) return "";

@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace inspect_san.Services;
 
+/// <summary>Gestion du cycle de vie des missions d'inspection.</summary>
 public class MissionsService : IMissionsService
 {
     private readonly InspectSanDbContext _db;
@@ -17,6 +18,7 @@ public class MissionsService : IMissionsService
     private readonly ICurrentUserScope _scope;
     private readonly IMissionAccessService _access;
 
+    /// <summary>Initialise le service missions avec ses dépendances.</summary>
     public MissionsService(
         InspectSanDbContext db,
         MockUserStore users,
@@ -31,6 +33,7 @@ public class MissionsService : IMissionsService
         _access = access ?? new MissionAccessService(db);
     }
 
+    /// <summary>Applique les filtres de recherche sur les missions.</summary>
     private static IQueryable<Mission> ApplyFilter(IQueryable<Mission> q, MissionFilterDto filter)
     {
         if (!string.IsNullOrWhiteSpace(filter.Q))
@@ -44,10 +47,12 @@ public class MissionsService : IMissionsService
         return q;
     }
 
+    /// <summary>Retourne les entités mission correspondant au filtre.</summary>
     public async Task<List<Mission>> QueryEntitiesAsync(MissionFilterDto filter)
         => await ApplyFilter(_db.Missions.AsNoTracking().Include(m => m.Ecole), filter)
             .OrderByDescending(m => m.CreatedAt).ToListAsync();
 
+    /// <summary>Liste les missions filtrées sous forme de DTO.</summary>
     public async Task<IReadOnlyList<MissionListDto>> ListAsync(MissionFilterDto filter)
     {
         var missions = await ApplyFilter(
@@ -68,6 +73,7 @@ public class MissionsService : IMissionsService
         return missions.Select(m => Map(m, scope)).ToList();
     }
 
+    /// <summary>Crée ou met à jour une mission.</summary>
     public async Task<ApiResultDto> SaveAsync(SaveMissionDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.EcoleId))
@@ -195,6 +201,7 @@ public class MissionsService : IMissionsService
         return ApiResultDto.Ok("Mission enregistrée.");
     }
 
+    /// <summary>Délègue l'écriture au chef adjoint de la mission.</summary>
     public async Task<ApiResultDto> DeleguerEcritureAdjointAsync(string missionId, string? userId)
     {
         var m = await _db.Missions.Include(x => x.Affectations).ThenInclude(a => a.Agent)
@@ -222,6 +229,7 @@ public class MissionsService : IMissionsService
         return ApiResultDto.Ok("Droits d'écriture cédés au chef adjoint.");
     }
 
+    /// <summary>Retire la délégation d'écriture du chef adjoint.</summary>
     public async Task<ApiResultDto> RetirerDelegationAdjointAsync(string missionId, string? userId)
     {
         var m = await _db.Missions.Include(x => x.Affectations).ThenInclude(a => a.Agent)
@@ -249,6 +257,7 @@ public class MissionsService : IMissionsService
         return ApiResultDto.Ok("Délégation d'écriture retirée.");
     }
 
+    /// <summary>Passe la mission de brouillon à en attente de signature.</summary>
     public async Task<ApiResultDto> DemanderSignatureAsync(string id, string? userId)
     {
         var m = await _db.Missions.Include(x => x.Affectations).FirstOrDefaultAsync(x => x.Id == id);
@@ -264,6 +273,7 @@ public class MissionsService : IMissionsService
         return ApiResultDto.Ok("Mission soumise pour signature.");
     }
 
+    /// <summary>Signe une mission brouillon ou en attente de signature.</summary>
     public async Task<ApiResultDto> SignerAsync(string id, string? userId)
     {
         var m = await _db.Missions.FirstOrDefaultAsync(x => x.Id == id);
@@ -283,6 +293,7 @@ public class MissionsService : IMissionsService
         return ApiResultDto.Ok("Mission signée.");
     }
 
+    /// <summary>Passe une mission signée au statut en cours.</summary>
     public async Task<ApiResultDto> PasserEnCoursAsync(string id, string? userId = null)
     {
         var m = await _db.Missions.FirstOrDefaultAsync(x => x.Id == id);
@@ -297,6 +308,7 @@ public class MissionsService : IMissionsService
         return ApiResultDto.Ok("Mission passée en cours.");
     }
 
+    /// <summary>Clôture une mission signée ou en cours.</summary>
     public async Task<ApiResultDto> CloturerAsync(string id, string? userId = null)
     {
         var m = await _db.Missions.FirstOrDefaultAsync(x => x.Id == id);
@@ -311,6 +323,7 @@ public class MissionsService : IMissionsService
         return ApiResultDto.Ok("Mission clôturée.");
     }
 
+    /// <summary>Supprime une mission si le statut et les droits le permettent.</summary>
     public async Task<ApiResultDto> DeleteAsync(string id)
     {
         var m = await _db.Missions
@@ -347,6 +360,7 @@ public class MissionsService : IMissionsService
         return ApiResultDto.Ok("Mission supprimée.");
     }
 
+    /// <summary>Mappe une mission vers son DTO de liste selon le périmètre.</summary>
     private MissionListDto Map(Mission m, UserDataScope scope)
     {
         var canWrite = _access.CanWriteFromAffectations(m.Affectations, scope.AgentId, scope.Unrestricted);
@@ -379,15 +393,18 @@ public class MissionsService : IMissionsService
         };
     }
 
+    /// <summary>Indique si l'agent est chef d'équipe dans les affectations.</summary>
     private static bool IsChefEquipeAffecte(IEnumerable<Affectation> affectations, string? agentId)
         => !string.IsNullOrWhiteSpace(agentId)
            && affectations.Any(a =>
                a.Fonction == RolesMissionCodes.ChefEquipe
                && string.Equals(a.MatrAgent, agentId, StringComparison.Ordinal));
 
+    /// <summary>Dérive un nom d'équipe à partir du numéro de mission.</summary>
     internal static string NomEquipeFromNumero(string numero)
         => $"Equipe-{numero}";
 
+    /// <summary>Génère un nouvel identifiant préfixé.</summary>
     private static string NewId(string prefix)
         => $"{prefix}-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..32];
 }

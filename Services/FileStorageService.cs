@@ -1,5 +1,6 @@
 namespace inspect_san.Services;
 
+/// <summary>Options de stockage des fichiers uploadés.</summary>
 public class FileStorageOptions
 {
     public const string SectionName = "FileStorage";
@@ -9,24 +10,30 @@ public class FileStorageOptions
         [".pdf", ".png", ".jpg", ".jpeg", ".webp", ".doc", ".docx"];
 }
 
+/// <summary>Stockage sécurisé des fichiers métier sous wwwroot.</summary>
 public interface IFileStorageService
 {
+    /// <summary>Enregistre un fichier autorisé et retourne son URL relative.</summary>
     Task<(bool Ok, string? RelativeUrl, string? Error)> SaveAsync(
         IFormFile file, string category, string ownerId, CancellationToken ct = default);
+    /// <summary>Vérifie taille et extension du fichier uploadé.</summary>
     bool IsAllowed(IFormFile file, out string? error);
 }
 
+/// <summary>Implémentation locale du stockage de fichiers uploadés.</summary>
 public class FileStorageService : IFileStorageService
 {
     private readonly IWebHostEnvironment _env;
     private readonly FileStorageOptions _options;
 
+    /// <summary>Initialise le service avec l'environnement web et les options.</summary>
     public FileStorageService(IWebHostEnvironment env, Microsoft.Extensions.Options.IOptions<FileStorageOptions> options)
     {
         _env = env;
         _options = options.Value;
     }
 
+    /// <summary>Vérifie taille et extension du fichier uploadé.</summary>
     public bool IsAllowed(IFormFile file, out string? error)
     {
         error = null;
@@ -49,6 +56,7 @@ public class FileStorageService : IFileStorageService
         return true;
     }
 
+    /// <summary>Enregistre un fichier autorisé et retourne son URL relative.</summary>
     public async Task<(bool Ok, string? RelativeUrl, string? Error)> SaveAsync(
         IFormFile file, string category, string ownerId, CancellationToken ct = default)
     {

@@ -8,14 +8,17 @@
   var canSecUi = page?.getAttribute('data-can-secretariat') === '1';
   var canCloturerUi = page?.getAttribute('data-can-cloturer') === '1';
 
+  // Lit une propriété camelCase ou PascalCase.
   function pick(obj, camel, pascal) {
     return obj[camel] ?? obj[pascal];
   }
 
+  // Code de sous-division sélectionné.
   function selectedCode() {
     return document.getElementById('filterSousproved')?.value || '';
   }
 
+  // Formate une date ISO en français.
   function fmtDateIso(val) {
     if (!val) return '—';
     try {
@@ -27,6 +30,7 @@
     }
   }
 
+  // Agrège les KPI à partir des sections.
   function aggregateKpi(sections) {
     var ecoles = new Set();
     var fiches = 0;
@@ -50,11 +54,13 @@
     return { ecoles: ecoles.size, fiches: fiches, decisions: decisions, taux: taux };
   }
 
+  // Active ou désactive un bouton d’action.
   function setBtn(id, enabled) {
     var el = document.getElementById(id);
     if (el) el.disabled = !enabled;
   }
 
+  // Met à jour boutons et statut du rapport.
   function updateActions(dto) {
     var hasSd = !!selectedCode();
     var hasLignes = (pick(dto, 'sections', 'Sections') || []).some(function (s) {
@@ -102,6 +108,7 @@
       total;
   }
 
+  // Rend le tableau HTML des lignes de fiche.
   function renderTable(lignes) {
     if (!lignes || !lignes.length) {
       return '<p class="text-secondary mb-0">Aucune fiche validée pour cette section.</p>';
@@ -144,6 +151,7 @@
     return html;
   }
 
+  // Affiche les sections et KPI du rapport.
   function renderSections(dto) {
     var container = document.getElementById('rapportSections');
     var emptyEl = document.getElementById('rapportEmpty');
@@ -209,6 +217,7 @@
     updateActions(dto);
   }
 
+  // Recharge les données du rapport.
   async function refresh() {
     var code = selectedCode();
     if (!code) {
@@ -220,6 +229,7 @@
     renderSections(lastDto);
   }
 
+  // Exécute une action POST avec confirmation.
   async function postAction(url, confirmMsg, skipConfirm) {
     var code = selectedCode();
     if (!code) {

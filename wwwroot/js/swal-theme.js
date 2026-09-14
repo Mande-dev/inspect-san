@@ -5,12 +5,14 @@
 (function (global) {
   'use strict';
 
+  // Résout l’instance globale SweetAlert2.
   function resolveSwal() {
     var S = global.Swal || global.Sweetalert2 || global.SweetAlert2 || global.sweetAlert || global.swal;
     if (S && !global.Swal) global.Swal = S;
     return S || null;
   }
 
+  // Normalise le type d’alerte SweetAlert.
   function normalizeType(type) {
     type = (type || 'success').toLowerCase();
     if (type === 'danger') return 'error';
@@ -18,6 +20,7 @@
     return type;
   }
 
+  // Échappe le HTML pour les messages d’alerte.
   function escapeHtml(s) {
     return String(s)
       .replace(/&/g, '&amp;')
@@ -44,6 +47,7 @@
     question: 'isp-swal-btn isp-swal-btn--primary'
   };
 
+  // Affiche une alerte « action bloquée » centrée.
   function blocked(message, opts) {
     opts = opts || {};
     var detail = opts.detail || '';
@@ -61,6 +65,7 @@
     });
   }
 
+  // Affiche une popup SweetAlert centrée.
   function fireCentered(message, type, opts) {
     opts = opts || {};
     var Swal = resolveSwal();
@@ -108,19 +113,24 @@
     });
   }
 
+  // Affiche une alerte de succès.
   function success(message) {
     return fireCentered(message, 'success');
   }
+  // Affiche une alerte d’information.
   function info(message) {
     return fireCentered(message, 'info');
   }
+  // Affiche une alerte d’avertissement.
   function warning(message) {
     return fireCentered(message, 'warning');
   }
+  // Affiche une alerte d’erreur.
   function error(message, title) {
     return fireCentered(message, 'error', { title: title || 'Erreur' });
   }
 
+  // Route une notification selon son type.
   function notify(message, type) {
     type = normalizeType(type);
     if (type === 'error') return error(message);
@@ -129,6 +139,7 @@
     return success(message);
   }
 
+  // Demande une confirmation via SweetAlert.
   function confirm(message, opts) {
     opts = opts || {};
     return fireCentered(message || 'Confirmer cette action ?', opts.icon || 'question', {
@@ -143,6 +154,7 @@
     });
   }
 
+  // Lie la confirmation SweetAlert aux formulaires concernés.
   function bindConfirmForms(root) {
     root = root || document;
     root.querySelectorAll('form.js-swal-confirm').forEach(function (form) {
@@ -171,6 +183,7 @@
     });
   }
 
+  // Consomme et affiche le flash toast serveur.
   function consumeFlash() {
     var el = document.getElementById('isp-flash-toast');
     if (!el) return;

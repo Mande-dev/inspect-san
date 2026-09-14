@@ -11,6 +11,7 @@ namespace inspect_san.Controllers;
 [AllowAnonymous]
 public class LandingController : Controller
 {
+    /// <summary>Affiche la landing anonyme ou redirige l'utilisateur authentifié.</summary>
     [HttpGet]
     public IActionResult Index()
     {

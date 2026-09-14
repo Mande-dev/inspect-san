@@ -9,12 +9,14 @@
   var canGerer = table && table.getAttribute('data-can-gerer') === '1';
   var editingId = null;
 
+  // Badge HTML du statut agent.
   function statutBadge(actif) {
     return actif
       ? '<span class="badge bg-success-subtle text-success-emphasis">Actif</span>'
       : '<span class="badge bg-secondary">Inactif</span>';
   }
 
+  // Construit une ligne du tableau agents.
   function rowHtml(a) {
     var id = a.id || a.Id || '';
     var nom = a.nomComplet || a.NomComplet || '';
@@ -52,11 +54,13 @@
     );
   }
 
+  // Met à jour un compteur statistique.
   function setStat(id, value) {
     var el = document.getElementById(id);
     if (el) el.textContent = value;
   }
 
+  // Recalcule les statistiques agents.
   function refreshStats(list) {
     var all = list || [];
     var actifs = all.filter(function (a) {
@@ -74,6 +78,7 @@
     );
   }
 
+  // Charge et affiche la liste des agents.
   async function loadList() {
     if (!tbody || !filterForm) return;
     var fd = new FormData(filterForm);
@@ -88,6 +93,7 @@
     refreshStats(all);
   }
 
+  // Remplit le formulaire agent.
   function fillAgent(id, nom, tel, actif) {
     editingId = id || null;
     document.getElementById('agentEditId').value = id || '';

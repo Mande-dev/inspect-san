@@ -1,5 +1,6 @@
 namespace inspect_san.Services;
 
+/// <summary>Options SMTP pour l'envoi d'e-mails applicatifs.</summary>
 public class EmailOptions
 {
     public const string SectionName = "Email";
@@ -12,8 +13,10 @@ public class EmailOptions
     public string? FromDisplayName { get; set; } = "Inspect-San";
 }
 
+/// <summary>Envoi d'e-mails applicatifs (SMTP ou journalisation).</summary>
 public interface IAppEmailSender
 {
+    /// <summary>Envoie un e-mail HTML à une adresse donnée.</summary>
     Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken ct = default);
     bool IsConfigured { get; }
 }
@@ -24,6 +27,7 @@ public class AppEmailSender : IAppEmailSender
     private readonly EmailOptions _options;
     private readonly ILogger<AppEmailSender> _logger;
 
+    /// <summary>Initialise l'expéditeur avec les options SMTP et le journaliseur.</summary>
     public AppEmailSender(Microsoft.Extensions.Options.IOptions<EmailOptions> options, ILogger<AppEmailSender> logger)
     {
         _options = options.Value;
@@ -32,6 +36,7 @@ public class AppEmailSender : IAppEmailSender
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(_options.SmtpHost);
 
+    /// <summary>Envoie un e-mail HTML à une adresse donnée.</summary>
     public async Task SendAsync(string toEmail, string subject, string htmlBody, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(toEmail)) return;

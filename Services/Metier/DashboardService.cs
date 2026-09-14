@@ -8,17 +8,20 @@ using Microsoft.EntityFrameworkCore;
 
 namespace inspect_san.Services;
 
+/// <summary>Agrège les indicateurs du tableau de bord.</summary>
 public class DashboardService : IDashboardService
 {
     private readonly InspectSanDbContext _db;
     private readonly MockUserStore _users;
 
+    /// <summary>Initialise le tableau de bord avec EF et le journal.</summary>
     public DashboardService(InspectSanDbContext db, MockUserStore users)
     {
         _db = db;
         _users = users;
     }
 
+    /// <summary>Calcule les indicateurs du tableau de bord pour l'utilisateur courant.</summary>
     public async Task<DashboardDto> GetDashboardAsync(
         string role, string? userId, string? userEcoleId = null, string? userAgentId = null)
     {
@@ -113,6 +116,7 @@ public class DashboardService : IDashboardService
         };
     }
 
+    /// <summary>Filtre le journal récent selon le rôle.</summary>
     private IEnumerable<Models.Entities.JournalEntry> FilterJournal(string role, string? _)
     {
         var all = _users.JournalActivite.AsEnumerable();

@@ -59,6 +59,7 @@ public static partial class NumeroGenerator
         return Format(prefixUpper, year, maxSeq + 1, digits);
     }
 
+    /// <summary>Regex des numéros séquentiels PREFIX-ANNÉE-SEQ.</summary>
     [GeneratedRegex(@"^([A-Za-z]+)-(\d{4})-(\d+)$", RegexOptions.CultureInvariant)]
     private static partial Regex SequentielRegex();
 }

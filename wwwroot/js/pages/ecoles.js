@@ -11,6 +11,7 @@
     ].join(', ');
   }
 
+  // Décompose une adresse au format composé.
   function parseAdresse(raw) {
     var s = (raw || '').trim();
     if (!s) return { av: '', numero: '', quartier: '', commune: '' };
@@ -26,6 +27,7 @@
     return { av: s, numero: '', quartier: '', commune: '' };
   }
 
+  // Remplit les champs d’adresse décomposés.
   function fillAdresseParts(raw) {
     var p = parseAdresse(raw);
     var av = document.getElementById('formAdresseAv');
@@ -40,6 +42,7 @@
     if (hidden) hidden.value = raw || '';
   }
 
+  // Synchronise le champ adresse caché.
   function syncAdresseHidden() {
     var composed = composeAdresse(
       document.getElementById('formAdresseAv')?.value,
@@ -52,6 +55,7 @@
     return composed;
   }
 
+  // Vide les champs d’adresse du formulaire.
   function clearAdresseParts() {
     ['formAdresseAv', 'formAdresseNumero', 'formAdresseQuartier', 'formAdresseCommune', 'formAdresse'].forEach(function (id) {
       var el = document.getElementById(id);
@@ -59,6 +63,7 @@
     });
   }
 
+  // Active ou désactive le mode lecture seule.
   function setReadonly(ro) {
     document.querySelectorAll('#ecoleModal input, #ecoleModal select').forEach(function (el) {
       if (el.type !== 'hidden') el.disabled = !!ro;
@@ -67,6 +72,7 @@
     if (save) save.classList.toggle('d-none', !!ro);
   }
 
+  // Remplit le formulaire depuis un bouton d’édition.
   function fillFromBtn(btn) {
     var ro = btn.dataset.readonly === '1';
     document.getElementById('ecoleModalTitle').textContent = ro ? 'Voir établissement' : 'Modifier établissement';

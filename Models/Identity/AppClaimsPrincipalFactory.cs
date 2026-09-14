@@ -7,6 +7,7 @@ namespace inspect_san.Models.Identity;
 /// <summary>Claims : Name = Nom affiché, Role via Identity, claim « identifiant » = UserName.</summary>
 public class AppClaimsPrincipalFactory : UserClaimsPrincipalFactory<ApplicationUser, IdentityRole>
 {
+    /// <summary>Injecte UserManager, RoleManager et les options Identity.</summary>
     public AppClaimsPrincipalFactory(
         UserManager<ApplicationUser> userManager,
         RoleManager<IdentityRole> roleManager,
@@ -15,6 +16,7 @@ public class AppClaimsPrincipalFactory : UserClaimsPrincipalFactory<ApplicationU
     {
     }
 
+    /// <summary>Enrichit les claims (nom affiché, identifiant, rôle métier).</summary>
     protected override async Task<ClaimsIdentity> GenerateClaimsAsync(ApplicationUser user)
     {
         var identity = await base.GenerateClaimsAsync(user);

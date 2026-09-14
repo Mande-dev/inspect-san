@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace inspect_san.Services;
 
+/// <summary>Gestion des comptes utilisateurs et du profil.</summary>
 public class UtilisateursService : IUtilisateursService
 {
     private readonly UserManager<ApplicationUser> _userManager;
@@ -17,6 +18,7 @@ public class UtilisateursService : IUtilisateursService
     private readonly InspectSanDbContext _db;
     private readonly MockUserStore _store;
 
+    /// <summary>Initialise le service utilisateurs avec Identity et EF.</summary>
     public UtilisateursService(
         UserManager<ApplicationUser> userManager,
         RoleManager<IdentityRole> roleManager,
@@ -29,12 +31,14 @@ public class UtilisateursService : IUtilisateursService
         _store = store;
     }
 
+    /// <summary>Retourne les entités utilisateur.</summary>
     public async Task<List<Utilisateur>> QueryEntitiesAsync()
     {
         var users = await _userManager.Users.AsNoTracking().OrderBy(u => u.Nom).ToListAsync();
         return users.Select(ToUtilisateur).ToList();
     }
 
+    /// <summary>Liste les utilisateurs sous forme de DTO.</summary>
     public async Task<IReadOnlyList<UtilisateurListDto>> ListAsync()
     {
         var users = await _userManager.Users.AsNoTracking().OrderBy(u => u.Nom).ToListAsync();
@@ -58,6 +62,7 @@ public class UtilisateursService : IUtilisateursService
         }).ToList();
     }
 
+    /// <summary>Liste les agents sans compte utilisateur associé.</summary>
     public async Task<IReadOnlyList<AgentSansCompteDto>> ListAgentsSansCompteAsync(string? excludeUserId = null)
     {
         var linkedAgentIds = await _userManager.Users.AsNoTracking()
@@ -76,6 +81,7 @@ public class UtilisateursService : IUtilisateursService
             .ToListAsync();
     }
 
+    /// <summary>Compat : délègue à CreateAsync ; refuse si Id présent.</summary>
     public Task<ApiResultDto> SaveAsync(SaveUtilisateurDto dto)
     {
         if (!string.IsNullOrWhiteSpace(dto.Id))
@@ -84,6 +90,7 @@ public class UtilisateursService : IUtilisateursService
         return CreateAsync(dto);
     }
 
+    /// <summary>Création admin uniquement. Refuse toute mise à jour (Id renseigné).</summary>
     public async Task<ApiResultDto> CreateAsync(SaveUtilisateurDto dto)
     {
         if (!string.IsNullOrWhiteSpace(dto.Id))
@@ -171,6 +178,7 @@ public class UtilisateursService : IUtilisateursService
         return ApiResultDto.Ok("Utilisateur créé.");
     }
 
+    /// <summary>Active ou désactive un compte utilisateur.</summary>
     public async Task<ApiResultDto> SetStatutAsync(string id, string statut)
     {
         if (string.IsNullOrWhiteSpace(id))
@@ -197,6 +205,7 @@ public class UtilisateursService : IUtilisateursService
         return ApiResultDto.Ok(normalized == "actif" ? "Utilisateur activé." : "Utilisateur désactivé.");
     }
 
+    /// <summary>Charge le profil de l'utilisateur connecté.</summary>
     public async Task<ProfilDto?> GetProfilAsync(string userId)
     {
         var user = await _userManager.FindByIdAsync(userId);
@@ -235,6 +244,7 @@ public class UtilisateursService : IUtilisateursService
         };
     }
 
+    /// <summary>Met à jour le profil de l'utilisateur connecté.</summary>
     public async Task<ApiResultDto> UpdateProfilAsync(string userId, UpdateProfilDto dto)
     {
         if (string.IsNullOrWhiteSpace(userId))
@@ -293,6 +303,7 @@ public class UtilisateursService : IUtilisateursService
         return ApiResultDto.Ok("Profil mis à jour.");
     }
 
+    /// <summary>Mappe un ApplicationUser vers l'entité Utilisateur.</summary>
     private static Utilisateur ToUtilisateur(ApplicationUser u) => new()
     {
         Id = u.Id,

@@ -120,18 +120,21 @@ window.initTablePagination = function (table, options) {
     table.insertAdjacentElement('afterend', bar);
   }
 
+  // Retourne les lignes de données hors ligne vide.
   function dataRows() {
     return Array.prototype.slice.call(tbody.querySelectorAll('tr')).filter(function (tr) {
       return !tr.classList.contains('js-pagination-empty');
     });
   }
 
+  // Retourne les lignes candidates non filtrées.
   function candidateRows() {
     return dataRows().filter(function (tr) {
       return tr.getAttribute('data-filtered-out') !== '1';
     });
   }
 
+  // Affiche ou masque la ligne « aucun enregistrement ».
   function ensureEmptyRow(show) {
     var empty = tbody.querySelector('tr.js-pagination-empty');
     if (show) {
@@ -150,6 +153,7 @@ window.initTablePagination = function (table, options) {
     }
   }
 
+  // Affiche la page courante et met à jour la barre.
   function render() {
     var rows = candidateRows();
     var total = rows.length;
@@ -231,6 +235,7 @@ $(function () {
   });
 });
 
+// Ferme le modal d’aperçu d’impression.
 window.closePrintPreview = function () {
   var el = document.getElementById('ispPrintPreviewModal');
   if (el) el.remove();
@@ -304,6 +309,7 @@ window.openPrintPreview = function (title, htmlBody) {
   document.body.appendChild(modal);
   document.documentElement.classList.add('isp-print-preview-open');
 
+  // Ferme l’aperçu d’impression sur Escape.
   window._ispPrintEsc = function (e) {
     if (e.key === 'Escape') window.closePrintPreview();
   };
@@ -349,6 +355,7 @@ window.downloadText = function (filename, content, mime) {
   URL.revokeObjectURL(a.href);
 };
 
+// Échappe le HTML pour l’impression.
 function esc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;')
@@ -357,6 +364,7 @@ function esc(s) {
     .replace(/"/g, '&quot;');
 }
 
+// Formate une date courte en français.
 function fmtDate(v) {
   if (!v) return '—';
   try {
@@ -368,6 +376,7 @@ function fmtDate(v) {
   }
 }
 
+// Formate une date-heure en français.
 function fmtDateTime(v) {
   if (!v) return '—';
   try {
@@ -379,24 +388,28 @@ function fmtDateTime(v) {
   }
 }
 
+// Formate une date longue en français.
 function fmtDateLong(v) {
   var d = v ? new Date(v) : new Date();
   if (isNaN(d.getTime())) d = new Date();
   return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+// Extrait l’année d’une date.
 function yearOf(v) {
   var d = v ? new Date(v) : new Date();
   if (isNaN(d.getTime())) d = new Date();
   return d.getFullYear();
 }
 
+// Construit la référence officielle d’un document.
 function buildOfficialRef(numero, dateVal) {
   var raw = String(numero == null ? '' : numero).trim() || '000';
   raw = raw.replace(/^N[°ºo]\s*/i, '');
   return 'N° ' + raw + '/MINEDU-NC/PE-KMA/' + yearOf(dateVal);
 }
 
+// Formate l’adresse d’un établissement.
 function ecoleAdresse(ecole) {
   if (!ecole) return '—';
   var a = ecole.Adresse || ecole.adresse;
@@ -417,6 +430,7 @@ function ecoleAdresse(ecole) {
   return sous || '—';
 }
 
+// Retourne le nom d’un établissement.
 function ecoleNom(ecole) {
   return (ecole && (ecole.Denomination || ecole.denomination)) || '—';
 }
@@ -503,6 +517,7 @@ window.buildOfficialPrintShell = function (opts) {
   );
 };
 
+// Titre de section numéroté pour l’impression.
 function printSectionTitle(num, text) {
   return (
     '<h2 class="isp-print-section"><span class="isp-print-section-num">' +
@@ -540,6 +555,7 @@ function printKvTable(rows) {
   return html;
 }
 
+// Boîte d’observation pour l’impression.
 function printObsBox(observation, recommandation) {
   return (
     '<div class="isp-print-box isp-print-box-obs">' +
@@ -550,6 +566,7 @@ function printObsBox(observation, recommandation) {
   );
 }
 
+// Boîte de validation / signature pour l’impression.
 function printValidBox(mention, dateTxt, signQualite, signNom) {
   return (
     '<div class="isp-print-box isp-print-box-valid">' +
@@ -567,6 +584,7 @@ function printValidBox(mention, dateTxt, signQualite, signNom) {
   );
 }
 
+// Classe de couleur selon le statut.
 function highlightStatut(statut) {
   var s = (statut || '').toString().toLowerCase();
   if (s === 'validee' || s === 'validée' || s === 'signe' || s === 'signé' || s === 'traite' || s === 'traité')
@@ -576,6 +594,7 @@ function highlightStatut(statut) {
   return {};
 }
 
+// Classe de couleur selon l’état.
 function highlightEtat(etat) {
   var e = (etat || '').toString().toLowerCase();
   if (!e || e === '—') return {};
@@ -586,6 +605,7 @@ function highlightEtat(etat) {
   return {};
 }
 
+// Libellé français d’un statut métier.
 function displayStatut(statut) {
   var map = {
     brouillon: 'Brouillon',
@@ -810,6 +830,7 @@ window.buildRapportInspectionPrintHtml = function (dto) {
   var dateKin = fmtDate(new Date());
   if (dateKin === '—') dateKin = fmtDate(new Date());
 
+  // Formate un montant en français.
   function money(v) {
     var n = Number(v);
     if (isNaN(n)) return '—';
@@ -820,11 +841,13 @@ window.buildRapportInspectionPrintHtml = function (dto) {
     }
   }
 
+  // Échappe une cellule de tableau rapport.
   function cell(v) {
     var s = v == null || v === '' ? '—' : String(v);
     return esc(s);
   }
 
+  // Construit le bloc HTML d’une sous-division.
   function sectionBlock(s) {
     s = s || {};
     var code = s.sousDivisionCode || s.SousDivisionCode || '—';

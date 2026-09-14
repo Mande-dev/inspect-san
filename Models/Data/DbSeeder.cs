@@ -5,11 +5,14 @@ using Microsoft.Extensions.Logging;
 
 namespace inspect_san.Models.Data;
 
+/// <summary>Initialise les données de référence et le jeu de démo.</summary>
 public static class DbSeeder
 {
+    /// <summary>Orchestre le seed (sous-provinces, refs, démo ou migration).</summary>
     public static async Task SeedAsync(InspectSanDbContext db, CancellationToken ct = default)
         => await SeedAsync(db, logger: null, ct);
 
+    /// <summary>Orchestre le seed avec journalisation optionnelle de la couverture.</summary>
     public static async Task SeedAsync(InspectSanDbContext db, ILogger? logger, CancellationToken ct = default)
     {
         await SeedSousProvincesAsync(db, ct);
@@ -27,6 +30,7 @@ public static class DbSeeder
             await MigrateEcoleSousDivisionCodesAsync(db, ct);
     }
 
+    /// <summary>Insère les sous-provinces absentes depuis le catalogue.</summary>
     private static async Task SeedSousProvincesAsync(InspectSanDbContext db, CancellationToken ct)
     {
         foreach (var row in SousProvinceCatalog.Rows)
@@ -56,6 +60,7 @@ public static class DbSeeder
             await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>Seed des référentiels (catégories, produits, outils).</summary>
     private static async Task SeedRefsAsync(InspectSanDbContext db, CancellationToken ct)
     {
         db.Categories.AddRange(
@@ -81,6 +86,7 @@ public static class DbSeeder
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>Génère un jeu de démo (écoles, agents, missions, décisions).</summary>
     public static async Task SeedRandomDemoAsync(InspectSanDbContext db, CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
@@ -234,6 +240,7 @@ public static class DbSeeder
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>Journalise les effectifs après un seed démo.</summary>
     public static async Task LogCoverageAsync(InspectSanDbContext db, ILogger logger, CancellationToken ct = default)
     {
         logger.LogInformation(

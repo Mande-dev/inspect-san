@@ -16,8 +16,10 @@ public class RequirePageAccessAttribute : ActionFilterAttribute
 {
     private readonly string _pageKey;
 
+    /// <summary>Associe le filtre à la clé de page RBAC à contrôler.</summary>
     public RequirePageAccessAttribute(string pageKey) => _pageKey = pageKey;
 
+    /// <summary>Bloque l'accès page selon le rôle (JSON 403 ou redirection).</summary>
     public override void OnActionExecuting(ActionExecutingContext context)
     {
         var role = context.HttpContext.User.FindFirstValue(ClaimTypes.Role);
@@ -39,6 +41,7 @@ public class RequirePageAccessAttribute : ActionFilterAttribute
         base.OnActionExecuting(context);
     }
 
+    /// <summary>Détecte si la requête attend une réponse JSON plutôt qu'HTML.</summary>
     private static bool WantsJson(ActionExecutingContext context)
     {
         var action = context.RouteData.Values["action"]?.ToString() ?? "";

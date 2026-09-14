@@ -25,6 +25,7 @@
 
   var EXCLUSIVE_ROLES = { chef_equipe: true, chef_adjoint: true };
 
+  // Retrouve une école dans les options locales.
   function findEcole(ecoleId) {
     if (!ecoleId) return null;
     return (
@@ -34,6 +35,7 @@
     );
   }
 
+  // Imprime l’ordre de mission.
   function printMission(m, ecole) {
     var parts = m.participations || m.Participations || [];
     var agentsRows = parts.map(function (p) {
@@ -63,10 +65,12 @@
     }
   }
 
+  // Extrait la partie date YYYY-MM-DD.
   function d(v) {
     if (!v) return '';
     return String(v).substring(0, 10);
   }
+  // Formate une date ISO en JJ/MM/AAAA.
   function fmtDate(v) {
     if (!v) return '—';
     var s = String(v).substring(0, 10);
@@ -74,6 +78,7 @@
     return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : s;
   }
 
+  // Libellé des participations pour le tableau.
   function partsLabel(parts) {
     return (parts || [])
       .map(function (p) {
@@ -84,6 +89,7 @@
       .join(', ') || '—';
   }
 
+  // Rôles exclusifs déjà pris (hors ligne courante).
   function takenExclusiveRoles(exceptRow) {
     var taken = {};
     if (!partsList) return taken;
@@ -95,6 +101,7 @@
     return taken;
   }
 
+  // Agents déjà sélectionnés (hors ligne courante).
   function takenAgents(exceptRow) {
     var taken = {};
     if (!partsList) return taken;
@@ -106,6 +113,7 @@
     return taken;
   }
 
+  // Options HTML des rôles disponibles.
   function roleOptionsHtml(selectedCode, exceptRow) {
     var taken = takenExclusiveRoles(exceptRow);
     return rolesOpts
@@ -126,6 +134,7 @@
       .join('');
   }
 
+  // Options HTML des agents disponibles.
   function agentOptionsHtml(selectedId, exceptRow) {
     var taken = takenAgents(exceptRow);
     return agentsOpts
@@ -146,6 +155,7 @@
       .join('');
   }
 
+  // Rafraîchit les listes de rôles des lignes.
   function refreshRoleSelects() {
     if (!partsList) return;
     partsList.querySelectorAll('.participation-row').forEach(function (row) {
@@ -157,6 +167,7 @@
     });
   }
 
+  // Rafraîchit les listes d’agents des lignes.
   function refreshAgentSelects() {
     if (!partsList) return;
     partsList.querySelectorAll('.participation-row').forEach(function (row) {
@@ -168,11 +179,13 @@
     });
   }
 
+  // Rafraîchit rôles et agents des participations.
   function refreshParticipationSelects() {
     refreshRoleSelects();
     refreshAgentSelects();
   }
 
+  // Ajoute une ligne de participation.
   function addPartRow(agentId, roleCode) {
     if (!partsList) return;
     var row = document.createElement('div');
@@ -189,10 +202,12 @@
     refreshParticipationSelects();
   }
 
+  // Vide la liste des participations.
   function clearParts() {
     if (partsList) partsList.innerHTML = '';
   }
 
+  // Collecte les participations du formulaire.
   function collectParticipations() {
     var rows = partsList ? partsList.querySelectorAll('.participation-row') : [];
     var list = [];
@@ -204,10 +219,12 @@
     return list;
   }
 
+  // Indique si la mission est éditable.
   function canEditMission(m) {
     return canGerer || m.canWrite === true || m.CanWrite === true;
   }
 
+  // Construit une ligne du tableau missions.
   function rowHtml(m) {
     var id = m.id || m.Id || '';
     var numero = m.numero || m.Numero || '';
@@ -287,6 +304,7 @@
     );
   }
 
+  // Charge et affiche la liste des missions.
   async function loadList() {
     if (!tbody || !filterForm) return;
     var fd = new FormData(filterForm);
@@ -295,6 +313,7 @@
     api.refreshPagination(table);
   }
 
+  // Affiche le numéro de mission dans le modal.
   function setNumeroDisplay(numero) {
     var wrap = document.getElementById('missionNumeroWrap');
     var display = document.getElementById('missionNumeroDisplay');
@@ -308,6 +327,7 @@
     }
   }
 
+  // Affiche le nom d’équipe dans le modal.
   function setEquipeDisplay(numero, nomEquipe) {
     var display = document.getElementById('missionNomEquipeDisplay');
     if (!display) return;
@@ -320,6 +340,7 @@
     }
   }
 
+  // Remplit le formulaire mission pour édition.
   function fillMission(m) {
     document.getElementById('missionTitle').textContent = 'Modifier la mission';
     document.getElementById('missionId').value = m.id || m.Id || '';

@@ -1,3 +1,4 @@
+// Point d'entrée ASP.NET Core : configuration DI, Identity, seed et pipeline HTTP.
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using inspect_san.Models.Data;
@@ -125,4 +126,5 @@ app.MapControllerRoute(
 
 app.Run();
 
+/// <summary>Point d'entrée ASP.NET Core (déclarations top-level).</summary>
 public partial class Program { }

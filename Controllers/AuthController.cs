@@ -14,6 +14,7 @@ using inspect_san.ViewModels;
 
 namespace inspect_san.Controllers;
 
+/// <summary>Contrôleur d'authentification Identity (connexion, mot de passe, profil).</summary>
 public class AuthController : Controller
 {
     private readonly SignInManager<ApplicationUser> _signInManager;
@@ -22,6 +23,7 @@ public class AuthController : Controller
     private readonly IAppEmailSender _email;
     private readonly IUtilisateursService _utilisateurs;
 
+    /// <summary>Injecte les services Identity, e-mail et utilisateurs.</summary>
     public AuthController(
         SignInManager<ApplicationUser> signInManager,
         UserManager<ApplicationUser> userManager,
@@ -36,6 +38,7 @@ public class AuthController : Controller
         _utilisateurs = utilisateurs;
     }
 
+    /// <summary>Redirige vers returnUrl local ou l'espace métier du rôle.</summary>
     private IActionResult RedirectAfterAuth(ApplicationUser user, string? returnUrl = null)
     {
         if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
@@ -44,6 +47,7 @@ public class AuthController : Controller
         return RedirectToAction(action, controller);
     }
 
+    /// <summary>Affiche le formulaire de connexion ou authentifie l'utilisateur.</summary>
     [AllowAnonymous]
     [HttpGet]
     public IActionResult Login(string? returnUrl = null)
@@ -57,6 +61,7 @@ public class AuthController : Controller
         return View(new LoginViewModel { ReturnUrl = returnUrl });
     }
 
+    /// <summary>Affiche le formulaire de connexion ou authentifie l'utilisateur.</summary>
     [AllowAnonymous]
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -87,10 +92,12 @@ public class AuthController : Controller
         return RedirectAfterAuth(user, model.ReturnUrl);
     }
 
+    /// <summary>Affiche ou traite la demande de réinitialisation du mot de passe.</summary>
     [AllowAnonymous]
     [HttpGet]
     public IActionResult ForgotPassword() => View(new ForgotPasswordViewModel());
 
+    /// <summary>Affiche ou traite la demande de réinitialisation du mot de passe.</summary>
     [AllowAnonymous]
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -127,6 +134,7 @@ public class AuthController : Controller
         return View(model);
     }
 
+    /// <summary>Affiche ou applique le nouveau mot de passe via le jeton.</summary>
     [AllowAnonymous]
     [HttpGet]
     public IActionResult ResetPassword(string email, string token)
@@ -136,6 +144,7 @@ public class AuthController : Controller
         return View(new ResetPasswordViewModel { Email = email, Token = token });
     }
 
+    /// <summary>Affiche ou applique le nouveau mot de passe via le jeton.</summary>
     [AllowAnonymous]
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -175,6 +184,7 @@ public class AuthController : Controller
         return RedirectToAction(nameof(Login));
     }
 
+    /// <summary>Déconnecte l'utilisateur et journalise l'événement.</summary>
     [Authorize]
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -224,6 +234,7 @@ public class AuthController : Controller
         return View(ToProfilVm(profil));
     }
 
+    /// <summary>Affiche ou met à jour le profil self-service de l'utilisateur courant.</summary>
     [Authorize]
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -272,6 +283,7 @@ public class AuthController : Controller
         return RedirectToAction(nameof(Profil));
     }
 
+    /// <summary>Mappe un ProfilDto vers le ViewModel de profil.</summary>
     private static ProfilViewModel ToProfilVm(ProfilDto p) => new()
     {
         Id = p.Id,

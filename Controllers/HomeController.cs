@@ -13,6 +13,7 @@ using inspect_san.ViewModels;
 
 namespace inspect_san.Controllers;
 
+/// <summary>Contrôleur principal de l'espace métier Inspect-San.</summary>
 [Authorize]
 public class HomeController : Controller
 {
@@ -33,6 +34,7 @@ public class HomeController : Controller
 
     private UserDataScope? _scopeCache;
 
+    /// <summary>Injecte les services métier et Identity requis par l'espace Home.</summary>
     public HomeController(
         IDashboardService dashboard,
         IEcolesService ecoles,
@@ -68,8 +70,10 @@ public class HomeController : Controller
     private string Role => User.FindFirstValue(ClaimTypes.Role) ?? "";
     private string? UserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
+    /// <summary>Indique si le rôle courant peut effectuer l'action donnée.</summary>
     private bool Can(string action) => AccessControl.CanDo(Role, action);
 
+    /// <summary>Résout et met en cache le périmètre de données de l'utilisateur.</summary>
     private async Task<UserDataScope> ScopeAsync()
     {
         if (_scopeCache != null) return _scopeCache;
@@ -83,6 +87,7 @@ public class HomeController : Controller
         return _scopeCache;
     }
 
+    /// <summary>Liste les missions filtrées selon le périmètre utilisateur.</summary>
     private async Task<IReadOnlyList<MissionListDto>> MissionsScopedAsync(MissionFilterDto? filter = null)
     {
         filter ??= new MissionFilterDto();
@@ -93,6 +98,7 @@ public class HomeController : Controller
             scope.AllowsMission(m.Participations.Select(p => p.AgentId), m.EcoleId)).ToList();
     }
 
+    /// <summary>Retourne les identifiants de missions accessibles à l'agent.</summary>
     private async Task<HashSet<string>> AllowedMissionIdsAsync(UserDataScope scope)
     {
         if (scope.Unrestricted || string.IsNullOrEmpty(scope.AgentId))
@@ -105,9 +111,11 @@ public class HomeController : Controller
             .ToHashSet();
     }
 
+    /// <summary>Extrait les identifiants d'agents participants d'une mission.</summary>
     private static IEnumerable<string> AgentIdsOf(MissionListDto? m)
         => m?.Participations.Select(p => p.AgentId) ?? Enumerable.Empty<string>();
 
+    /// <summary>Refuse une action HTML non autorisée et redirige vers le tableau de bord.</summary>
     private IActionResult? DenyPage(string action)
     {
         if (Can(action)) return null;
@@ -116,6 +124,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    /// <summary>Refuse une action JSON non autorisée si le rôle ne le permet pas.</summary>
     private bool TryDenyJson(string action, out IActionResult result)
     {
         if (Can(action))
@@ -127,6 +136,7 @@ public class HomeController : Controller
         return true;
     }
 
+    /// <summary>Refuse une ressource hors périmètre (navigation HTML).</summary>
     private IActionResult DenyScopePage()
     {
         TempData["Toast"] = "Ressource hors de votre périmètre.";
@@ -134,11 +144,13 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Index));
     }
 
+    /// <summary>Refuse une ressource hors périmètre (réponse JSON).</summary>
     private IActionResult DenyScopeJson()
         => Json(ApiResultDto.Fail("Ressource hors de votre périmètre."));
 
     // ——— Dashboard ———
 
+    /// <summary>Affiche le tableau de bord selon le rôle et le périmètre.</summary>
     [RequirePageAccess("dashboard")]
     public async Task<IActionResult> Index()
     {
@@ -163,6 +175,7 @@ public class HomeController : Controller
         return View();
     }
 
+    /// <summary>Retourne les données du tableau de bord en JSON.</summary>
     [RequirePageAccess("dashboard")]
     [HttpGet]
     public async Task<IActionResult> GetDashboardData()
@@ -171,6 +184,7 @@ public class HomeController : Controller
         return Json(await _dashboard.GetDashboardAsync(Role, UserId, scope.EcoleId, scope.AgentId));
     }
 
+    /// <summary>Affiche la page d'erreur générique.</summary>
     [AllowAnonymous]
     public IActionResult Error() => View();
 
@@ -197,6 +211,7 @@ public class HomeController : Controller
 
     // ——— Écoles ———
 
+    /// <summary>Affiche la liste des écoles filtrées selon le périmètre.</summary>
     [RequirePageAccess("ecoles")]
     public async Task<IActionResult> Ecoles(string? q, string? sousproved, string? regime)
     {
@@ -228,6 +243,7 @@ public class HomeController : Controller
         return View(list);
     }
 
+    /// <summary>Retourne la liste JSON des écoles filtrées.</summary>
     [RequirePageAccess("ecoles"), HttpGet]
     public async Task<IActionResult> GetEcoles([FromQuery] EcoleFilterDto filter)
     {
@@ -238,6 +254,7 @@ public class HomeController : Controller
         return Json(list);
     }
 
+    /// <summary>Retourne le détail JSON d'une école si autorisée.</summary>
     [RequirePageAccess("ecoles"), HttpGet]
     public async Task<IActionResult> GetEcole(string id)
     {
@@ -247,6 +264,7 @@ public class HomeController : Controller
         return Json(await _ecoles.GetAsync(id));
     }
 
+    /// <summary>Enregistre une école via formulaire et redirige.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("ecoles")]
     public async Task<IActionResult> SaveEcole(EcoleFormViewModel model)
     {
@@ -269,6 +287,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Ecoles));
     }
 
+    /// <summary>Enregistre une école via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("ecoles")]
     public async Task<IActionResult> SaveEcoleJson([FromBody] SaveEcoleDto dto)
     {
@@ -276,6 +295,7 @@ public class HomeController : Controller
         return Json(await _ecoles.SaveAsync(dto));
     }
 
+    /// <summary>Supprime une école via formulaire et redirige.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("ecoles")]
     public async Task<IActionResult> DeleteEcole(string id)
     {
@@ -294,6 +314,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Ecoles));
     }
 
+    /// <summary>Supprime une école via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("ecoles")]
     public async Task<IActionResult> DeleteEcoleJson([FromBody] IdRequest dto)
     {
@@ -301,6 +322,7 @@ public class HomeController : Controller
         return Json(await _ecoles.DeleteAsync(dto.Id));
     }
 
+    /// <summary>Désactive une école via formulaire et redirige.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("ecoles")]
     public async Task<IActionResult> DeactivateEcole(string id)
     {
@@ -310,6 +332,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Ecoles));
     }
 
+    /// <summary>Désactive une école via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("ecoles")]
     public async Task<IActionResult> DeactivateEcoleJson([FromBody] IdRequest dto)
     {
@@ -319,6 +342,7 @@ public class HomeController : Controller
 
     // ——— Chefs ———
 
+    /// <summary>Affiche la liste des chefs d'établissement.</summary>
     [RequirePageAccess("chefs")]
     public async Task<IActionResult> Chefs(string? q, string? ecoleId)
     {
@@ -343,10 +367,12 @@ public class HomeController : Controller
         return View(chefs);
     }
 
+    /// <summary>Retourne la liste JSON des chefs d'établissement.</summary>
     [RequirePageAccess("chefs"), HttpGet]
     public async Task<IActionResult> GetChefs([FromQuery] ChefFilterDto filter)
         => Json(await _chefs.ListAsync(filter));
 
+    /// <summary>Enregistre un chef via formulaire et redirige.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("chefs")]
     public async Task<IActionResult> SaveChef(Chef model)
     {
@@ -363,6 +389,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Chefs));
     }
 
+    /// <summary>Enregistre un chef via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("chefs")]
     public async Task<IActionResult> SaveChefJson([FromBody] SaveChefDto dto)
     {
@@ -370,6 +397,7 @@ public class HomeController : Controller
         return Json(await _chefs.SaveAsync(dto));
     }
 
+    /// <summary>Supprime un chef via formulaire et redirige.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("chefs")]
     public async Task<IActionResult> DeleteChef(string id)
     {
@@ -378,6 +406,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Chefs));
     }
 
+    /// <summary>Supprime un chef via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("chefs")]
     public async Task<IActionResult> DeleteChefJson([FromBody] IdRequest dto)
     {
@@ -387,6 +416,7 @@ public class HomeController : Controller
 
     // ——— Agents (vivier) ———
 
+    /// <summary>Affiche la liste des agents du vivier.</summary>
     [RequirePageAccess("agents")]
     public async Task<IActionResult> Agents(string? q, bool? actif)
     {
@@ -405,10 +435,12 @@ public class HomeController : Controller
         return View(list);
     }
 
+    /// <summary>Retourne la liste JSON des agents.</summary>
     [RequirePageAccess("agents"), HttpGet]
     public async Task<IActionResult> GetAgents([FromQuery] AgentFilterDto filter)
         => Json(await _agents.ListAsync(filter));
 
+    /// <summary>Enregistre un agent via formulaire et redirige.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("agents")]
     public async Task<IActionResult> SaveAgent([FromForm] SaveAgentDto model)
     {
@@ -417,6 +449,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Agents));
     }
 
+    /// <summary>Enregistre un agent via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("agents")]
     public async Task<IActionResult> SaveAgentJson([FromBody] SaveAgentDto dto)
     {
@@ -424,6 +457,7 @@ public class HomeController : Controller
         return Json(await _agents.SaveAsync(dto));
     }
 
+    /// <summary>Supprime un agent via formulaire et redirige.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("agents")]
     public async Task<IActionResult> DeleteAgent(string id)
     {
@@ -432,6 +466,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Agents));
     }
 
+    /// <summary>Supprime un agent via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("agents")]
     public async Task<IActionResult> DeleteAgentJson([FromBody] IdRequest dto)
     {
@@ -441,6 +476,7 @@ public class HomeController : Controller
 
     // ——— Utilisateurs ———
 
+    /// <summary>Affiche la gestion des comptes utilisateurs.</summary>
     [RequirePageAccess("utilisateurs")]
     public async Task<IActionResult> Utilisateurs()
     {
@@ -450,10 +486,12 @@ public class HomeController : Controller
         return View(await _utilisateurs.ListAsync());
     }
 
+    /// <summary>Retourne la liste JSON des utilisateurs.</summary>
     [RequirePageAccess("utilisateurs"), HttpGet]
     public async Task<IActionResult> GetUtilisateurs()
         => Json(await _utilisateurs.ListAsync());
 
+    /// <summary>Crée un utilisateur via formulaire et redirige.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("utilisateurs")]
     public async Task<IActionResult> SaveUtilisateur(Utilisateur model)
     {
@@ -474,6 +512,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Utilisateurs));
     }
 
+    /// <summary>Enregistre un utilisateur via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("utilisateurs")]
     public async Task<IActionResult> SaveUtilisateurJson([FromBody] SaveUtilisateurDto dto)
     {
@@ -481,10 +520,12 @@ public class HomeController : Controller
         return Json(await _utilisateurs.SaveAsync(dto));
     }
 
+    /// <summary>Liste les agents sans compte utilisateur associé.</summary>
     [RequirePageAccess("utilisateurs"), HttpGet]
     public async Task<IActionResult> GetAgentsSansCompte(string? excludeUserId = null)
         => Json(await _utilisateurs.ListAgentsSansCompteAsync(excludeUserId));
 
+    /// <summary>Change le statut d'un utilisateur via formulaire.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("utilisateurs")]
     public async Task<IActionResult> SetUtilisateurStatut(string id, string statut)
     {
@@ -494,6 +535,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Utilisateurs));
     }
 
+    /// <summary>Change le statut d'un utilisateur via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("utilisateurs")]
     public async Task<IActionResult> SetUtilisateurStatutJson([FromBody] SetStatutRequest? dto)
     {
@@ -504,6 +546,7 @@ public class HomeController : Controller
 
     // ——— Missions ———
 
+    /// <summary>Affiche la liste des missions dans le périmètre.</summary>
     [RequirePageAccess("missions")]
     public async Task<IActionResult> Missions(string? q, string? statut)
     {
@@ -518,10 +561,12 @@ public class HomeController : Controller
         return View(await MissionsScopedAsync(new MissionFilterDto { Q = q, Statut = statut }));
     }
 
+    /// <summary>Retourne la liste JSON des missions scopées.</summary>
     [RequirePageAccess("missions"), HttpGet]
     public async Task<IActionResult> GetMissions([FromQuery] MissionFilterDto filter)
         => Json(await MissionsScopedAsync(filter));
 
+    /// <summary>Enregistre une mission via formulaire et redirige.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("missions")]
     public async Task<IActionResult> SaveMission(
         string? Id, string EcoleId, string Statut,
@@ -553,6 +598,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Missions));
     }
 
+    /// <summary>Enregistre une mission via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("missions")]
     public async Task<IActionResult> SaveMissionJson([FromBody] SaveMissionDto dto)
     {
@@ -570,6 +616,7 @@ public class HomeController : Controller
         return Json(await _missions.SaveAsync(dto));
     }
 
+    /// <summary>Signe une mission via formulaire et redirige.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("missions")]
     public async Task<IActionResult> SignerMission(string id)
     {
@@ -578,6 +625,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Missions));
     }
 
+    /// <summary>Signe une mission via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("missions")]
     public async Task<IActionResult> SignerMissionJson([FromBody] IdRequest dto)
     {
@@ -585,6 +633,7 @@ public class HomeController : Controller
         return Json(await _missions.SignerAsync(dto.Id, UserId));
     }
 
+    /// <summary>Demande la signature d'une mission via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("missions")]
     public async Task<IActionResult> DemanderSignatureMissionJson([FromBody] IdRequest dto)
     {
@@ -595,6 +644,7 @@ public class HomeController : Controller
         return Json(await _missions.DemanderSignatureAsync(dto.Id, UserId));
     }
 
+    /// <summary>Passe une mission en cours via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("missions")]
     public async Task<IActionResult> PasserEnCoursMissionJson([FromBody] IdRequest dto)
     {
@@ -605,6 +655,7 @@ public class HomeController : Controller
         return Json(await _missions.PasserEnCoursAsync(dto.Id, UserId));
     }
 
+    /// <summary>Clôture une mission via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("missions")]
     public async Task<IActionResult> CloturerMissionJson([FromBody] IdRequest dto)
     {
@@ -615,14 +666,17 @@ public class HomeController : Controller
         return Json(await _missions.CloturerAsync(dto.Id, UserId));
     }
 
+    /// <summary>Délègue l'écriture mission à l'adjoint via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("missions")]
     public async Task<IActionResult> DeleguerEcritureAdjointJson([FromBody] IdRequest dto)
         => Json(await _missions.DeleguerEcritureAdjointAsync(dto.Id, UserId));
 
+    /// <summary>Retire la délégation d'écriture adjoint via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("missions")]
     public async Task<IActionResult> RetirerDelegationAdjointJson([FromBody] IdRequest dto)
         => Json(await _missions.RetirerDelegationAdjointAsync(dto.Id, UserId));
 
+    /// <summary>Supprime une mission via formulaire et redirige.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("missions")]
     public async Task<IActionResult> DeleteMission(string id)
     {
@@ -634,6 +688,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Missions));
     }
 
+    /// <summary>Supprime une mission via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("missions")]
     public async Task<IActionResult> DeleteMissionJson([FromBody] IdRequest dto)
     {
@@ -644,6 +699,7 @@ public class HomeController : Controller
         return Json(await _missions.DeleteAsync(dto.Id));
     }
 
+    /// <summary>Construit la liste des participations agent/rôle mission.</summary>
     private static List<SaveParticipationDto> BuildParticipations(string[]? agentIds, string[]? roleIds)
     {
         var result = new List<SaveParticipationDto>();
@@ -660,6 +716,7 @@ public class HomeController : Controller
 
     // ——— Fiches ———
 
+    /// <summary>Affiche la liste des fiches de contrôle scopées.</summary>
     [RequirePageAccess("fiches")]
     public async Task<IActionResult> FichesControle(string? q, string? statut)
     {
@@ -697,6 +754,7 @@ public class HomeController : Controller
         return View(fiches);
     }
 
+    /// <summary>Retourne la liste JSON des fiches de contrôle.</summary>
     [RequirePageAccess("fiches"), HttpGet]
     public async Task<IActionResult> GetFiches([FromQuery] FicheFilterDto filter)
     {
@@ -716,6 +774,7 @@ public class HomeController : Controller
         return Json(list);
     }
 
+    /// <summary>Enregistre une fiche de contrôle via formulaire.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("fiches")]
     public async Task<IActionResult> SaveFiche(
         string? Id, string MissionId, string Statut,
@@ -769,6 +828,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(FichesControle));
     }
 
+    /// <summary>Enregistre une fiche de contrôle via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("fiches")]
     public async Task<IActionResult> SaveFicheJson([FromBody] SaveFicheControleDto dto)
     {
@@ -784,6 +844,7 @@ public class HomeController : Controller
         return Json(await _fiches.SaveAsync(dto));
     }
 
+    /// <summary>Téléverse une photo associée à une fiche.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("fiches")]
     public async Task<IActionResult> UploadFichePhoto(string ficheId, IFormFile file, string? legende = null)
     {
@@ -791,6 +852,7 @@ public class HomeController : Controller
         return Json(await _fiches.UploadPhotoAsync(ficheId, file, legende));
     }
 
+    /// <summary>Soumet une fiche pour validation via formulaire.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("fiches")]
     public async Task<IActionResult> SoumettreFiche(string id)
     {
@@ -803,6 +865,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(FichesControle));
     }
 
+    /// <summary>Soumet une fiche pour validation via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("fiches")]
     public async Task<IActionResult> SoumettreFicheJson([FromBody] IdRequest dto)
     {
@@ -812,6 +875,7 @@ public class HomeController : Controller
         return Json(await _fiches.SoumettrePourValidationAsync(dto.Id, UserId));
     }
 
+    /// <summary>Valide une fiche de contrôle via formulaire.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("fiches")]
     public async Task<IActionResult> ValiderFiche(string id)
     {
@@ -826,6 +890,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(FichesControle));
     }
 
+    /// <summary>Valide une fiche de contrôle via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("fiches")]
     public async Task<IActionResult> ValiderFicheJson([FromBody] IdRequest dto)
     {
@@ -839,6 +904,7 @@ public class HomeController : Controller
         return Json(await _fiches.ValiderAsync(dto.Id, UserId));
     }
 
+    /// <summary>Supprime une fiche via formulaire et redirige.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("fiches")]
     public async Task<IActionResult> DeleteFiche(string id)
     {
@@ -849,6 +915,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(FichesControle));
     }
 
+    /// <summary>Supprime une fiche via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("fiches")]
     public async Task<IActionResult> DeleteFicheJson([FromBody] IdRequest dto)
     {
@@ -858,6 +925,7 @@ public class HomeController : Controller
         return Json(await _fiches.DeleteAsync(dto.Id));
     }
 
+    /// <summary>Indique si la fiche est accessible dans le périmètre courant.</summary>
     private async Task<bool> AllowsFicheIdAsync(string id)
     {
         var scope = await ScopeAsync();
@@ -875,6 +943,7 @@ public class HomeController : Controller
 
     // ——— Décisions ———
 
+    /// <summary>Affiche la liste des décisions administratives.</summary>
     [RequirePageAccess("decisions")]
     public async Task<IActionResult> Decisions()
     {
@@ -901,6 +970,7 @@ public class HomeController : Controller
         return View(decisions);
     }
 
+    /// <summary>Retourne les décisions et fiches sans décision en JSON.</summary>
     [RequirePageAccess("decisions"), HttpGet]
     public async Task<IActionResult> GetDecisions()
     {
@@ -917,6 +987,7 @@ public class HomeController : Controller
         return Json(new { decisions, sansDecision = sans });
     }
 
+    /// <summary>Enregistre une décision via formulaire et redirige.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("decisions")]
     public async Task<IActionResult> SaveDecision(Decision model)
     {
@@ -931,6 +1002,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Decisions));
     }
 
+    /// <summary>Enregistre une décision via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("decisions")]
     public async Task<IActionResult> SaveDecisionJson([FromBody] SaveDecisionDto dto)
     {
@@ -938,6 +1010,7 @@ public class HomeController : Controller
         return Json(await _decisions.SaveAsync(dto, UserId));
     }
 
+    /// <summary>Supprime une décision via formulaire et redirige.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("decisions")]
     public async Task<IActionResult> DeleteDecision(string id)
     {
@@ -946,6 +1019,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Decisions));
     }
 
+    /// <summary>Supprime une décision via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("decisions")]
     public async Task<IActionResult> DeleteDecisionJson([FromBody] IdRequest dto)
     {
@@ -955,6 +1029,7 @@ public class HomeController : Controller
 
     // ——— Statistiques ———
 
+    /// <summary>Affiche le tableau de bord statistiques.</summary>
     [RequirePageAccess("statistiques")]
     public async Task<IActionResult> Statistiques()
     {
@@ -991,10 +1066,12 @@ public class HomeController : Controller
         return View();
     }
 
+    /// <summary>Retourne les statistiques agrégées en JSON.</summary>
     [RequirePageAccess("statistiques"), HttpGet]
     public async Task<IActionResult> GetStatistiques([FromQuery] StatistiquesFilterDto filter)
         => Json(await _statistiques.GetAsync(filter));
 
+    /// <summary>Exporte les statistiques au format CSV.</summary>
     [RequirePageAccess("statistiques"), HttpGet]
     public async Task<IActionResult> ExportStatistiquesCsv([FromQuery] StatistiquesFilterDto filter)
     {
@@ -1004,6 +1081,7 @@ public class HomeController : Controller
 
     // ——— Rapport d'inspection ———
 
+    /// <summary>Affiche la page du rapport d'inspection.</summary>
     [RequirePageAccess("rapport")]
     public async Task<IActionResult> Rapport()
     {
@@ -1018,6 +1096,7 @@ public class HomeController : Controller
         return View();
     }
 
+    /// <summary>Retourne les données du rapport d'inspection en JSON.</summary>
     [RequirePageAccess("rapport"), HttpGet]
     public async Task<IActionResult> GetRapportInspection([FromQuery] RapportInspectionFilterDto filter)
     {
@@ -1025,6 +1104,7 @@ public class HomeController : Controller
         return Json(await _statistiques.GetRapportInspectionAsync(filter, Role, scope.AgentId));
     }
 
+    /// <summary>Dépose le rapport d'équipe au secrétariat.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("rapport")]
     public async Task<IActionResult> DeposerRapportEquipeJson([FromBody] SousDivisionCodeRequest dto)
     {
@@ -1034,6 +1114,7 @@ public class HomeController : Controller
         return Json(await _statistiques.DeposerRapportEquipeAsync(dto.SousDivisionCode, UserId, scope.AgentId));
     }
 
+    /// <summary>Transfère le rapport du secrétariat au Directeur Provincial.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("rapport")]
     public async Task<IActionResult> DeposerRapportSecretariatJson([FromBody] SousDivisionCodeRequest dto)
     {
@@ -1043,6 +1124,7 @@ public class HomeController : Controller
         return Json(await _statistiques.DeposerRapportSecretariatAsync(dto.SousDivisionCode, UserId));
     }
 
+    /// <summary>Clôture le rapport d'inspection pour une sous-division.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("rapport")]
     public async Task<IActionResult> CloturerRapportJson([FromBody] SousDivisionCodeRequest dto)
     {
@@ -1053,6 +1135,7 @@ public class HomeController : Controller
     }
     // ——— Paramètres ———
 
+    /// <summary>Affiche la gestion des paramètres de référence.</summary>
     [RequirePageAccess("parametres")]
     public async Task<IActionResult> Parametres(string tab = "categories")
     {
@@ -1063,10 +1146,12 @@ public class HomeController : Controller
         return View();
     }
 
+    /// <summary>Retourne les paramètres de référence en JSON.</summary>
     [RequirePageAccess("parametres"), HttpGet]
     public async Task<IActionResult> GetParametres(string tab = "categories")
         => Json(await _parametres.ListAsync(tab));
 
+    /// <summary>Enregistre un paramètre via formulaire et redirige.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("parametres")]
     public async Task<IActionResult> SaveParametre(string tab, RefItem model)
     {
@@ -1080,6 +1165,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Parametres), new { tab });
     }
 
+    /// <summary>Enregistre un paramètre via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("parametres")]
     public async Task<IActionResult> SaveParametreJson(string tab, [FromBody] SaveRefItemDto dto)
     {
@@ -1087,6 +1173,7 @@ public class HomeController : Controller
         return Json(await _parametres.SaveAsync(tab, dto));
     }
 
+    /// <summary>Supprime un paramètre via formulaire et redirige.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequirePageAccess("parametres")]
     public async Task<IActionResult> DeleteParametre(string tab, string id)
     {
@@ -1095,6 +1182,7 @@ public class HomeController : Controller
         return RedirectToAction(nameof(Parametres), new { tab });
     }
 
+    /// <summary>Supprime un paramètre via API JSON.</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("parametres")]
     public async Task<IActionResult> DeleteParametreJson(string tab, [FromBody] IdRequest dto)
     {
@@ -1104,6 +1192,7 @@ public class HomeController : Controller
 
     // ——— Journal ———
 
+    /// <summary>Affiche le journal d'audit filtrable.</summary>
     [RequirePageAccess("journal")]
     public async Task<IActionResult> Journal(string? q, string? userId, string? module)
     {
@@ -1115,12 +1204,14 @@ public class HomeController : Controller
         return View(await _journal.QueryEntitiesAsync(new JournalFilterDto { Q = q, UserId = userId, Module = module }));
     }
 
+    /// <summary>Retourne les entrées du journal en JSON.</summary>
     [RequirePageAccess("journal"), HttpGet]
     public async Task<IActionResult> GetJournal([FromQuery] JournalFilterDto filter)
         => Json(await _journal.ListAsync(filter));
 
     // ——— Notifications ———
 
+    /// <summary>Marque une notification comme lue via formulaire.</summary>
     [Authorize, HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> MarkNotificationRead(string id)
     {
@@ -1128,10 +1219,12 @@ public class HomeController : Controller
         return Redirect(Request.Headers.Referer.ToString().Length > 0 ? Request.Headers.Referer.ToString()! : "/");
     }
 
+    /// <summary>Marque une notification comme lue via API JSON.</summary>
     [Authorize, HttpPost, IgnoreAntiforgeryToken]
     public async Task<IActionResult> MarkNotificationReadJson([FromBody] IdRequest dto)
         => Json(await _notifications.MarkReadAsync(dto.Id, UserId));
 
+    /// <summary>Marque toutes les notifications comme lues via formulaire.</summary>
     [Authorize, HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> MarkAllNotificationsRead()
     {
@@ -1139,16 +1232,19 @@ public class HomeController : Controller
         return Redirect(Request.Headers.Referer.ToString().Length > 0 ? Request.Headers.Referer.ToString()! : "/");
     }
 
+    /// <summary>Marque toutes les notifications comme lues via API JSON.</summary>
     [Authorize, HttpPost, IgnoreAntiforgeryToken]
     public async Task<IActionResult> MarkAllNotificationsReadJson()
         => Json(await _notifications.MarkAllReadAsync(UserId));
 }
 
+/// <summary>Corps JSON minimal portant un identifiant.</summary>
 public class IdRequest
 {
     public string Id { get; set; } = "";
 }
 
+/// <summary>Corps JSON pour changer le statut d'un utilisateur.</summary>
 public class SetStatutRequest
 {
     public string Id { get; set; } = "";

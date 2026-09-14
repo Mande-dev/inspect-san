@@ -8,17 +8,20 @@ using Microsoft.EntityFrameworkCore;
 
 namespace inspect_san.Services;
 
+/// <summary>CRUD des référentiels de paramètres.</summary>
 public class ParametresService : IParametresService
 {
     private readonly InspectSanDbContext _db;
     private readonly MockUserStore _users;
 
+    /// <summary>Initialise le service paramètres avec EF et le journal.</summary>
     public ParametresService(InspectSanDbContext db, MockUserStore users)
     {
         _db = db;
         _users = users;
     }
 
+    /// <summary>Normalise le nom d'onglet paramètres.</summary>
     private static string NormalizeTab(string tab) => tab switch
     {
         RefCategories.Categories or "categories" => RefCategories.Categories,
@@ -27,6 +30,7 @@ public class ParametresService : IParametresService
         _ => tab
     };
 
+    /// <summary>Retourne les éléments de référentiel pour un onglet.</summary>
     public async Task<List<RefItem>> QueryEntitiesAsync(string tab)
     {
         var cat = NormalizeTab(tab);
@@ -63,6 +67,7 @@ public class ParametresService : IParametresService
         };
     }
 
+    /// <summary>Liste les éléments de référentiel sous forme de DTO.</summary>
     public async Task<IReadOnlyList<RefItemDto>> ListAsync(string tab)
     {
         var list = await QueryEntitiesAsync(tab);
@@ -75,6 +80,7 @@ public class ParametresService : IParametresService
         }).ToList();
     }
 
+    /// <summary>Crée ou met à jour un élément de référentiel.</summary>
     public async Task<ApiResultDto> SaveAsync(string tab, SaveRefItemDto dto)
     {
         var cat = NormalizeTab(tab);
@@ -87,6 +93,7 @@ public class ParametresService : IParametresService
         };
     }
 
+    /// <summary>Enregistre une catégorie d'établissement.</summary>
     private async Task<ApiResultDto> SaveCategorieAsync(SaveRefItemDto dto)
     {
         var designation = (dto.Nom ?? dto.Libelle ?? "").Trim();
@@ -111,6 +118,7 @@ public class ParametresService : IParametresService
         return ApiResultDto.Ok("Référence enregistrée.");
     }
 
+    /// <summary>Enregistre un produit du référentiel.</summary>
     private async Task<ApiResultDto> SaveProduitAsync(SaveRefItemDto dto)
     {
         var libelle = (dto.Nom ?? dto.Libelle ?? "").Trim();
@@ -135,6 +143,7 @@ public class ParametresService : IParametresService
         return ApiResultDto.Ok("Référence enregistrée.");
     }
 
+    /// <summary>Enregistre un outil du référentiel.</summary>
     private async Task<ApiResultDto> SaveOutilAsync(SaveRefItemDto dto)
     {
         var libelle = (dto.Nom ?? dto.Libelle ?? "").Trim();
@@ -159,6 +168,7 @@ public class ParametresService : IParametresService
         return ApiResultDto.Ok("Référence enregistrée.");
     }
 
+    /// <summary>Supprime un élément de référentiel s'il n'est plus utilisé.</summary>
     public async Task<ApiResultDto> DeleteAsync(string tab, string id)
     {
         var cat = NormalizeTab(tab);

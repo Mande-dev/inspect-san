@@ -6,6 +6,7 @@
 (function (global) {
   'use strict';
 
+  // Affiche une notification via IspAlert.
   function showToast(message, type) {
     type = type || 'success';
     if (global.IspAlert && typeof global.IspAlert.notify === 'function') {
@@ -16,6 +17,7 @@
     return Promise.resolve();
   }
 
+  // Construit la chaîne de query string.
   function buildQuery(params) {
     if (!params) return '';
     var qs = new URLSearchParams();
@@ -28,6 +30,7 @@
     return s ? '?' + s : '';
   }
 
+  // Interprète la réponse HTTP et gère les erreurs d’auth.
   async function handleResponse(res) {
     if (res.status === 401 || res.status === 403) {
       showToast('Session expirée ou accès refusé. Redirection…', 'warning');
@@ -52,6 +55,7 @@
     return data;
   }
 
+  // Effectue une requête GET JSON.
   async function get(url, params) {
     var res = await fetch(url + buildQuery(params), {
       method: 'GET',
@@ -61,6 +65,7 @@
     return handleResponse(res);
   }
 
+  // Effectue une requête POST JSON.
   async function post(url, body) {
     var res = await fetch(url, {
       method: 'POST',
@@ -74,6 +79,7 @@
     return handleResponse(res);
   }
 
+  // Désactive un élément pendant l’exécution asynchrone.
   async function withBusy(el, fn) {
     if (!el) return fn();
     var disabled = el.disabled;
@@ -87,6 +93,7 @@
     }
   }
 
+  // Échappe le HTML pour un affichage sûr.
   function esc(s) {
     if (s === null || s === undefined) return '';
     return String(s)
@@ -97,6 +104,7 @@
       .replace(/'/g, '&#39;');
   }
 
+  // Échappe une valeur pour un attribut HTML.
   function attr(s) {
     return esc(s).replace(/\n/g, ' ');
   }
@@ -108,6 +116,7 @@
     return el.getAttribute(key) || '';
   }
 
+  // Parse un attribut data-* contenant du JSON.
   function parseJsonAttr(el, name) {
     var raw = dataAttr(el, name);
     if (!raw) return null;
@@ -118,6 +127,7 @@
     }
   }
 
+  // Convertit un formulaire en objet JSON.
   function formToJson(form, map) {
     var fd = new FormData(form);
     var o = {};
@@ -134,6 +144,7 @@
     return o;
   }
 
+  // Ferme un modal Bootstrap.
   function hideModal(el) {
     if (!el || !global.bootstrap) return;
     var m = bootstrap.Modal.getInstance(el) || bootstrap.Modal.getOrCreateInstance(el);
@@ -182,6 +193,7 @@
     }
   }
 
+  // Attache les gestionnaires de pile pour un modal empilé.
   function bindStackedModalHandlers(el) {
     if (!el || el.dataset.ispStacked === '1') return;
     el.dataset.ispStacked = '1';
@@ -242,10 +254,12 @@
     img.alt = title;
     img.style.cssText = 'max-width:100%;max-height:80vh;object-fit:contain;border-radius:.25rem;';
 
+    // Ferme la lightbox image.
     function close() {
       document.removeEventListener('keydown', onKey);
       if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
     }
+    // Ferme la lightbox sur Escape.
     function onKey(e) {
       if (e.key === 'Escape') close();
     }
@@ -261,6 +275,7 @@
     document.body.appendChild(overlay);
   }
 
+  // Rafraîchit ou réinitialise la pagination d’un tableau.
   function refreshPagination(table) {
     if (!table) return;
     if (table._ispPagination) table._ispPagination.refresh(true);
@@ -270,6 +285,7 @@
     }
   }
 
+  // Traite le résultat AJAX et affiche le feedback UI.
   function bindAjaxResult(result, onSuccess) {
     if (!result) return false;
     var ok = result.success !== undefined ? result.success : result.Success;
@@ -298,6 +314,7 @@
     return false;
   }
 
+  // Demande une confirmation utilisateur (IspAlert ou native).
   function confirmAction(message, opts) {
     if (global.IspAlert && typeof global.IspAlert.confirm === 'function') {
       return global.IspAlert.confirm(message, opts);

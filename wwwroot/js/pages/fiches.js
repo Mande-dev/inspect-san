@@ -18,6 +18,7 @@
 
   var pendingPhotoFiles = window.pendingPhotoFiles || (window.pendingPhotoFiles = []);
 
+  // Collecte les produits cochés de la fiche.
   function collectControleProduits() {
     return Array.from(document.querySelectorAll('.produit-row')).map(function (row) {
       var chk = row.querySelector('.produit-check');
@@ -30,6 +31,7 @@
     }).filter(Boolean);
   }
 
+  // Collecte les outils cochés de la fiche.
   function collectControleOutils() {
     return Array.from(document.querySelectorAll('.outil-row')).map(function (row) {
       var chk = row.querySelector('.outil-check');
@@ -118,6 +120,7 @@
     } catch (err) { api.showToast(err.message, 'danger'); }
   });
 
+  // Ouvre le modal de validation tablette.
   function openValidationTablette(f) {
     var id = f.id || f.Id || '';
     var numero = f.numero || f.Numero || '';

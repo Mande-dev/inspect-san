@@ -6,6 +6,7 @@
   var table = tbody && tbody.closest('table');
   var form = document.querySelector('#userModal form');
 
+  // Charge les agents sans compte utilisateur.
   async function loadAgentsSansCompte() {
     var $sel = $('#userAgentId');
     $sel.empty().append('<option value="">— Sélectionner —</option>');
@@ -21,6 +22,7 @@
     }
   }
 
+  // Affiche ou masque les champs selon le rôle.
   function toggleRoleFields() {
     var role = $('#userRole').val();
     $('#agentBox').toggleClass('d-none', role !== 'Contrôleur');
@@ -36,16 +38,19 @@
     }
   });
 
+  // Indique si le statut est actif.
   function isActif(statut) {
     return String(statut || '').toLowerCase() === 'actif';
   }
 
+  // Badge HTML du statut utilisateur.
   function statutBadge(s) {
     return isActif(s)
       ? '<span class="badge bg-success-subtle text-success-emphasis">Actif</span>'
       : '<span class="badge bg-secondary">Inactif</span>';
   }
 
+  // Formulaire HTML d’activation / désactivation.
   function statutFormHtml(id, statut) {
     var next = isActif(statut) ? 'inactif' : 'actif';
     var label = next === 'actif' ? 'Activer' : 'Désactiver';
@@ -62,6 +67,7 @@
     );
   }
 
+  // Construit une ligne du tableau utilisateurs.
   function rowHtml(u) {
     var id = u.id || u.Id || '';
     var nom = u.nom || u.Nom || '';
@@ -79,6 +85,7 @@
     );
   }
 
+  // Charge et affiche la liste des utilisateurs.
   async function loadList() {
     if (!tbody) return;
     try {
@@ -98,6 +105,7 @@
     toggleRoleFields();
   });
 
+  // Vérifie la correspondance des mots de passe.
   function passwordsOk() {
     var p1 = $('#userPwd').val() || '';
     var p2 = $('#userPwdConfirm').val() || '';

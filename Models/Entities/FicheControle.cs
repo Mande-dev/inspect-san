@@ -34,6 +34,7 @@ public class FicheControle
     public List<ControleOutilCompat> ControleOutils { get; set; } = new();
     public List<Photo> Photos { get; set; } = new();
 
+    /// <summary>Construit une fiche de contrôle à partir d’une mission.</summary>
     public static FicheControle FromMission(Mission m, string? ecoleId = null)
     {
         var cp = m.MissionProduits?.Count > 0

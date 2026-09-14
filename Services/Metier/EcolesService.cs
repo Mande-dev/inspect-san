@@ -8,17 +8,20 @@ using Microsoft.EntityFrameworkCore;
 
 namespace inspect_san.Services;
 
+/// <summary>CRUD des établissements scolaires.</summary>
 public class EcolesService : IEcolesService
 {
     private readonly InspectSanDbContext _db;
     private readonly MockUserStore _users;
 
+    /// <summary>Initialise le service écoles avec EF et le journal.</summary>
     public EcolesService(InspectSanDbContext db, MockUserStore users)
     {
         _db = db;
         _users = users;
     }
 
+    /// <summary>Charge les listes sous-divisions et régimes.</summary>
     public async Task<(IReadOnlyList<RefItem> Sousproveds, IReadOnlyList<RefItem> Regimes)> GetLookupsAsync()
     {
         var sous = await _db.SousProvinces.AsNoTracking()
@@ -47,6 +50,7 @@ public class EcolesService : IEcolesService
         return (sous, reg);
     }
 
+    /// <summary>Charge la liste des catégories d'établissement.</summary>
     public async Task<IReadOnlyList<RefItem>> GetCategoriesAsync()
         => await _db.Categories.AsNoTracking()
             .OrderBy(c => c.Designation)
@@ -57,11 +61,13 @@ public class EcolesService : IEcolesService
                 Categorie = RefCategories.Categories
             }).ToListAsync();
 
+    /// <summary>Construit la requête écoles avec includes.</summary>
     private static IQueryable<Ecole> BaseQuery(InspectSanDbContext db)
         => db.Ecoles.AsNoTracking()
             .Include(e => e.Categorie)
             .Include(e => e.ChefEtablissement);
 
+    /// <summary>Applique les filtres recherche, sous-division et régime.</summary>
     private static IQueryable<Ecole> ApplyFilter(IQueryable<Ecole> q, EcoleFilterDto filter)
     {
         if (!string.IsNullOrWhiteSpace(filter.Q))
@@ -82,9 +88,11 @@ public class EcolesService : IEcolesService
         return q;
     }
 
+    /// <summary>Retourne les entités école correspondant au filtre.</summary>
     public async Task<List<Ecole>> QueryEntitiesAsync(EcoleFilterDto filter)
         => await ApplyFilter(BaseQuery(_db), filter).OrderByDescending(e => e.Denomination).ToListAsync();
 
+    /// <summary>Liste les établissements filtrés sous forme de DTO.</summary>
     public async Task<IReadOnlyList<EcoleListDto>> ListAsync(EcoleFilterDto filter)
     {
         var list = await ApplyFilter(BaseQuery(_db), filter)
@@ -93,15 +101,18 @@ public class EcolesService : IEcolesService
         return list.Select(Map).ToList();
     }
 
+    /// <summary>Retourne un établissement par identifiant.</summary>
     public async Task<EcoleListDto?> GetAsync(string id)
     {
         var e = await BaseQuery(_db).FirstOrDefaultAsync(x => x.Id == id);
         return e == null ? null : Map(e);
     }
 
+    /// <summary>Retourne l'entité école par identifiant.</summary>
     public async Task<Ecole?> GetEntityByIdAsync(string id)
         => await _db.Ecoles.FirstOrDefaultAsync(e => e.Id == id);
 
+    /// <summary>Crée ou met à jour un établissement.</summary>
     public async Task<ApiResultDto> SaveAsync(SaveEcoleDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.Denomination) || string.IsNullOrWhiteSpace(dto.IdDinacope)
@@ -174,6 +185,7 @@ public class EcolesService : IEcolesService
         return ApiResultDto.Ok("Établissement créé.", new { id = ecole.Id });
     }
 
+    /// <summary>Supprime un établissement s'il n'a pas de missions.</summary>
     public async Task<ApiResultDto> DeleteAsync(string id)
     {
         var ecole = await _db.Ecoles.FirstOrDefaultAsync(e => e.Id == id);
@@ -196,12 +208,15 @@ public class EcolesService : IEcolesService
         return ApiResultDto.Ok("Établissement supprimé.");
     }
 
+    /// <summary>Tente de désactiver un établissement (non disponible ici).</summary>
     public Task<ApiResultDto> DeactivateAsync(string id)
         => Task.FromResult(ApiResultDto.Fail("Désactivation non disponible sur cette structure."));
 
+    /// <summary>Génère un nouvel identifiant préfixé.</summary>
     private static string NewId(string prefix)
         => $"{prefix}-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..32];
 
+    /// <summary>Mappe une entité école vers son DTO de liste.</summary>
     private static EcoleListDto Map(Ecole e) => new()
     {
         Id = e.Id,

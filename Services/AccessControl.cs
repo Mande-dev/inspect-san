@@ -20,6 +20,7 @@ public static class AccessActions
     public const string GererControleurs = GererAgents;
 }
 
+/// <summary>Contrôle d'accès pages et actions selon le rôle.</summary>
 public static class AccessControl
 {
     public static readonly Dictionary<string, string[]> RoleAccess = new()
@@ -71,9 +72,11 @@ public static class AccessControl
         ]
     };
 
+    /// <summary>Indique si le rôle peut accéder à une page donnée.</summary>
     public static bool CanAccess(string? role, string pageKey)
         => role != null && RoleAccess.TryGetValue(role, out var keys) && keys.Contains(pageKey);
 
+    /// <summary>Indique si le rôle peut exécuter une action métier.</summary>
     public static bool CanDo(string? role, string action)
         => role != null && RoleActions.TryGetValue(role, out var actions) && actions.Contains(action);
 
@@ -93,6 +96,7 @@ public static class AccessControl
         ("journal", "/Home/Journal", "Journal d'activité", "ti-history"),
     };
 
+    /// <summary>Retourne la page d'accueil par défaut après connexion.</summary>
     public static (string Controller, string Action) DefaultLanding(string? role)
         => ("Home", "Index");
 }

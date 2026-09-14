@@ -15,6 +15,7 @@ public static class JsonUi
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
+    /// <summary>Sérialise un objet pour attributs data-* des vues.</summary>
     public static string Serialize(object? value)
         => JsonSerializer.Serialize(value, Options);
 }

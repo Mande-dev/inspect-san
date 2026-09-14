@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace inspect_san.Services;
 
+/// <summary>Gestion des décisions administratives.</summary>
 public class DecisionsService : IDecisionsService
 {
     private readonly InspectSanDbContext _db;
@@ -16,6 +17,7 @@ public class DecisionsService : IDecisionsService
     private readonly IDomainEmailNotifier _email;
     private readonly ICurrentUserScope _scope;
 
+    /// <summary>Initialise le service décisions avec ses dépendances.</summary>
     public DecisionsService(
         InspectSanDbContext db,
         MockUserStore users,
@@ -28,6 +30,7 @@ public class DecisionsService : IDecisionsService
         _scope = scope ?? UnrestrictedUserScope.Instance;
     }
 
+    /// <summary>Retourne les entités décision.</summary>
     public async Task<List<Decision>> QueryEntitiesAsync()
     {
         var list = await _db.Decisions.AsNoTracking()
@@ -46,6 +49,7 @@ public class DecisionsService : IDecisionsService
         return list;
     }
 
+    /// <summary>Liste les décisions sous forme de DTO.</summary>
     public async Task<IReadOnlyList<DecisionListDto>> ListAsync()
     {
         var decisions = await QueryEntitiesAsync();
@@ -63,6 +67,7 @@ public class DecisionsService : IDecisionsService
         }).ToList();
     }
 
+    /// <summary>Retourne les fiches validées sans décision.</summary>
     public async Task<List<FicheControle>> QueryFichesSansDecisionAsync()
     {
         var decided = await _db.Decisions.AsNoTracking().Select(d => d.NumOrdre).ToListAsync();
@@ -79,6 +84,7 @@ public class DecisionsService : IDecisionsService
         return missions.Select(m => FicheControle.FromMission(m, m.Ecole?.Id)).ToList();
     }
 
+    /// <summary>Liste les fiches validées sans décision.</summary>
     public async Task<IReadOnlyList<FicheListDto>> FichesSansDecisionAsync()
     {
         var list = await QueryFichesSansDecisionAsync();
@@ -144,6 +150,7 @@ public class DecisionsService : IDecisionsService
         }).ToList();
     }
 
+    /// <summary>Crée ou met à jour une décision.</summary>
     public async Task<ApiResultDto> SaveAsync(SaveDecisionDto dto, string? userId)
     {
         if (string.IsNullOrWhiteSpace(dto.FicheControleId) || string.IsNullOrWhiteSpace(dto.TypeDecision))
@@ -225,6 +232,7 @@ public class DecisionsService : IDecisionsService
         return ApiResultDto.Ok("Décision enregistrée.");
     }
 
+    /// <summary>Supprime une décision.</summary>
     public async Task<ApiResultDto> DeleteAsync(string id)
     {
         var d = await _db.Decisions.FirstOrDefaultAsync(x => x.NumDecision == id);

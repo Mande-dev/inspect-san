@@ -6,6 +6,7 @@
   var tbody = document.getElementById('journalTbody');
   var table = tbody && tbody.closest('table');
 
+  // Formate une date-heure pour le journal.
   function fmt(dt) {
     if (!dt) return '';
     var d = new Date(dt);
@@ -14,6 +15,7 @@
     return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
   }
 
+  // Construit une ligne du journal d’audit.
   function rowHtml(j) {
     return (
       '<tr><td class="small text-nowrap">' +
@@ -30,6 +32,7 @@
     );
   }
 
+  // Charge et affiche le journal filtré.
   async function loadList() {
     if (!tbody || !filterForm) return;
     var fd = new FormData(filterForm);

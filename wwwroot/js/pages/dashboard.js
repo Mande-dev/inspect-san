@@ -5,6 +5,7 @@
   var charts = [];
   var COLORS = ['#0f766e', '#1d4ed8', '#b45309', '#be123c', '#6d28d9', '#0369a1'];
 
+  // Détruit les graphiques ApexCharts actifs.
   function destroy() {
     charts.forEach(function (c) {
       try {
@@ -14,11 +15,13 @@
     charts = [];
   }
 
+  // Définit le texte d’un élément du DOM.
   function setText(sel, v) {
     var el = document.querySelector(sel);
     if (el) el.textContent = v;
   }
 
+  // Formate une date-heure pour le dashboard.
   function fmt(dt) {
     if (!dt) return '';
     var d = new Date(dt);
@@ -39,6 +42,7 @@
     );
   }
 
+  // Normalise les points label/value d’un graphique.
   function pointsOf(arr) {
     return (arr || [])
       .map(function (x) {
@@ -64,6 +68,7 @@
     return s.length > 22 ? s.slice(0, 20) + '…' : s;
   }
 
+  // HTML placeholder quand aucune donnée.
   function emptyHtml(msg) {
     return (
       '<div class="d-flex align-items-center justify-content-center text-secondary h-100" style="min-height:220px;">' +
@@ -73,6 +78,7 @@
     );
   }
 
+  // Options de base communes aux graphiques.
   function baseChart() {
     return {
       chart: {
@@ -194,6 +200,7 @@
     chart.render();
   }
 
+  // Charge les KPI et graphiques du dashboard.
   async function load() {
     var dto = await api.get('/Home/GetDashboardData');
     setText('#kpiEcolesCount', dto.ecolesCount ?? dto.EcolesCount ?? 0);

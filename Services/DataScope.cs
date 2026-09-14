@@ -13,6 +13,7 @@ public sealed class UserDataScope
 
     public bool IsEmpty => !Unrestricted && string.IsNullOrEmpty(EcoleId) && string.IsNullOrEmpty(AgentId);
 
+    /// <summary>Indique si l'école appartient au périmètre courant.</summary>
     public bool AllowsEcole(string? ecoleId)
     {
         if (Unrestricted) return true;
@@ -20,6 +21,7 @@ public sealed class UserDataScope
         return string.Equals(EcoleId, ecoleId, StringComparison.Ordinal);
     }
 
+    /// <summary>Indique si l'agent appartient au périmètre courant.</summary>
     public bool AllowsAgent(string? agentId)
     {
         if (Unrestricted) return true;
@@ -27,6 +29,7 @@ public sealed class UserDataScope
         return string.Equals(AgentId, agentId, StringComparison.Ordinal);
     }
 
+    /// <summary>Indique si une mission est visible selon école ou participation.</summary>
     public bool AllowsMission(IEnumerable<string>? participantAgentIds, string? ecoleId)
     {
         if (Unrestricted) return true;
@@ -35,6 +38,7 @@ public sealed class UserDataScope
         return participantAgentIds.Any(id => string.Equals(id, AgentId, StringComparison.Ordinal));
     }
 
+    /// <summary>Indique si une fiche est visible selon mission, école ou liste autorisée.</summary>
     public bool AllowsFiche(IEnumerable<string>? missionAgentIds, string? ecoleId, ISet<string>? allowedMissionIds, string? missionId)
     {
         if (Unrestricted) return true;
@@ -45,9 +49,11 @@ public sealed class UserDataScope
                && allowedMissionIds.Contains(missionId);
     }
 
+    /// <summary>Indique si une décision est visible selon l'école liée.</summary>
     public bool AllowsDecision(string? ecoleId) => AllowsEcole(ecoleId);
 }
 
+/// <summary>Résolution du périmètre de données selon le rôle applicatif.</summary>
 public static class DataScope
 {
     public const string RoleAdmin = "Administrateur système";
@@ -58,6 +64,7 @@ public static class DataScope
     /// <summary>Ancien rôle de connexion — conservé uniquement pour compat / détection legacy.</summary>
     public const string RoleChef = "Chef d'établissement";
 
+    /// <summary>Construit le périmètre de données à partir du rôle et des liens utilisateur.</summary>
     public static UserDataScope Resolve(string? role, string? userId, string? userEcoleId = null, string? userAgentId = null)
     {
         if (string.IsNullOrWhiteSpace(role))

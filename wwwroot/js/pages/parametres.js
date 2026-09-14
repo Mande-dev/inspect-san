@@ -15,6 +15,7 @@
   var refCodeGroup = document.getElementById('refCodeGroup');
   var refCodeDisplay = document.getElementById('refCodeDisplay');
 
+  // Synchronise l’UI selon l’onglet paramètres.
   function syncUiForTab() {
     if (page) page.setAttribute('data-tab', tab);
     if (tabInput) tabInput.value = tab;
@@ -34,6 +35,7 @@
     window.history.replaceState({ tab: tab }, '', url.pathname + '?' + url.searchParams.toString());
   }
 
+  // Affiche le code de référence dans le formulaire.
   function setCodeUi(code) {
     var n = parseInt(code, 10) || 0;
     if (refCode) refCode.value = n > 0 ? String(n) : '0';
@@ -41,6 +43,7 @@
     if (refCodeGroup) refCodeGroup.hidden = n <= 0;
   }
 
+  // Construit une ligne du tableau paramètres.
   function rowHtml(i) {
     var code = i.code || i.Code || 0;
     var nom = i.nom || i.Nom || '';
@@ -61,6 +64,7 @@
     );
   }
 
+  // Charge la liste des référentiels de l’onglet.
   async function loadList() {
     if (!tbody) return;
     tbody.innerHTML = '<tr><td colspan="3" class="text-center text-secondary py-4">Chargement…</td></tr>';
@@ -69,6 +73,7 @@
     api.refreshPagination(table);
   }
 
+  // Change d’onglet et recharge la liste.
   async function switchTab(nextTab) {
     if (!nextTab || nextTab === tab) return;
     tab = nextTab;

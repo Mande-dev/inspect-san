@@ -17,6 +17,7 @@ public static class EcoleStatuts
     };
 }
 
+/// <summary>Statuts du cycle de vie d’une mission.</summary>
 public static class MissionStatuts
 {
     public const string Brouillon = "brouillon";
@@ -36,6 +37,7 @@ public static class OrdreStatuts
     public const string Cloture = MissionStatuts.Cloture;
 }
 
+/// <summary>Statuts de la fiche de contrôle liée à une mission.</summary>
 public static class FicheStatuts
 {
     public const string Brouillon = "brouillon";
@@ -43,6 +45,7 @@ public static class FicheStatuts
     public const string EnAttenteValidation = "en_attente_validation";
 }
 
+/// <summary>Types de décisions administratives et libellés associés.</summary>
 public static class DecisionTypes
 {
     public const string SuspensionTemporaireChef = "suspension_temporaire_chef";
@@ -66,13 +69,16 @@ public static class DecisionTypes
         EcoleBienEntretenue
     ];
 
+    /// <summary>Indique si le code de décision est reconnu.</summary>
     public static bool IsValid(string? code)
         => !string.IsNullOrWhiteSpace(code) && Labels.ContainsKey(code);
 
+    /// <summary>Libellé affichable pour un code de décision.</summary>
     public static string LabelOf(string? code)
         => code != null && Labels.TryGetValue(code, out var l) ? l : (code ?? "");
 }
 
+/// <summary>Statuts d’exécution (compat ; non exposés dans l’UI Décisions).</summary>
 public static class StatutsExecution
 {
     // Conservé pour compat éventuelle ; non exposé dans l'UI Décisions.
@@ -81,6 +87,7 @@ public static class StatutsExecution
     public const string Executee = "executee";
 }
 
+/// <summary>Identifiants de catégories de référentiels.</summary>
 public static class RefCategories
 {
     public const string Categories = "categories";
@@ -112,9 +119,11 @@ public static class RegGes
         Confessionnel
     ];
 
+    /// <summary>Indique si le code de régime est reconnu.</summary>
     public static bool IsValid(string? code)
         => !string.IsNullOrWhiteSpace(code) && Labels.ContainsKey(code);
 
+    /// <summary>Libellé affichable pour un code de régime.</summary>
     public static string LabelOf(string? code)
         => code != null && Labels.TryGetValue(code, out var l) ? l : (code ?? "");
 }
@@ -142,12 +151,14 @@ public static class SousDivision
     public static readonly IReadOnlyList<string> All =
         SousProvinceCatalog.Rows.Select(r => r.Code).ToList();
 
+    /// <summary>Valide un code SP00x ou un code legacy.</summary>
     public static bool IsValid(string? code)
         => !string.IsNullOrWhiteSpace(code)
            && (Labels.ContainsKey(code)
                || SousProvinceCatalog.Rows.Any(r =>
                    string.Equals(r.LegacyCode, code, StringComparison.OrdinalIgnoreCase)));
 
+    /// <summary>Libellé de sous-province pour un code.</summary>
     public static string LabelOf(string? code)
         => SousProvinceCatalog.LabelOf(code);
 
@@ -159,6 +170,7 @@ public static class SousDivision
     }
 }
 
+/// <summary>Rôles d’affectation sur une mission.</summary>
 public static class RolesMissionCodes
 {
     public const string ChefEquipe = "chef_equipe";
@@ -179,9 +191,11 @@ public static class RolesMissionCodes
         Membre
     ];
 
+    /// <summary>Indique si le code de rôle mission est reconnu.</summary>
     public static bool IsValid(string? code)
         => !string.IsNullOrWhiteSpace(code) && Labels.ContainsKey(code);
 
+    /// <summary>Libellé affichable pour un rôle mission.</summary>
     public static string LabelOf(string? code)
         => code != null && Labels.TryGetValue(code, out var l) ? l : (code ?? "");
 }
@@ -220,6 +234,7 @@ public static class EtatBatiment
         BucketCritique
     ];
 
+    /// <summary>Mappe un état formulaire vers un bucket de statistiques.</summary>
     public static string? ToStatBucket(string? etat)
     {
         if (string.IsNullOrWhiteSpace(etat)) return null;
@@ -233,6 +248,7 @@ public static class EtatBatiment
         };
     }
 
+    /// <summary>Indique si le bucket est considéré conforme (Bon ou Moyen).</summary>
     public static bool IsConformeBucket(string bucket)
         => bucket is BucketBon or BucketMoyen;
 }

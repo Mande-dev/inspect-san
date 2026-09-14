@@ -18,6 +18,7 @@ public static class IdentitySeeder
     public const string AdminNom = "Admin Système";
     public const string AdminRole = "Administrateur système";
 
+    /// <summary>Garantit les rôles Identity et le compte admin démo.</summary>
     public static async Task SeedAsync(
         UserManager<ApplicationUser> userManager,
         RoleManager<IdentityRole> roleManager,
