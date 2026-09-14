@@ -596,6 +596,72 @@ public class FichesControleServiceTests
 public class DecisionsServiceTests
 {
     [Fact]
+    public async Task SaveAsync_Refuse_SansTransfertSecretariat()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var sut = new DecisionsService(db, users);
+        var mission = await db.Missions.Include(m => m.Ecole)
+            .FirstAsync(m => m.StatutFiche == FicheStatuts.Validee
+                             || m.Validite == MissionStatuts.EnCours
+                             || m.Validite == MissionStatuts.Signe);
+        mission.StatutFiche = FicheStatuts.Validee;
+        mission.ValideeLe = DateTime.UtcNow;
+        mission.RapportEquipeDeposeLe = null;
+        mission.RapportSecretariatDeposeLe = null;
+        // Retirer une éventuelle décision seed sur ce n° ordre
+        var existingDec = await db.Decisions.Where(d => d.NumOrdre == mission.NumOrdre).ToListAsync();
+        db.Decisions.RemoveRange(existingDec);
+        await db.SaveChangesAsync();
+
+        var result = await sut.SaveAsync(new SaveDecisionDto
+        {
+            FicheControleId = mission.Id,
+            TypeDecision = DecisionTypes.SuspensionTemporaireChef
+        }, "usr-002");
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("transféré");
+    }
+
+    [Fact]
+    public async Task SaveAsync_Ok_ApresTransfertSecretariat()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var sut = new DecisionsService(db, users);
+        var fiche = await TestDb.EnsureFicheSansDecisionAsync(db);
+
+        var result = await sut.SaveAsync(new SaveDecisionDto
+        {
+            FicheControleId = fiche.Id,
+            TypeDecision = DecisionTypes.SuspensionTemporaireChef
+        }, "usr-002");
+
+        result.Success.Should().BeTrue(result.Message);
+    }
+
+    [Fact]
+    public async Task FichesSansDecisionAsync_ExclutSansTransfert()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var sut = new DecisionsService(db, users);
+        var mission = await db.Missions.FirstAsync(m => m.StatutFiche == FicheStatuts.Validee
+            || m.Validite == MissionStatuts.EnCours);
+        mission.StatutFiche = FicheStatuts.Validee;
+        mission.RapportEquipeDeposeLe = null;
+        mission.RapportSecretariatDeposeLe = null;
+        db.Decisions.RemoveRange(await db.Decisions.Where(d => d.NumOrdre == mission.NumOrdre).ToListAsync());
+        await db.SaveChangesAsync();
+
+        var list = await sut.FichesSansDecisionAsync();
+        list.Should().NotContain(f => f.Id == mission.Id);
+
+        TestDbExtensions.MarkRapportTransfereAuDp(mission);
+        await db.SaveChangesAsync();
+        list = await sut.FichesSansDecisionAsync();
+        list.Should().Contain(f => f.Id == mission.Id);
+    }
+
+    [Fact]
     public async Task SaveAsync_CreatesDecision_OnFicheValidee()
     {
         var (db, users) = await TestDb.CreateSeededAsync();

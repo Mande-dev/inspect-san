@@ -23,7 +23,11 @@ internal static class TestDbExtensions
             .FirstOrDefaultAsync(m => m.StatutFiche == FicheStatuts.Validee
                                       && !db.Decisions.Any(d => d.NumOrdre == m.NumOrdre));
         if (existing != null)
+        {
+            MarkRapportTransfereAuDp(existing);
+            await db.SaveChangesAsync();
             return FicheControle.FromMission(existing, await db.EcoleIdForMissionAsync(existing));
+        }
 
         var mission = await db.Missions
             .Include(m => m.Ecole)
@@ -37,7 +41,21 @@ internal static class TestDbExtensions
         mission.RecommandationPreliminaire = "Maintien";
         mission.ValideePar = "usr-003";
         mission.ValideeLe = DateTime.UtcNow;
+        MarkRapportTransfereAuDp(mission);
         await db.SaveChangesAsync();
         return FicheControle.FromMission(mission, await db.EcoleIdForMissionAsync(mission));
+    }
+
+    /// <summary>
+    /// Marque le circuit rapport comme déposé puis transféré (colonnes existantes, sans migration).
+    /// Prérequis pour qu'une décision puisse être créée.
+    /// </summary>
+    public static void MarkRapportTransfereAuDp(Mission m, DateTime? when = null)
+    {
+        var t = when ?? DateTime.UtcNow;
+        m.RapportEquipeDeposeLe ??= t.AddMinutes(-5);
+        m.RapportEquipeDeposePar ??= "usr-chef";
+        m.RapportSecretariatDeposeLe ??= t;
+        m.RapportSecretariatDeposePar ??= "usr-sec";
     }
 }

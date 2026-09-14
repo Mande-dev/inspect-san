@@ -120,6 +120,40 @@ public class RapportInspectionTests
     }
 
     [Fact]
+    public async Task TransfertSecretariat_Refuse_SansDepotEquipe()
+    {
+        var (db, _) = await TestDb.CreateSeededAsync();
+        var mission = await db.Missions.Include(m => m.Ecole).Include(m => m.Affectations)
+            .FirstAsync(m => m.Affectations.Any(a => a.MatrAgent == "agt-001"));
+        SetValidee(mission);
+        await db.SaveChangesAsync();
+        var sd = mission.Ecole!.SousDivision;
+        var sut = new StatistiquesService(db);
+
+        var refused = await sut.DeposerRapportSecretariatAsync(sd, "usr-sec");
+        refused.Success.Should().BeFalse();
+        refused.Message.Should().Contain("déposer");
+    }
+
+    [Fact]
+    public async Task TransfertSecretariat_Ok_ApresDepot_PuisRefuseSiDeja()
+    {
+        var (db, _) = await TestDb.CreateSeededAsync();
+        var mission = await db.Missions.Include(m => m.Ecole).Include(m => m.Affectations)
+            .FirstAsync(m => m.Affectations.Any(a => a.MatrAgent == "agt-001"));
+        SetValidee(mission);
+        await db.SaveChangesAsync();
+        var sd = mission.Ecole!.SousDivision;
+        var sut = new StatistiquesService(db);
+
+        (await sut.DeposerRapportEquipeAsync(sd, "usr-c", "agt-001")).Success.Should().BeTrue();
+        var ok = await sut.DeposerRapportSecretariatAsync(sd, "usr-sec");
+        ok.Success.Should().BeTrue(ok.Message);
+        ok.Message.Should().Contain("transféré");
+        (await sut.DeposerRapportSecretariatAsync(sd, "usr-sec")).Success.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Secretariat_DeposeApresEquipe_PuisClose_BloqueNouveauxDepots()
     {
         var (db, _) = await TestDb.CreateSeededAsync();
