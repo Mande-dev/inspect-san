@@ -14,7 +14,7 @@
 <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4 isp-page-head">
     <div>
         <h2 class="mb-1">Missions</h2>
-        <p class="text-secondary mb-0">Planification, équipe dynamique et signature des missions de contrôle.</p>
+        <p class="text-secondary mb-0">Planification, équipe de 4 agents et signature des missions de contrôle.</p>
     </div>
     @if (canGerer)
     {
@@ -24,7 +24,7 @@
     }
 </div>
 <form method="get" class="row g-2 mb-4" id="missionsFilter">
-    <div class="col-12 col-md-5"><input name="q" value="@ViewBag.Q" class="form-control" placeholder="N° mission ou équipe…" /></div>
+    <div class="col-12 col-md-5"><input name="q" value="@ViewBag.Q" class="form-control" placeholder="@DictionnaireDonnees.Label("Num_OM") ou équipe…" /></div>
     <div class="col-12 col-md-4">
         <select name="statut" class="form-select">
             <option value="">Tous les statuts</option>
@@ -39,7 +39,7 @@
 <div class="card card-lg">
     <div class="table-responsive">
         <table class="table table-hover mb-0 js-paginated-table" id="missionsTable" data-can-signer="@(canSigner ? "1" : "0")" data-can-gerer="@(canGerer ? "1" : "0")">
-            <thead class="table-light"><tr><th>Numéro</th><th>École</th><th>Équipe</th><th>Participants</th><th>Fin de validité</th><th>Statut</th><th></th></tr></thead>
+            <thead class="table-light"><tr><th>@DictionnaireDonnees.Label("Num_OM")</th><th>@DictionnaireDonnees.Label("Dénomination")</th><th>Équipe</th><th>Participants</th><th>@DictionnaireDonnees.Label("Date_Fin_M")</th><th>@DictionnaireDonnees.Label("Valid")</th><th></th></tr></thead>
             <tbody id="missionsTbody">
             @foreach (var m in Model)
             {
@@ -58,6 +58,14 @@
                                 title="Imprimer l’ordre de mission"
                                 data-json="@missionJson"
                                 data-ecole="@JsonUi.Serialize(ecoles.FirstOrDefault(e => e.Id == m.EcoleId))"><i class="ti ti-printer"></i></button>
+                        @if (canGerer)
+                        {
+                            <form class="d-inline js-envoyer-om" data-id="@m.Id">
+                                <button type="submit" class="btn btn-sm btn-outline-info" title="Envoyer l’ordre de mission par e-mail">
+                                    <i class="ti ti-mail"></i>
+                                </button>
+                            </form>
+                        }
                         @if (canGerer || m.CanWrite)
                         {
                             <button type="button" class="btn btn-sm btn-outline-primary mission-edit" data-json="@missionJson" data-bs-toggle="modal" data-bs-target="#missionModal"><i class="ti ti-edit"></i></button>
@@ -115,30 +123,29 @@
                     <h6 class="isp-modal-section-title"><i class="ti ti-file-description"></i> Paramètres</h6>
                     <div class="row g-3">
                         <div class="col-12 d-none" id="missionNumeroWrap">
-                            <label class="form-label text-secondary">N° mission</label>
+                            <label class="form-label text-secondary">@DictionnaireDonnees.Label("Num_OM")</label>
                             <p class="fw-semibold mb-0 font-monospace" id="missionNumeroDisplay">—</p>
                         </div>
                         <div class="col-12">
                             <label class="form-label text-secondary">Nom d’équipe</label>
                             <p class="fw-semibold mb-0 font-monospace" id="missionNomEquipeDisplay">Généré automatiquement (Equipe-{N°})</p>
                         </div>
-                        <div class="col-md-6"><label class="form-label">Statut</label>
+                        <div class="col-md-6"><label class="form-label">@DictionnaireDonnees.Label("Valid")</label>
                             <select name="Statut" id="missionStatut" class="form-select">
-                                <option value="brouillon">Brouillon</option>
-                                <option value="en_attente_signature">En attente de signature</option>
-                                <option value="signe">Signé</option>
+                                <option value="signe" selected>Signé</option>
                                 <option value="en_cours">En cours</option>
                                 <option value="cloture">Clôturé</option>
                             </select>
+                            <div class="form-text" id="missionStatutHint">À la création, la mission est automatiquement signée.</div>
                         </div>
-                        <div class="col-md-6"><label class="form-label">École <span class="text-danger">*</span></label>
+                        <div class="col-md-6"><label class="form-label">@DictionnaireDonnees.Label("Dénomination") <span class="text-danger">*</span></label>
                             <select name="EcoleId" id="missionEcole" class="form-select" required>
                                 <option value="">Sélectionner…</option>
                                 @foreach (var e in ecoles) { <option value="@e.Id">@e.Denomination</option> }
                             </select>
                         </div>
-                        <div class="col-md-6"><label class="form-label">Date d'émission</label><input type="date" name="DateEmission" id="missionEmission" class="form-control" /></div>
-                        <div class="col-md-6"><label class="form-label">Fin de validité</label><input type="date" name="FinValidite" id="missionFin" class="form-control" /></div>
+                        <div class="col-md-6"><label class="form-label">@DictionnaireDonnees.Label("Date_OM")</label><input type="date" name="DateEmission" id="missionEmission" class="form-control" /></div>
+                        <div class="col-md-6"><label class="form-label">@DictionnaireDonnees.Label("Date_Fin_M")</label><input type="date" name="FinValidite" id="missionFin" class="form-control" /></div>
                     </div>
                 </div>
                 <div class="isp-modal-section mb-0">
@@ -146,7 +153,7 @@
                         <h6 class="isp-modal-section-title mb-0"><i class="ti ti-users"></i> Participations</h6>
                         <button type="button" class="btn btn-sm btn-outline-primary" id="addParticipation"><i class="ti ti-plus"></i> Ajouter</button>
                     </div>
-                    <p class="small text-secondary">Au plus un chef d'équipe et un chef adjoint ; plusieurs membres possibles.</p>
+                    <p class="small text-secondary">Exactement 4 agents : 1 chef d'équipe, 1 chef adjoint et 2 membres.</p>
                     <div id="participationsList"></div>
                 </div>
             </div>

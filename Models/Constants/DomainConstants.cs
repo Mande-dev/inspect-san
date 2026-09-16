@@ -93,6 +93,7 @@ public static class RefCategories
     public const string Categories = "categories";
     public const string Produits = "produits";
     public const string Outils = "outils";
+    public const string SousDivisions = "sous-divisions";
 }
 
 /// <summary>Régime de gestion d’un établissement (constante, plus de table Regimes).</summary>

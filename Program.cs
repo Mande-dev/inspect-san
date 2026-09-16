@@ -7,6 +7,9 @@ using inspect_san.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Secrets locaux non versionnés (copier depuis appsettings.Email.local.json.example).
+builder.Configuration.AddJsonFile("appsettings.Email.local.json", optional: true, reloadOnChange: true);
+
 builder.Services.AddControllersWithViews();
 builder.Services.Configure<FileStorageOptions>(builder.Configuration.GetSection(FileStorageOptions.SectionName));
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
@@ -93,6 +96,9 @@ using (var scope = app.Services.CreateScope())
                     IdentitySeeder.AdminEmail, IdentitySeeder.AdminPassword);
                 return;
             }
+
+            // Toujours garantir le référentiel sous-provinces (FK Etablissement).
+            await DbSeeder.EnsureSousProvincesAsync(db);
 
             // Seed métier OFF par défaut (Seed:MetierEnabled=false) — évite de recharger la démo.
             if (builder.Configuration.GetValue("Seed:MetierEnabled", false))

@@ -30,6 +30,10 @@ public class Mission
     public string? Objet { get; set; }
     public DateTime? SigneLe { get; set; }
     public string? SignePar { get; set; }
+    /// <summary>Date/heure UTC du 1er envoi réussi de l'OM par e-mail.</summary>
+    public DateTime? OmEnvoyeLe { get; set; }
+    /// <summary>Adresse e-mail destinataire du 1er envoi réussi de l'OM.</summary>
+    public string? OmEnvoyeA { get; set; }
     public string? ProduitsAutres { get; set; }
     public int? ProduitsAutresQuantite { get; set; }
     public string? OutilsAutres { get; set; }

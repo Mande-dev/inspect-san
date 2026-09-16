@@ -44,7 +44,7 @@
     <div class="col-6 col-xl-3">
         <div class="card card-lg h-100"><div class="card-body d-flex align-items-center gap-3">
             <div class="icon-shape icon-lg rounded-circle bg-info-subtle text-info-emphasis"><i class="ti ti-category fs-3"></i></div>
-            <div class="min-w-0"><h3 class="mb-0" id="statEcolesRegimes">@(ViewBag.StatRegimes ?? 0)</h3><p class="mb-0 text-secondary small">Régimes différents</p></div>
+            <div class="min-w-0"><h3 class="mb-0" id="statEcolesRegimes">@(ViewBag.StatRegimes ?? 0)</h3><p class="mb-0 text-secondary small">@DictionnaireDonnees.Label("Reg_Ges") (distincts)</p></div>
         </div></div>
     </div>
 </div>
@@ -53,13 +53,13 @@
     <div class="col-12 col-md-4"><input name="q" value="@ViewBag.Q" class="form-control" placeholder="Recherche…" /></div>
     <div class="col-12 col-sm-6 col-md-3">
         <select name="sousproved" class="form-select">
-            <option value="">Toutes sous-divisions</option>
+            <option value="">Toutes (@DictionnaireDonnees.Label("Lib_Sous"))</option>
             @foreach (var c in sousDivisions) { <option value="@c.Nom" selected="@(ViewBag.Sousproved as string == c.Nom)">@c.Nom</option> }
         </select>
     </div>
     <div class="col-12 col-sm-6 col-md-3">
         <select name="regime" class="form-select">
-            <option value="">Tous régimes</option>
+            <option value="">Tous (@DictionnaireDonnees.Label("Reg_Ges"))</option>
             @foreach (var r in regimes) { <option value="@r.Nom" selected="@(ViewBag.Regime as string == r.Nom)">@r.Nom</option> }
         </select>
     </div>
@@ -72,12 +72,12 @@
             <table class="table table-hover mb-0 js-paginated-table" id="ecolesTable" data-can-gerer="@(canGerer ? "1" : "0")">
                 <thead class="table-light">
                     <tr>
-                        <th>Dénomination</th>
-                        <th>N° agrément</th>
-                        <th>DINACOPE</th>
-                        <th>Régime</th>
-                        <th>Sous-division</th>
-                        <th>Catégorie</th>
+                        <th>@DictionnaireDonnees.Label("Dénomination")</th>
+                        <th>@DictionnaireDonnees.Label("Num_Agrément")</th>
+                        <th>@DictionnaireDonnees.Label("Id_Dinacope")</th>
+                        <th>@DictionnaireDonnees.Label("Reg_Ges")</th>
+                        <th>@DictionnaireDonnees.Label("Lib_Sous")</th>
+                        <th>@DictionnaireDonnees.Label("Dési_Cat")</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -145,26 +145,26 @@
                 <input type="hidden" name="Id" id="formId" />
                 <input type="hidden" name="Adresse" id="formAdresse" />
                 <div class="row g-3">
-                    <div class="col-md-8"><label class="form-label">Dénomination</label><input name="Denomination" id="formDenomination" class="form-control" required /></div>
-                    <div class="col-md-4"><label class="form-label">N° agrément</label><input name="NumAgrement" id="formAgrement" class="form-control" /></div>
-                    <div class="col-md-4"><label class="form-label">Régime</label>
+                    <div class="col-md-8"><label class="form-label">@DictionnaireDonnees.Label("Dénomination")</label><input name="Denomination" id="formDenomination" class="form-control" required /></div>
+                    <div class="col-md-4"><label class="form-label">@DictionnaireDonnees.Label("Num_Agrément")</label><input name="NumAgrement" id="formAgrement" class="form-control" /></div>
+                    <div class="col-md-4"><label class="form-label">@DictionnaireDonnees.Label("Reg_Ges")</label>
                         <select name="RegGes" id="formRegGes" class="form-select" required>
                             @foreach (var code in RegGes.All) { <option value="@code">@RegGes.LabelOf(code)</option> }
                         </select>
                     </div>
-                    <div class="col-md-4"><label class="form-label">Sous-division</label>
+                    <div class="col-md-4"><label class="form-label">@DictionnaireDonnees.Label("Lib_Sous")</label>
                         <select name="SousDivision" id="formSousDivision" class="form-select" required>
                             @foreach (var c in sousDivisions) { <option value="@c.Code">@c.Nom</option> }
                         </select>
                     </div>
-                    <div class="col-md-4"><label class="form-label">Catégorie</label>
+                    <div class="col-md-4"><label class="form-label">@DictionnaireDonnees.Label("Dési_Cat")</label>
                         <select name="CodeCategories" id="formCategories" class="form-select" required>
                             @foreach (var c in categories) { <option value="@c.Code">@c.Nom</option> }
                         </select>
                     </div>
-                    <div class="col-md-6"><label class="form-label">ID DINACOPE</label><input name="IdDinacope" id="formDinacope" class="form-control" required /></div>
-                    <div class="col-md-6"><label class="form-label">N° notification</label><input name="NumNotification" id="formNotif" class="form-control" /></div>
-                    <div class="col-md-12"><label class="form-label">Chef d'établissement</label>
+                    <div class="col-md-6"><label class="form-label">@DictionnaireDonnees.Label("Id_Dinacope")</label><input name="IdDinacope" id="formDinacope" class="form-control" required /></div>
+                    <div class="col-md-6"><label class="form-label">@DictionnaireDonnees.Label("Num_Notif")</label><input name="NumNotification" id="formNotif" class="form-control" /></div>
+                    <div class="col-md-12"><label class="form-label">@DictionnaireDonnees.Label("Nom_Chef")</label>
                         <select name="MatriculeChef" id="formChef" class="form-select">
                             <option value="">— Aucun —</option>
                             @foreach (var p in chefsEtablissement)
@@ -174,7 +174,7 @@
                         </select>
                     </div>
                     <div class="col-12">
-                        <label class="form-label">Adresse</label>
+                        <label class="form-label">@DictionnaireDonnees.Label("Adr_Etab")</label>
                         <div class="row g-2">
                             <div class="col-md-4">
                                 <input type="text" id="formAdresseAv" class="form-control" placeholder="AV / Avenue" required />

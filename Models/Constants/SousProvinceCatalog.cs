@@ -26,15 +26,22 @@ public static class SousProvinceCatalog
     public static string? CodeFromLegacyOrCode(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
+        var trimmed = value.Trim();
         var byLegacy = Rows.FirstOrDefault(r =>
-            string.Equals(r.LegacyCode, value, StringComparison.OrdinalIgnoreCase));
+            string.Equals(r.LegacyCode, trimmed, StringComparison.OrdinalIgnoreCase));
         if (byLegacy != null) return byLegacy.Code;
         var byCode = Rows.FirstOrDefault(r =>
-            string.Equals(r.Code, value, StringComparison.OrdinalIgnoreCase));
+            string.Equals(r.Code, trimmed, StringComparison.OrdinalIgnoreCase));
         if (byCode != null) return byCode.Code;
         var byLabel = Rows.FirstOrDefault(r =>
-            string.Equals(r.Libelle, value, StringComparison.OrdinalIgnoreCase));
-        return byLabel?.Code;
+            string.Equals(r.Libelle, trimmed, StringComparison.OrdinalIgnoreCase));
+        if (byLabel != null) return byLabel.Code;
+        // Codes SP créés hors catalogue seed (gestion Paramètres)
+        if (trimmed.Length >= 3
+            && trimmed.StartsWith("SP", StringComparison.OrdinalIgnoreCase)
+            && trimmed.Skip(2).All(char.IsDigit))
+            return trimmed.ToUpperInvariant();
+        return null;
     }
 
     /// <summary>Libellé pour un code SP00x ou legacy.</summary>

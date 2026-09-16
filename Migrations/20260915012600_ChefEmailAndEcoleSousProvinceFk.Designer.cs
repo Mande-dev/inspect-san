@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using inspect_san.Models.Data;
 
@@ -11,9 +12,11 @@ using inspect_san.Models.Data;
 namespace inspect_san.Migrations
 {
     [DbContext(typeof(InspectSanDbContext))]
-    partial class InspectSanDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260915012600_ChefEmailAndEcoleSousProvinceFk")]
+    partial class ChefEmailAndEcoleSousProvinceFk
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -290,13 +293,6 @@ namespace inspect_san.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("varchar(80)");
 
-                    b.Property<DateTime?>("LdEnvoyeLe")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("LdEnvoyeA")
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
-
                     b.HasKey("NumDecision");
 
                     b.HasIndex("NumAgrement");
@@ -529,13 +525,6 @@ namespace inspect_san.Migrations
                     b.Property<string>("SignePar")
                         .HasMaxLength(64)
                         .HasColumnType("varchar(64)");
-
-                    b.Property<DateTime?>("OmEnvoyeLe")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("OmEnvoyeA")
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
 
                     b.Property<string>("StatutFiche")
                         .HasMaxLength(50)

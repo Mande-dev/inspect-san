@@ -28,12 +28,11 @@ public class AccessControlTests
         bool Expected(string role, string page) => role switch
         {
             "Administrateur système" => page is not "espace-chef",
-            "Directeur Provincial" => page is "dashboard" or "ecoles" or "chefs" or "agents"
-                or "missions" or "fiches" or "decisions" or "statistiques" or "rapport",
+            "Directeur Provincial" => page is not "espace-chef",
             "Contrôleur" => page is "dashboard"
                 or "missions" or "fiches" or "decisions" or "rapport",
-            "Agent du Secrétariat" => page is "dashboard" or "ecoles" or "chefs" or "agents"
-                or "missions" or "fiches" or "decisions" or "statistiques" or "rapport" or "parametres",
+            // Rôle retiré : plus d'accès page
+            "Agent du Secrétariat" => false,
             "Chef d'établissement" => false,
             _ => false
         };
@@ -57,20 +56,23 @@ public class AccessControlTests
     [InlineData("Chef d'établissement", AccessActions.CreerFiche, false)]
     [InlineData("Chef d'établissement", AccessActions.ValiderFiche, false)]
     [InlineData("Directeur Provincial", AccessActions.CreerDecision, true)]
+    [InlineData("Directeur Provincial", AccessActions.CreerFiche, true)]
+    [InlineData("Directeur Provincial", AccessActions.ValiderFiche, true)]
+    [InlineData("Directeur Provincial", AccessActions.GererUtilisateurs, true)]
     [InlineData("Agent du Secrétariat", AccessActions.CreerDecision, false)]
     [InlineData("Contrôleur", AccessActions.CreerDecision, false)]
     [InlineData("Chef d'établissement", AccessActions.CreerDecision, false)]
     [InlineData("Chef d'établissement", AccessActions.GererEcole, false)]
     [InlineData("Administrateur système", AccessActions.GererEcole, true)]
     [InlineData("Administrateur système", AccessActions.GererChefs, true)]
-    [InlineData("Directeur Provincial", AccessActions.GererEcole, false)]
-    [InlineData("Directeur Provincial", AccessActions.GererChefs, false)]
-    [InlineData("Directeur Provincial", AccessActions.GererAgents, false)]
-    [InlineData("Directeur Provincial", AccessActions.GererParametres, false)]
-    [InlineData("Agent du Secrétariat", AccessActions.GererEcole, true)]
-    [InlineData("Agent du Secrétariat", AccessActions.GererChefs, true)]
-    [InlineData("Agent du Secrétariat", AccessActions.GererAgents, true)]
-    [InlineData("Agent du Secrétariat", AccessActions.GererParametres, true)]
+    [InlineData("Directeur Provincial", AccessActions.GererEcole, true)]
+    [InlineData("Directeur Provincial", AccessActions.GererChefs, true)]
+    [InlineData("Directeur Provincial", AccessActions.GererAgents, true)]
+    [InlineData("Directeur Provincial", AccessActions.GererParametres, true)]
+    [InlineData("Agent du Secrétariat", AccessActions.GererEcole, false)]
+    [InlineData("Agent du Secrétariat", AccessActions.GererChefs, false)]
+    [InlineData("Agent du Secrétariat", AccessActions.GererAgents, false)]
+    [InlineData("Agent du Secrétariat", AccessActions.GererParametres, false)]
     [InlineData("Agent du Secrétariat", AccessActions.GererMission, false)]
     [InlineData("Contrôleur", AccessActions.GererEcole, false)]
     [InlineData("Contrôleur", AccessActions.GererChefs, false)]
@@ -85,31 +87,29 @@ public class AccessControlTests
 public class AuthorizationFlowTests
 {
     [Fact]
-    public void Secretariat_Dp_Controleur_PagesLectureEtEcriture()
+    public void Dp_Controleur_PagesLectureEtEcriture()
     {
-        AccessControl.CanAccess("Agent du Secrétariat", "ecoles").Should().BeTrue();
-        AccessControl.CanAccess("Agent du Secrétariat", "chefs").Should().BeTrue();
-        AccessControl.CanAccess("Agent du Secrétariat", "agents").Should().BeTrue();
-        AccessControl.CanAccess("Agent du Secrétariat", "missions").Should().BeTrue();
-        AccessControl.CanAccess("Agent du Secrétariat", "fiches").Should().BeTrue();
-        AccessControl.CanAccess("Agent du Secrétariat", "parametres").Should().BeTrue();
-        AccessControl.CanDo("Agent du Secrétariat", AccessActions.GererEcole).Should().BeTrue();
-        AccessControl.CanDo("Agent du Secrétariat", AccessActions.GererChefs).Should().BeTrue();
-        AccessControl.CanDo("Agent du Secrétariat", AccessActions.GererAgents).Should().BeTrue();
-        AccessControl.CanDo("Agent du Secrétariat", AccessActions.GererParametres).Should().BeTrue();
-        AccessControl.CanDo("Agent du Secrétariat", AccessActions.CreerDecision).Should().BeFalse();
-        AccessControl.CanDo("Agent du Secrétariat", AccessActions.GererMission).Should().BeFalse();
-        AccessControl.CanDo("Agent du Secrétariat", AccessActions.CreerFiche).Should().BeFalse();
+        AccessControl.RoleAccess.ContainsKey("Agent du Secrétariat").Should().BeFalse();
+        AccessControl.CanAccess("Agent du Secrétariat", "ecoles").Should().BeFalse();
+        AccessControl.CanAccess("Agent du Secrétariat", "parametres").Should().BeFalse();
+        AccessControl.CanDo("Agent du Secrétariat", AccessActions.GererEcole).Should().BeFalse();
+        AccessControl.CanDo("Agent du Secrétariat", AccessActions.GererParametres).Should().BeFalse();
 
         AccessControl.CanAccess("Directeur Provincial", "ecoles").Should().BeTrue();
         AccessControl.CanAccess("Directeur Provincial", "chefs").Should().BeTrue();
         AccessControl.CanAccess("Directeur Provincial", "agents").Should().BeTrue();
         AccessControl.CanAccess("Directeur Provincial", "fiches").Should().BeTrue();
-        AccessControl.CanAccess("Directeur Provincial", "parametres").Should().BeFalse();
-        AccessControl.CanDo("Directeur Provincial", AccessActions.GererEcole).Should().BeFalse();
-        AccessControl.CanDo("Directeur Provincial", AccessActions.GererChefs).Should().BeFalse();
-        AccessControl.CanDo("Directeur Provincial", AccessActions.GererAgents).Should().BeFalse();
+        AccessControl.CanAccess("Directeur Provincial", "parametres").Should().BeTrue();
+        AccessControl.CanAccess("Directeur Provincial", "utilisateurs").Should().BeTrue();
+        AccessControl.CanAccess("Directeur Provincial", "journal").Should().BeTrue();
+        AccessControl.CanDo("Directeur Provincial", AccessActions.GererEcole).Should().BeTrue();
+        AccessControl.CanDo("Directeur Provincial", AccessActions.GererChefs).Should().BeTrue();
+        AccessControl.CanDo("Directeur Provincial", AccessActions.GererAgents).Should().BeTrue();
+        AccessControl.CanDo("Directeur Provincial", AccessActions.GererParametres).Should().BeTrue();
+        AccessControl.CanDo("Directeur Provincial", AccessActions.GererUtilisateurs).Should().BeTrue();
         AccessControl.CanDo("Directeur Provincial", AccessActions.CreerDecision).Should().BeTrue();
+        AccessControl.CanDo("Directeur Provincial", AccessActions.CreerFiche).Should().BeTrue();
+        AccessControl.CanDo("Directeur Provincial", AccessActions.ValiderFiche).Should().BeTrue();
 
         AccessControl.CanAccess("Contrôleur", "ecoles").Should().BeFalse();
         AccessControl.CanAccess("Contrôleur", "chefs").Should().BeFalse();
@@ -152,6 +152,26 @@ public class AuthorizationFlowTests
         var ok = await sut.ValiderAsync(enAttente.Id, "usr-003");
         ok.Success.Should().BeTrue();
         ok.Message.Should().Contain("Lu et approuvé");
+    }
+
+    [Fact]
+    public async Task ValiderFiche_AdjointMemeDelegue_EstRefuse()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var fiche = await db.Missions.Include(m => m.Affectations)
+            .FirstAsync(m => m.StatutFiche == FicheStatuts.EnAttenteValidation);
+        var adjoint = fiche.Affectations.First(a => a.Fonction == RolesMissionCodes.ChefAdjoint);
+        adjoint.EcritureDeleguee = true;
+        await db.SaveChangesAsync();
+
+        AccessControl.CanDo("Contrôleur", AccessActions.ValiderFiche).Should().BeTrue();
+
+        var sut = new FichesControleService(db, users,
+            scope: new FixedUserScope(new UserDataScope { AgentId = adjoint.MatrAgent }),
+            access: new MissionAccessService(db));
+        var result = await sut.ValiderAsync(fiche.Id, "usr-adjoint");
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("chef d'équipe");
     }
 
     [Fact]
@@ -219,9 +239,18 @@ public class DataScopeTests
     }
 
     [Fact]
-    public void Secretariat_IsUnrestricted()
+    public void Secretariat_Obsolete_IsNotUnrestricted()
     {
-        DataScope.Resolve("Agent du Secrétariat", "usr-005").Unrestricted.Should().BeTrue();
+#pragma warning disable CS0618
+        DataScope.Resolve(DataScope.RoleSecretariat, "usr-005").Unrestricted.Should().BeFalse();
+#pragma warning restore CS0618
+        DataScope.Resolve("Agent du Secrétariat", "usr-005").IsEmpty.Should().BeTrue();
+    }
+
+    [Fact]
+    public void DirecteurProvincial_IsUnrestricted()
+    {
+        DataScope.Resolve("Directeur Provincial", "usr-002").Unrestricted.Should().BeTrue();
     }
 
     [Fact]

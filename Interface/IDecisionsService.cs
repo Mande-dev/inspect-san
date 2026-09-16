@@ -18,4 +18,6 @@ public interface IDecisionsService
     Task<ApiResultDto> SaveAsync(SaveDecisionDto dto, string? userId);
     /// <summary>Supprime une décision.</summary>
     Task<ApiResultDto> DeleteAsync(string id);
+    /// <summary>Génère le PDF de la lettre de décision et l'envoie au chef d'établissement.</summary>
+    Task<ApiResultDto> EnvoyerLettreParMailAsync(string decisionId, string? userId);
 }

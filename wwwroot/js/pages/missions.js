@@ -77,6 +77,17 @@
     var p = s.split('-');
     return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : s;
   }
+  // Formate une date-heure pour les tooltips.
+  function fmtDateTimeLocal(v) {
+    if (!v) return '—';
+    try {
+      var d = new Date(v);
+      if (isNaN(d.getTime())) return String(v);
+      return d.toLocaleString('fr-FR');
+    } catch (e) {
+      return String(v);
+    }
+  }
 
   // Libellé des participations pour le tableau.
   function partsLabel(parts) {
@@ -162,7 +173,7 @@
       var sel = row.querySelector('.part-role');
       if (!sel) return;
       var current = sel.value;
-      sel.innerHTML = '<option value="">Fonction…</option>' + roleOptionsHtml(current, row);
+      sel.innerHTML = '<option value="">Fonction de l’Agent dans la mission…</option>' + roleOptionsHtml(current, row);
       if (current) sel.value = current;
     });
   }
@@ -194,7 +205,7 @@
       '<div class="col-md-5"><select name="AgentIds" class="form-select part-agent" required><option value="">Agent…</option>' +
       agentOptionsHtml(agentId || '', null) +
       '</select></div>' +
-      '<div class="col-md-5"><select name="RoleMissions" class="form-select part-role" required><option value="">Fonction…</option>' +
+      '<div class="col-md-5"><select name="RoleMissions" class="form-select part-role" required><option value="">Fonction de l’Agent dans la mission…</option>' +
       roleOptionsHtml(roleCode || '', null) +
       '</select></div>' +
       '<div class="col-md-2"><button type="button" class="btn btn-outline-danger w-100 btn-remove-part"><i class="ti ti-trash"></i></button></div>';
@@ -248,6 +259,26 @@
       '" data-ecole="' +
       ecoleJson +
       '"><i class="ti ti-printer"></i></button> ';
+    var omEnvoyeLe = m.omEnvoyeLe || m.OmEnvoyeLe || null;
+    var omEnvoyeA = (m.omEnvoyeA || m.OmEnvoyeA || '').toString().trim();
+    var mailBtn = '';
+    if (canGerer) {
+      if (omEnvoyeLe) {
+        var dejaTitle =
+          "Déjà envoyé le " +
+          fmtDateTimeLocal(omEnvoyeLe) +
+          (omEnvoyeA ? ' à ' + omEnvoyeA : '');
+        mailBtn =
+          '<button type="button" class="btn btn-sm btn-outline-secondary" disabled title="' +
+          api.attr(dejaTitle) +
+          '"><i class="ti ti-mail-check"></i></button> ';
+      } else {
+        mailBtn =
+          '<form class="d-inline js-envoyer-om" data-id="' +
+          api.attr(id) +
+          '"><button type="submit" class="btn btn-sm btn-outline-info" title="Envoyer l’ordre de mission par e-mail"><i class="ti ti-mail"></i></button></form> ';
+      }
+    }
     var edit = editable
       ? '<button type="button" class="btn btn-sm btn-outline-primary mission-edit" data-json="' +
         json +
@@ -295,6 +326,7 @@
       api.esc(String(statut).replace(/_/g, ' ')) +
       '</span></td><td class="text-end text-nowrap">' +
       printBtn +
+      mailBtn +
       edit +
       signer +
       demander +
@@ -348,7 +380,26 @@
     setNumeroDisplay(numero);
     setEquipeDisplay(numero, m.nomEquipe || m.NomEquipe || '');
     document.getElementById('missionEcole').value = m.ecoleId || m.EcoleId || '';
-    document.getElementById('missionStatut').value = m.statut || m.Statut || 'brouillon';
+    var statutVal = m.statut || m.Statut || 'signe';
+    var statutEl = document.getElementById('missionStatut');
+    if (statutEl) {
+      // Compat missions legacy (brouillon / attente) encore en base
+      if (
+        (statutVal === 'brouillon' || statutVal === 'en_attente_signature') &&
+        !Array.from(statutEl.options).some(function (o) {
+          return o.value === statutVal;
+        })
+      ) {
+        var opt = document.createElement('option');
+        opt.value = statutVal;
+        opt.textContent = statutVal === 'brouillon' ? 'Brouillon' : 'En attente de signature';
+        statutEl.appendChild(opt);
+      }
+      statutEl.value = statutVal;
+      statutEl.disabled = false;
+    }
+    var hint = document.getElementById('missionStatutHint');
+    if (hint) hint.classList.add('d-none');
     document.getElementById('missionEmission').value = d(m.dateEmission || m.DateEmission);
     document.getElementById('missionFin').value = d(m.finValidite || m.FinValidite);
     clearParts();
@@ -401,6 +452,13 @@
     document.getElementById('missionTitle').textContent = 'Nouvelle mission';
     setNumeroDisplay('');
     setEquipeDisplay('', '');
+    var statut = document.getElementById('missionStatut');
+    if (statut) {
+      statut.value = 'signe';
+      statut.disabled = true;
+    }
+    var hint = document.getElementById('missionStatutHint');
+    if (hint) hint.classList.remove('d-none');
     clearParts();
     addPartRow('', '');
   });
@@ -426,14 +484,23 @@
     var btn = form.querySelector('[type=submit]');
     try {
       await api.withBusy(btn, async function () {
+        var statutEl = document.getElementById('missionStatut');
+        if (statutEl) statutEl.disabled = false;
         var body = {
           id: document.getElementById('missionId').value || null,
-          statut: document.getElementById('missionStatut').value,
+          statut: statutEl ? statutEl.value : 'signe',
           ecoleId: document.getElementById('missionEcole').value,
           dateEmission: document.getElementById('missionEmission').value || null,
           finValidite: document.getElementById('missionFin').value || null,
           participations: collectParticipations()
         };
+        if (!body.participations || body.participations.length !== 4) {
+          api.showToast(
+            "Une mission doit comporter exactement 4 agents : 1 chef d'équipe, 1 chef adjoint et 2 membres.",
+            'warning'
+          );
+          return;
+        }
         var result = await api.post('/Home/SaveMissionJson', body);
         api.bindAjaxResult(result, function () {
           api.hideModal(document.getElementById('missionModal'));
@@ -451,11 +518,28 @@
     var del = e.target.closest('.js-delete-mission');
     var deleguer = e.target.closest('.js-deleguer-ecriture');
     var retirer = e.target.closest('.js-retirer-delegation');
-    if (!signer && !demander && !del && !deleguer && !retirer) return;
+    var envoyerOm = e.target.closest('.js-envoyer-om');
+    if (!signer && !demander && !del && !deleguer && !retirer && !envoyerOm) return;
     e.preventDefault();
     if (del && !(await api.confirm('Supprimer cette mission ?'))) return;
     if (deleguer && !(await api.confirm('Céder les droits d\'écriture au chef adjoint ?'))) return;
     if (retirer && !(await api.confirm('Retirer la délégation d\'écriture à l\'adjoint ?'))) return;
+    if (envoyerOm) {
+      try {
+        await api.postEmailWithProgress({
+          url: '/Home/EnvoyerOrdreMissionJson',
+          id: envoyerOm.getAttribute('data-id'),
+          title: 'Envoi de l\'ordre de mission',
+          successTitle: 'Ordre de mission envoyé',
+          confirmMessage: 'Envoyer l\'ordre de mission par e-mail au chef d\'établissement ?',
+          confirmTitle: 'Envoi de l\'ordre de mission',
+          onSuccess: loadList
+        });
+      } catch (err) {
+        api.showToast(err.message, 'danger');
+      }
+      return;
+    }
     var el = signer || demander || del || deleguer || retirer;
     var id = el.getAttribute('data-id');
     var url = signer

@@ -3,7 +3,7 @@
 @{
     ViewData["Title"] = "Utilisateurs";
     ViewBag.PageKey = "utilisateurs";
-    var roles = new[] { "Administrateur système", "Directeur Provincial", "Contrôleur", "Agent du Secrétariat" };
+    var roles = new[] { "Administrateur système", "Directeur Provincial", "Contrôleur" };
     var ecolesUser = (IEnumerable<Ecole>)(ViewBag.Ecoles ?? new List<Ecole>());
     var agentsSansCompte = (IReadOnlyList<AgentSansCompteDto>)(ViewBag.AgentsSansCompte ?? Array.Empty<AgentSansCompteDto>());
 }

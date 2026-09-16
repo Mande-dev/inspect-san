@@ -77,9 +77,8 @@ public class DashboardService : IDashboardService
             RoleTip = role switch
             {
                 "Administrateur système" => "Vous disposez d'une vue complète sur toutes les écoles, missions, fiches et décisions.",
-                "Directeur Provincial" => "Consultez les fiches validées et statuez sur les décisions en attente.",
+                "Directeur Provincial" => "Gérez le référentiel, transférez les rapports et statuez sur les décisions.",
                 "Contrôleur" => "Ce tableau de bord affiche les missions auxquelles vous participez et les fiches associées.",
-                "Agent du Secrétariat" => "Suivez les missions, fiches et décisions du périmètre provincial.",
                 _ => ""
             },
             EcolesCount = ecoles.Count,
@@ -122,7 +121,7 @@ public class DashboardService : IDashboardService
         var all = _users.JournalActivite.AsEnumerable();
         return role switch
         {
-            DataScope.RoleAdmin or DataScope.RoleDp or DataScope.RoleSecretariat => all,
+            DataScope.RoleAdmin or DataScope.RoleDp => all,
             DataScope.RoleControleur => all.Where(j =>
                 j.Module is "Missions" or "Fiches" or "Ordres de mission"),
             // Ancien rôle login chef : plus de périmètre journal

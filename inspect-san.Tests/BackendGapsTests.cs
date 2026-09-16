@@ -242,15 +242,20 @@ public class StatsExportAndEmailTests
     }
 
     [Fact]
-    public async Task ValiderFiche_SendsEmailToControleur()
+    public async Task ValiderFiche_KeepsInAppNotification_WithoutEmail()
     {
         var (db, users) = await TestDb.CreateSeededAsync();
-        var recorder = new RecordingEmailNotifier();
-        var sut = new FichesControleService(db, users, email: recorder);
+        var sut = new FichesControleService(db, users);
         var enAttente = await db.FichesQuery().FirstAsync(m => m.StatutFiche == FicheStatuts.EnAttenteValidation);
+        var notifBefore = users.Notifications.Count;
 
         var result = await sut.ValiderAsync(enAttente.Id, "usr-006");
         result.Success.Should().BeTrue();
-        recorder.Sent.Should().Contain(s => s.Role == DataScope.RoleControleur);
+        (await db.Missions.AsNoTracking().FirstAsync(m => m.Id == enAttente.Id))
+            .StatutFiche.Should().Be(FicheStatuts.Validee);
+        users.Notifications.Count.Should().BeGreaterThan(notifBefore);
+        users.Notifications.Should().Contain(n =>
+            n.Titre.Contains("validée", StringComparison.OrdinalIgnoreCase)
+            || n.Message.Contains(enAttente.NumOrdre, StringComparison.Ordinal));
     }
 }

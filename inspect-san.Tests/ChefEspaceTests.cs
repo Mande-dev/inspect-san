@@ -15,9 +15,9 @@ public class ChefEspaceObsoleteTests
         AccessControl.CanAccess("Chef d'établissement", "espace-chef").Should().BeFalse();
         AccessControl.CanAccess("Contrôleur", "espace-chef").Should().BeFalse();
         AccessControl.CanAccess("Directeur Provincial", "espace-chef").Should().BeFalse();
-        AccessControl.CanAccess("Agent du Secrétariat", "espace-chef").Should().BeFalse();
         AccessControl.CanAccess("Administrateur système", "espace-chef").Should().BeFalse();
         AccessControl.RoleAccess.ContainsKey("Chef d'établissement").Should().BeFalse();
+        AccessControl.RoleAccess.ContainsKey("Agent du Secrétariat").Should().BeFalse();
     }
 
     [Fact]

@@ -56,6 +56,7 @@ public class ChefsService : IChefsService
         Id = c.Matricule,
         NomComplet = c.NomComplet,
         Telephone = c.Telephone,
+        Email = c.Email,
         EcoleNom = ecoleNom,
         AnneeDebutActivite = c.AnneeDebutActivite
     };
@@ -89,6 +90,10 @@ public class ChefsService : IChefsService
 
         var nom = dto.NomComplet.Trim();
         var tel = dto.Telephone?.Trim() ?? "";
+        var email = string.IsNullOrWhiteSpace(dto.Email) ? null : dto.Email.Trim();
+        if (email != null && (email.Length > 200 || !email.Contains('@') || email.StartsWith('@') || email.EndsWith('@')))
+            return ApiResultDto.Fail("Adresse e-mail invalide.");
+
         var annee = dto.AnneeDebutActivite;
         if (annee is < 1900 or > 2100)
             return ApiResultDto.Fail("Année de début d'activité invalide.");
@@ -100,6 +105,7 @@ public class ChefsService : IChefsService
 
             existing.NomComplet = nom;
             existing.Telephone = tel;
+            existing.Email = email;
             existing.AnneeDebutActivite = annee;
             await _db.SaveChangesAsync();
             _users.AddJournal("Chefs", "modification", $"Chef d'établissement {existing.NomComplet}");
@@ -118,6 +124,7 @@ public class ChefsService : IChefsService
             Matricule = matricule,
             NomComplet = nom,
             Telephone = tel,
+            Email = email,
             AnneeDebutActivite = annee
         };
         _db.ChefEtablissements.Add(chef);

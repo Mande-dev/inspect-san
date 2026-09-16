@@ -80,7 +80,7 @@
 <div class="card card-lg">
     <div class="table-responsive">
         <table class="table table-hover mb-0 js-paginated-table" id="agentsTable" data-can-gerer="@(canGerer ? "1" : "0")">
-            <thead class="table-light"><tr><th>Matricule</th><th>Nom</th><th>Téléphone</th><th>Statut</th><th></th></tr></thead>
+            <thead class="table-light"><tr><th>@DictionnaireDonnees.Label("Matr_Ag")</th><th>@DictionnaireDonnees.Label("Noms_Ag")</th><th>@DictionnaireDonnees.Label("Tel_Ag")</th><th>Statut</th><th></th></tr></thead>
             <tbody id="agentsTbody">
             @foreach (var a in Model)
             {
@@ -132,12 +132,12 @@
                     <div class="row g-3">
                         <input type="hidden" name="Id" id="agentEditId" value="" />
                         <div class="col-md-4">
-                            <label class="form-label">Matricule <span class="text-danger">*</span></label>
+                            <label class="form-label">@DictionnaireDonnees.Label("Matr_Ag") <span class="text-danger">*</span></label>
                             <input name="Matricule" id="agentId" class="form-control" required />
                             <div class="form-text">Saisi à la création ; non modifiable ensuite.</div>
                         </div>
-                        <div class="col-md-8"><label class="form-label">Nom complet</label><input name="NomComplet" id="agentNom" class="form-control" required /></div>
-                        <div class="col-md-4"><label class="form-label">Téléphone</label><input name="Telephone" id="agentTel" class="form-control" /></div>
+                        <div class="col-md-8"><label class="form-label">@DictionnaireDonnees.Label("Noms_Ag")</label><input name="NomComplet" id="agentNom" class="form-control" required /></div>
+                        <div class="col-md-4"><label class="form-label">@DictionnaireDonnees.Label("Tel_Ag")</label><input name="Telephone" id="agentTel" class="form-control" /></div>
                         <div class="col-md-4">
                             <label class="form-label">Actif</label>
                             <select name="Actif" id="agentActif" class="form-select">

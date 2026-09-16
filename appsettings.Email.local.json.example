@@ -1,0 +1,11 @@
+{
+  "Email": {
+    "SmtpHost": "smtp.gmail.com",
+    "SmtpPort": 587,
+    "SmtpUser": "TON_COMPTE@gmail.com",
+    "SmtpPassword": "MOT_DE_PASSE_APPLICATION",
+    "UseSsl": true,
+    "From": "TON_COMPTE@gmail.com",
+    "FromDisplayName": "Inspect-San"
+  }
+}

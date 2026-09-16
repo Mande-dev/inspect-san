@@ -32,6 +32,88 @@ public class MissionAccessTests
             }).ToList()
         };
 
+    private static (string agent, string role)[] EquipeComplete4()
+        =>
+        [
+            ("agt-001", RolesMissionCodes.ChefEquipe),
+            ("agt-002", RolesMissionCodes.ChefAdjoint),
+            ("agt-003", RolesMissionCodes.Membre),
+            ("agt-004", RolesMissionCodes.Membre)
+        ];
+
+    private static async Task EnsureEquipeCompleteAsync(
+        Models.Data.InspectSanDbContext db,
+        Models.Entities.Mission mission)
+    {
+        if (!mission.Affectations.Any(a => a.Fonction == RolesMissionCodes.ChefEquipe))
+            mission.Affectations.Add(new Models.Entities.Affectation
+            {
+                NomOrdre = mission.NumOrdre,
+                MatrAgent = "agt-001",
+                Fonction = RolesMissionCodes.ChefEquipe
+            });
+        if (!mission.Affectations.Any(a => a.Fonction == RolesMissionCodes.ChefAdjoint))
+            mission.Affectations.Add(new Models.Entities.Affectation
+            {
+                NomOrdre = mission.NumOrdre,
+                MatrAgent = "agt-002",
+                Fonction = RolesMissionCodes.ChefAdjoint
+            });
+        while (mission.Affectations.Count(a => a.Fonction == RolesMissionCodes.Membre) < 2)
+        {
+            var used = mission.Affectations.Select(a => a.MatrAgent).ToHashSet();
+            var next = new[] { "agt-003", "agt-004", "agt-005" }.First(id => !used.Contains(id));
+            mission.Affectations.Add(new Models.Entities.Affectation
+            {
+                NomOrdre = mission.NumOrdre,
+                MatrAgent = next,
+                Fonction = RolesMissionCodes.Membre
+            });
+        }
+        await db.SaveChangesAsync();
+    }
+
+    private static List<SaveParticipationDto> PartsFrom(Models.Entities.Mission mission)
+        => mission.Affectations.Select(a => new SaveParticipationDto
+        {
+            AgentId = a.MatrAgent,
+            RoleMission = a.Fonction
+        }).ToList();
+
+    [Fact]
+    public async Task SaveMission_Refuse_TroisAgents()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var ecoleId = await FirstEcoleIdAsync(db);
+        var sut = Missions(db, users);
+
+        var result = await sut.SaveAsync(BaseSave(ecoleId,
+            ("agt-001", RolesMissionCodes.ChefEquipe),
+            ("agt-002", RolesMissionCodes.ChefAdjoint),
+            ("agt-003", RolesMissionCodes.Membre)));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("4 agents");
+    }
+
+    [Fact]
+    public async Task SaveMission_Refuse_CinqAgents()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var ecoleId = await FirstEcoleIdAsync(db);
+        var sut = Missions(db, users);
+
+        var result = await sut.SaveAsync(BaseSave(ecoleId,
+            ("agt-001", RolesMissionCodes.ChefEquipe),
+            ("agt-002", RolesMissionCodes.ChefAdjoint),
+            ("agt-003", RolesMissionCodes.Membre),
+            ("agt-004", RolesMissionCodes.Membre),
+            ("agt-005", RolesMissionCodes.Membre)));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("4 agents");
+    }
+
     [Fact]
     public async Task SaveMission_Refuse_DeuxChefsEquipe()
     {
@@ -41,10 +123,12 @@ public class MissionAccessTests
 
         var result = await sut.SaveAsync(BaseSave(ecoleId,
             ("agt-001", RolesMissionCodes.ChefEquipe),
-            ("agt-002", RolesMissionCodes.ChefEquipe)));
+            ("agt-002", RolesMissionCodes.ChefEquipe),
+            ("agt-003", RolesMissionCodes.ChefAdjoint),
+            ("agt-004", RolesMissionCodes.Membre)));
 
         result.Success.Should().BeFalse();
-        result.Message.Should().Contain("un seul chef d'équipe");
+        result.Message.Should().Contain("chef d'équipe");
     }
 
     [Fact]
@@ -57,10 +141,28 @@ public class MissionAccessTests
         var result = await sut.SaveAsync(BaseSave(ecoleId,
             ("agt-001", RolesMissionCodes.ChefEquipe),
             ("agt-002", RolesMissionCodes.ChefAdjoint),
-            ("agt-003", RolesMissionCodes.ChefAdjoint)));
+            ("agt-003", RolesMissionCodes.ChefAdjoint),
+            ("agt-004", RolesMissionCodes.Membre)));
 
         result.Success.Should().BeFalse();
-        result.Message.Should().Contain("un seul chef adjoint");
+        result.Message.Should().Contain("chef adjoint");
+    }
+
+    [Fact]
+    public async Task SaveMission_Refuse_ZeroAdjoint()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var ecoleId = await FirstEcoleIdAsync(db);
+        var sut = Missions(db, users);
+
+        var result = await sut.SaveAsync(BaseSave(ecoleId,
+            ("agt-001", RolesMissionCodes.ChefEquipe),
+            ("agt-002", RolesMissionCodes.Membre),
+            ("agt-003", RolesMissionCodes.Membre),
+            ("agt-004", RolesMissionCodes.Membre)));
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("chef adjoint");
     }
 
     [Fact]
@@ -72,24 +174,22 @@ public class MissionAccessTests
 
         var result = await sut.SaveAsync(BaseSave(ecoleId,
             ("agt-001", RolesMissionCodes.ChefEquipe),
-            ("agt-001", RolesMissionCodes.Membre)));
+            ("agt-001", RolesMissionCodes.ChefAdjoint),
+            ("agt-003", RolesMissionCodes.Membre),
+            ("agt-004", RolesMissionCodes.Membre)));
 
         result.Success.Should().BeFalse();
         result.Message.Should().Contain("une fois");
     }
 
     [Fact]
-    public async Task SaveMission_Accepte_UnChef_UnAdjoint_PlusieursMembres()
+    public async Task SaveMission_Accepte_UnChef_UnAdjoint_DeuxMembres()
     {
         var (db, users) = await TestDb.CreateSeededAsync();
         var ecoleId = await FirstEcoleIdAsync(db);
         var sut = Missions(db, users);
 
-        var result = await sut.SaveAsync(BaseSave(ecoleId,
-            ("agt-001", RolesMissionCodes.ChefEquipe),
-            ("agt-002", RolesMissionCodes.ChefAdjoint),
-            ("agt-003", RolesMissionCodes.Membre),
-            ("agt-004", RolesMissionCodes.Membre)));
+        var result = await sut.SaveAsync(BaseSave(ecoleId, EquipeComplete4()));
 
         result.Success.Should().BeTrue();
         var created = await db.Missions.Include(m => m.Affectations)
@@ -116,7 +216,10 @@ public class MissionAccessTests
             CreatedAt = DateTime.UtcNow,
             Affectations =
             [
-                new() { NomOrdre = "OM-TEST-ISO", MatrAgent = "agt-005", Fonction = RolesMissionCodes.ChefEquipe }
+                new() { NomOrdre = "OM-TEST-ISO", MatrAgent = "agt-005", Fonction = RolesMissionCodes.ChefEquipe },
+                new() { NomOrdre = "OM-TEST-ISO", MatrAgent = "agt-002", Fonction = RolesMissionCodes.ChefAdjoint },
+                new() { NomOrdre = "OM-TEST-ISO", MatrAgent = "agt-003", Fonction = RolesMissionCodes.Membre },
+                new() { NomOrdre = "OM-TEST-ISO", MatrAgent = "agt-004", Fonction = RolesMissionCodes.Membre }
             ]
         });
         await db.SaveChangesAsync();
@@ -135,28 +238,19 @@ public class MissionAccessTests
         var (db, users) = await TestDb.CreateSeededAsync();
         var mission = await db.Missions.Include(m => m.Affectations).Include(m => m.Ecole)
             .FirstAsync(m => m.Validite != MissionStatuts.Cloture);
-        mission.Affectations.Add(new Models.Entities.Affectation
-        {
-            NomOrdre = mission.NumOrdre,
-            MatrAgent = "agt-003",
-            Fonction = RolesMissionCodes.Membre
-        });
-        await db.SaveChangesAsync();
+        await EnsureEquipeCompleteAsync(db, mission);
 
+        var membreId = mission.Affectations.First(a => a.Fonction == RolesMissionCodes.Membre).MatrAgent;
         var access = new MissionAccessService(db);
-        (await access.CanWriteMissionAsync(mission.Id, "agt-003", false)).Should().BeFalse();
+        (await access.CanWriteMissionAsync(mission.Id, membreId, false)).Should().BeFalse();
 
-        var sut = Missions(db, users, ScopeAgent("agt-003"));
+        var sut = Missions(db, users, ScopeAgent(membreId));
         var result = await sut.SaveAsync(new SaveMissionDto
         {
             Id = mission.Id,
             EcoleId = mission.Ecole!.Id,
             Statut = mission.Statut,
-            Participations = mission.Affectations.Select(a => new SaveParticipationDto
-            {
-                AgentId = a.MatrAgent,
-                RoleMission = a.Fonction
-            }).ToList()
+            Participations = PartsFrom(mission)
         });
         result.Success.Should().BeFalse();
         result.Message.Should().Contain("droit");
@@ -170,23 +264,19 @@ public class MissionAccessTests
             .Include(m => m.Affectations)
             .Include(m => m.Ecole)
             .FirstAsync(m => m.Validite != MissionStatuts.Cloture);
+        await EnsureEquipeCompleteAsync(db, mission);
 
         var access = new MissionAccessService(db);
         (await access.CanWriteMissionAsync(mission.Id, "agt-001", false)).Should().BeTrue();
 
         var sut = Missions(db, users, ScopeAgent("agt-001"));
-        var parts = mission.Affectations.Select(a => new SaveParticipationDto
-        {
-            AgentId = a.MatrAgent,
-            RoleMission = a.Fonction
-        }).ToList();
         var result = await sut.SaveAsync(new SaveMissionDto
         {
             Id = mission.Id,
             EcoleId = mission.Ecole!.Id,
             Statut = mission.Statut,
             Objet = "Objet modifié test",
-            Participations = parts
+            Participations = PartsFrom(mission)
         });
         result.Success.Should().BeTrue();
     }
@@ -197,6 +287,7 @@ public class MissionAccessTests
         var (db, users) = await TestDb.CreateSeededAsync();
         var mission = await db.Missions.Include(m => m.Affectations).Include(m => m.Ecole)
             .FirstAsync(m => m.Validite != MissionStatuts.Cloture);
+        await EnsureEquipeCompleteAsync(db, mission);
         var adjoint = mission.Affectations.First(a => a.Fonction == RolesMissionCodes.ChefAdjoint);
         adjoint.EcritureDeleguee = false;
         await db.SaveChangesAsync();
@@ -209,11 +300,7 @@ public class MissionAccessTests
         {
             Id = mission.Id,
             EcoleId = mission.Ecole!.Id,
-            Participations = mission.Affectations.Select(a => new SaveParticipationDto
-            {
-                AgentId = a.MatrAgent,
-                RoleMission = a.Fonction
-            }).ToList()
+            Participations = PartsFrom(mission)
         });
         result.Success.Should().BeFalse();
     }
@@ -226,26 +313,24 @@ public class MissionAccessTests
             .Include(m => m.Affectations)
             .Include(m => m.Ecole)
             .FirstAsync(m => m.Validite != MissionStatuts.Cloture);
+        await EnsureEquipeCompleteAsync(db, mission);
 
         var chefSut = Missions(db, users, ScopeAgent("agt-001"));
         var deleg = await chefSut.DeleguerEcritureAdjointAsync(mission.Id, "usr-chef");
-        deleg.Success.Should().BeTrue();
+        deleg.Success.Should().BeFalse();
+        deleg.Message.Should().Contain("désactivée");
 
         var access = new MissionAccessService(db);
-        (await access.CanWriteMissionAsync(mission.Id, "agt-002", false)).Should().BeTrue();
+        (await access.CanWriteMissionAsync(mission.Id, "agt-002", false)).Should().BeFalse();
 
         var adjointSut = Missions(db, users, ScopeAgent("agt-002"));
         var result = await adjointSut.SaveAsync(new SaveMissionDto
         {
             Id = mission.Id,
             EcoleId = mission.Ecole!.Id,
-            Participations = mission.Affectations.Select(a => new SaveParticipationDto
-            {
-                AgentId = a.MatrAgent,
-                RoleMission = a.Fonction
-            }).ToList()
+            Participations = PartsFrom(mission)
         });
-        result.Success.Should().BeTrue();
+        result.Success.Should().BeFalse();
     }
 
     [Fact]
@@ -254,34 +339,38 @@ public class MissionAccessTests
         var (db, users) = await TestDb.CreateSeededAsync();
         var mission = await db.Missions.Include(m => m.Affectations).Include(m => m.Ecole)
             .FirstAsync(m => m.Validite != MissionStatuts.Cloture);
+        await EnsureEquipeCompleteAsync(db, mission);
+
+        var adjoint = mission.Affectations.First(a => a.Fonction == RolesMissionCodes.ChefAdjoint);
+        adjoint.EcritureDeleguee = true;
+        await db.SaveChangesAsync();
 
         var chefSut = Missions(db, users, ScopeAgent("agt-001"));
-        (await chefSut.DeleguerEcritureAdjointAsync(mission.Id, "usr-chef")).Success.Should().BeTrue();
+        (await chefSut.DeleguerEcritureAdjointAsync(mission.Id, "usr-chef")).Success.Should().BeFalse();
         (await chefSut.RetirerDelegationAdjointAsync(mission.Id, "usr-chef")).Success.Should().BeTrue();
 
         var access = new MissionAccessService(db);
         (await access.CanWriteMissionAsync(mission.Id, "agt-002", false)).Should().BeFalse();
+        (await db.Affectations.AsNoTracking()
+            .AnyAsync(a => a.Mission!.Id == mission.Id && a.EcritureDeleguee)).Should().BeFalse();
     }
 
     [Fact]
-    public async Task Delegation_EstJournalisee()
+    public async Task Delegation_EstDesactivee()
     {
         var (db, users) = await TestDb.CreateSeededAsync();
         var mission = await db.Missions.FirstAsync(m => m.Validite != MissionStatuts.Cloture);
         var sut = Missions(db, users, ScopeAgent("agt-001"));
 
-        await sut.DeleguerEcritureAdjointAsync(mission.Id, "usr-chef");
-        await sut.RetirerDelegationAdjointAsync(mission.Id, "usr-chef");
-
-        var journals = users.JournalActivite;
-        journals.Should().Contain(j => j.Action.Contains("délégation", StringComparison.OrdinalIgnoreCase)
-                                       || j.Detail.Contains("cédée", StringComparison.OrdinalIgnoreCase));
-        journals.Should().Contain(j => j.Action.Contains("retrait", StringComparison.OrdinalIgnoreCase)
-                                       || j.Detail.Contains("retirée", StringComparison.OrdinalIgnoreCase));
+        var before = users.JournalActivite.Count;
+        var result = await sut.DeleguerEcritureAdjointAsync(mission.Id, "usr-chef");
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("désactivée");
+        users.JournalActivite.Count.Should().Be(before);
     }
 
     [Fact]
-    public async Task Dp_Unrestricted_NePeutPasDeleguerNiRetirer()
+    public async Task Dp_Unrestricted_NePeutPasDeleguer()
     {
         var (db, users) = await TestDb.CreateSeededAsync();
         var mission = await db.Missions.Include(m => m.Affectations)
@@ -292,8 +381,7 @@ public class MissionAccessTests
         (await dp.DeleguerEcritureAdjointAsync(mission.Id, "usr-dp")).Success.Should().BeFalse();
 
         var chef = Missions(db, users, ScopeAgent("agt-001"));
-        (await chef.DeleguerEcritureAdjointAsync(mission.Id, "usr-chef")).Success.Should().BeTrue();
-        (await dp.RetirerDelegationAdjointAsync(mission.Id, "usr-dp")).Success.Should().BeFalse();
+        (await chef.DeleguerEcritureAdjointAsync(mission.Id, "usr-chef")).Success.Should().BeFalse();
     }
 
     [Fact]
@@ -308,16 +396,14 @@ public class MissionAccessTests
         (await Missions(db, users, ScopeAgent(adjointId))
             .DeleguerEcritureAdjointAsync(mission.Id, "usr-adj")).Success.Should().BeFalse();
 
-        var membre = mission.Affectations.FirstOrDefault(a => a.Fonction == RolesMissionCodes.Membre);
-        if (membre != null)
-        {
-            (await Missions(db, users, ScopeAgent(membre.MatrAgent))
-                .DeleguerEcritureAdjointAsync(mission.Id, "usr-membre")).Success.Should().BeFalse();
-        }
+        await EnsureEquipeCompleteAsync(db, mission);
+        var membre = mission.Affectations.First(a => a.Fonction == RolesMissionCodes.Membre);
+        (await Missions(db, users, ScopeAgent(membre.MatrAgent))
+            .DeleguerEcritureAdjointAsync(mission.Id, "usr-membre")).Success.Should().BeFalse();
     }
 
     [Fact]
-    public async Task CanDeleguer_UniquementChefEquipeAffecte()
+    public async Task CanDeleguer_ToujoursFalse()
     {
         var (db, users) = await TestDb.CreateSeededAsync();
         var mission = await db.Missions.Include(m => m.Affectations)
@@ -331,7 +417,7 @@ public class MissionAccessTests
 
         var chefList = await Missions(db, users, ScopeAgent("agt-001"))
             .ListAsync(new MissionFilterDto());
-        chefList.First(m => m.Id == mission.Id).CanDeleguer.Should().BeTrue();
+        chefList.First(m => m.Id == mission.Id).CanDeleguer.Should().BeFalse();
     }
 
     [Fact]

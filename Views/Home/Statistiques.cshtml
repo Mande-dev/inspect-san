@@ -20,14 +20,14 @@
             <div class="col-6 col-md-2"><label class="form-label">Du</label><input type="date" class="form-control" id="filterDateFrom" /></div>
             <div class="col-6 col-md-2"><label class="form-label">Au</label><input type="date" class="form-control" id="filterDateTo" /></div>
             <div class="col-12 col-md-3">
-                <label class="form-label">Sous-division</label>
+                <label class="form-label">@DictionnaireDonnees.Label("Lib_Sous")</label>
                 <select class="form-select" id="filterSousproved">
                     <option value="">Toutes</option>
                     @foreach (var c in sousproveds) { <option value="@c.Nom">@c.Nom</option> }
                 </select>
             </div>
             <div class="col-12 col-md-3">
-                <label class="form-label">Régime</label>
+                <label class="form-label">@DictionnaireDonnees.Label("Reg_Ges")</label>
                 <select class="form-select" id="filterRegime">
                     <option value="">Tous</option>
                     @foreach (var r in regimes) { <option value="@r.Nom">@r.Nom</option> }
@@ -41,19 +41,19 @@
 </div>
 
 <div class="row g-4 mb-4">
-    <div class="col-6 col-md-3"><div class="card card-lg h-100"><div class="card-body"><div class="text-secondary small">Écoles concernées</div><div class="fs-3 fw-bold" id="kpiEcoles">—</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card card-lg h-100"><div class="card-body"><div class="text-secondary small">@DictionnaireDonnees.Label("Tot_Gen") (écoles)</div><div class="fs-3 fw-bold" id="kpiEcoles">—</div></div></div></div>
     <div class="col-6 col-md-3"><div class="card card-lg h-100"><div class="card-body"><div class="text-secondary small">Fiches de contrôle</div><div class="fs-3 fw-bold" id="kpiFiches">—</div></div></div></div>
     <div class="col-6 col-md-3"><div class="card card-lg h-100"><div class="card-body"><div class="text-secondary small">Taux de conformité</div><div class="fs-3 fw-bold" id="kpiConformite">—</div></div></div></div>
-    <div class="col-6 col-md-3"><div class="card card-lg h-100"><div class="card-body"><div class="text-secondary small">Décisions prises</div><div class="fs-3 fw-bold" id="kpiDecisions">—</div></div></div></div>
+    <div class="col-6 col-md-3"><div class="card card-lg h-100"><div class="card-body"><div class="text-secondary small">@DictionnaireDonnees.Label("Décision_Fin") (prises)</div><div class="fs-3 fw-bold" id="kpiDecisions">—</div></div></div></div>
 </div>
 
 <div class="row g-4 mb-4">
-    <div class="col-lg-4"><div class="card card-lg h-100"><div class="card-header">Conformité (état bâtiments)</div><div class="card-body"><div id="chartConformite" style="min-height:280px"></div></div></div></div>
-    <div class="col-lg-4"><div class="card card-lg h-100"><div class="card-header">Répartition des décisions</div><div class="card-body"><div id="chartDecisions" style="min-height:280px"></div></div></div></div>
-    <div class="col-lg-4"><div class="card card-lg h-100"><div class="card-header">Produits déclarés</div><div class="card-body"><div id="chartProduits" style="min-height:280px"></div></div></div></div>
+    <div class="col-lg-4"><div class="card card-lg h-100"><div class="card-header">Conformité (@DictionnaireDonnees.Label("Etat_Bat"))</div><div class="card-body"><div id="chartConformite" style="min-height:280px"></div></div></div></div>
+    <div class="col-lg-4"><div class="card card-lg h-100"><div class="card-header">Répartition — @DictionnaireDonnees.Label("Décision_Fin")</div><div class="card-body"><div id="chartDecisions" style="min-height:280px"></div></div></div></div>
+    <div class="col-lg-4"><div class="card card-lg h-100"><div class="card-header">@DictionnaireDonnees.Label("Dési_Prod_Net")</div><div class="card-body"><div id="chartProduits" style="min-height:280px"></div></div></div></div>
 </div>
 <div class="row g-4">
-    <div class="col-12"><div class="card card-lg"><div class="card-header">Évolution des contrôles</div><div class="card-body"><div id="chartEvolution" style="min-height:300px"></div></div></div></div>
+    <div class="col-12"><div class="card card-lg"><div class="card-header">Évolution des contrôles (@DictionnaireDonnees.Label("Tot_Div"))</div><div class="card-body"><div id="chartEvolution" style="min-height:300px"></div></div></div></div>
 </div>
 
 @section Scripts {

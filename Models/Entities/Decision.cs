@@ -8,6 +8,10 @@ public class Decision
     public string DecisionFin { get; set; } = "";
     public string NumOrdre { get; set; } = "";
     public string NumAgrement { get; set; } = "";
+    /// <summary>Date/heure UTC du 1er envoi réussi de la lettre de décision par e-mail.</summary>
+    public DateTime? LdEnvoyeLe { get; set; }
+    /// <summary>Adresse e-mail destinataire du 1er envoi réussi de la lettre de décision.</summary>
+    public string? LdEnvoyeA { get; set; }
 
     public Mission? Mission { get; set; }
     public Ecole? Ecole { get; set; }

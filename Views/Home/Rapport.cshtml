@@ -2,18 +2,16 @@
     ViewData["Title"] = "Rapport d'inspection";
     var sousproveds = (List<RefItem>)(ViewBag.Sousproveds ?? new List<RefItem>());
     var canDeposerEquipe = ViewBag.CanDeposerEquipe as bool? == true;
-    var canDeposerSecretariat = ViewBag.CanDeposerSecretariat as bool? == true;
-    var canCloturer = ViewBag.CanCloturer as bool? == true;
 }
 <div id="rapportPage"
      data-can-equipe="@(canDeposerEquipe ? "1" : "0")"
-     data-can-secretariat="@(canDeposerSecretariat ? "1" : "0")"
-     data-can-cloturer="@(canCloturer ? "1" : "0")">
+     data-can-secretariat="0"
+     data-can-cloturer="0">
     <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4 isp-page-head">
         <div>
             <h2 class="mb-1">Rapport d'inspection</h2>
             <p class="text-secondary mb-0">
-                Après contrôle : imprimer (2 exemplaires) → déposer au secrétariat → transfert au Directeur Provincial → décisions.
+                Après contrôle : imprimer (2 exemplaires) → le contrôleur dépose le rapport → le Directeur Provincial prend les décisions.
             </p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
@@ -23,19 +21,7 @@
             @if (canDeposerEquipe)
             {
                 <button type="button" class="btn btn-outline-primary" id="btnDeposerEquipe" disabled>
-                    <i class="ti ti-upload me-1"></i>Déposer au secrétariat
-                </button>
-            }
-            @if (canDeposerSecretariat)
-            {
-                <button type="button" class="btn btn-outline-primary" id="btnDeposerSecretariat" disabled>
-                    <i class="ti ti-transfer me-1"></i>Transférer au Directeur Provincial
-                </button>
-            }
-            @if (canCloturer)
-            {
-                <button type="button" class="btn btn-outline-danger" id="btnCloturerRapport" disabled>
-                    <i class="ti ti-lock me-1"></i>Clôturer
+                    <i class="ti ti-upload me-1"></i>Déposer le rapport
                 </button>
             }
         </div>
@@ -45,7 +31,7 @@
         <div class="card-body">
             <div class="row g-3 align-items-end">
                 <div class="col-md-6">
-                    <label class="form-label">Sous-division</label>
+                    <label class="form-label">@DictionnaireDonnees.Label("Lib_Sous")</label>
                     <select class="form-select" id="filterSousproved">
                         <option value="">Choisir…</option>
                         @foreach (var c in sousproveds)
@@ -70,7 +56,7 @@
     <div id="rapportSections"></div>
 
     <div id="rapportEmpty" class="alert alert-info d-none mb-0">
-        Sélectionnez une sous-division pour afficher les fiches validées.
+        Sélectionnez un @DictionnaireDonnees.Label("Lib_Sous") pour afficher les fiches validées.
     </div>
 </div>
 

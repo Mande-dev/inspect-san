@@ -15,6 +15,8 @@ public class MissionsService : IMissionsService
     private readonly InspectSanDbContext _db;
     private readonly MockUserStore _users;
     private readonly IDomainEmailNotifier _email;
+    private readonly IAppEmailSender _emailSender;
+    private readonly IOrdreMissionPdfService _ordrePdf;
     private readonly ICurrentUserScope _scope;
     private readonly IMissionAccessService _access;
 
@@ -23,12 +25,16 @@ public class MissionsService : IMissionsService
         InspectSanDbContext db,
         MockUserStore users,
         IDomainEmailNotifier? email = null,
+        IAppEmailSender? emailSender = null,
+        IOrdreMissionPdfService? ordrePdf = null,
         ICurrentUserScope? scope = null,
         IMissionAccessService? access = null)
     {
         _db = db;
         _users = users;
         _email = email ?? NullDomainEmailNotifier.Instance;
+        _emailSender = emailSender ?? NullAppEmailSender.Instance;
+        _ordrePdf = ordrePdf ?? NullOrdreMissionPdfService.Instance;
         _scope = scope ?? UnrestrictedUserScope.Instance;
         _access = access ?? new MissionAccessService(db);
     }
@@ -74,7 +80,7 @@ public class MissionsService : IMissionsService
     }
 
     /// <summary>Crée ou met à jour une mission.</summary>
-    public async Task<ApiResultDto> SaveAsync(SaveMissionDto dto)
+    public async Task<ApiResultDto> SaveAsync(SaveMissionDto dto, string? userId = null)
     {
         if (string.IsNullOrWhiteSpace(dto.EcoleId))
             return ApiResultDto.Fail("École obligatoire.");
@@ -84,8 +90,9 @@ public class MissionsService : IMissionsService
             return ApiResultDto.Fail("École invalide.");
 
         var participations = dto.Participations ?? [];
-        if (participations.Count == 0)
-            return ApiResultDto.Fail("Au moins un participant est obligatoire.");
+        if (participations.Count != 4)
+            return ApiResultDto.Fail(
+                "Une mission doit comporter exactement 4 agents : 1 chef d'équipe, 1 chef adjoint et 2 membres.");
 
         var agentIds = participations.Select(p => p.AgentId).Distinct().ToList();
         var roleCodes = participations.Select(p => p.RoleMission).ToList();
@@ -107,14 +114,11 @@ public class MissionsService : IMissionsService
             return ApiResultDto.Fail("Un ou plusieurs rôles de mission sont invalides.");
 
         var nbChef = participations.Count(p => p.RoleMission == RolesMissionCodes.ChefEquipe);
-        if (nbChef == 0)
-            return ApiResultDto.Fail("Au moins un participant doit avoir le rôle chef d'équipe.");
-        if (nbChef > 1)
-            return ApiResultDto.Fail("Une mission ne peut avoir qu'un seul chef d'équipe.");
-
         var nbAdjoint = participations.Count(p => p.RoleMission == RolesMissionCodes.ChefAdjoint);
-        if (nbAdjoint > 1)
-            return ApiResultDto.Fail("Une mission ne peut avoir qu'un seul chef adjoint.");
+        var nbMembre = participations.Count(p => p.RoleMission == RolesMissionCodes.Membre);
+        if (nbChef != 1 || nbAdjoint != 1 || nbMembre != 2)
+            return ApiResultDto.Fail(
+                "Composition invalide : exactement 1 chef d'équipe, 1 chef adjoint et 2 membres sont requis.");
 
         var scope = await _scope.GetAsync();
         if (!scope.Unrestricted && !scope.AllowsMission(agentIds, dto.EcoleId))
@@ -132,12 +136,6 @@ public class MissionsService : IMissionsService
             if (!_access.CanWriteFromAffectations(existing.Affectations, scope.AgentId, scope.Unrestricted)
                 && !scope.Unrestricted)
                 return ApiResultDto.Fail("Vous n'avez pas le droit de modifier cette mission.");
-
-            // Préserver les délégations pour les mêmes adjoints
-            var prevDeleg = existing.Affectations
-                .Where(a => a.Fonction == RolesMissionCodes.ChefAdjoint && a.EcritureDeleguee)
-                .Select(a => a.MatrAgent)
-                .ToHashSet(StringComparer.Ordinal);
 
             existing.NumAgrement = ecole.NumAgrement;
             existing.NomEquipe = NomEquipeFromNumero(existing.NumOrdre);
@@ -157,8 +155,7 @@ public class MissionsService : IMissionsService
                 NomOrdre = existing.NumOrdre,
                 MatrAgent = p.AgentId,
                 Fonction = p.RoleMission.Trim(),
-                EcritureDeleguee = p.RoleMission == RolesMissionCodes.ChefAdjoint
-                                   && prevDeleg.Contains(p.AgentId)
+                EcritureDeleguee = false
             }).ToList();
 
             await _db.SaveChangesAsync();
@@ -176,15 +173,16 @@ public class MissionsService : IMissionsService
                 NumOrdre = numero,
                 NumAgrement = ecole.NumAgrement,
                 NomEquipe = NomEquipeFromNumero(numero),
-                Validite = string.IsNullOrWhiteSpace(dto.Statut) ? MissionStatuts.Brouillon : dto.Statut,
+                // Création : signature automatique du Directeur Provincial (plus de brouillon / attente).
+                Validite = MissionStatuts.Signe,
+                SigneLe = DateTime.UtcNow,
+                SignePar = userId,
                 DateDebut = dto.DateEmission,
                 DateFin = dto.FinValidite,
                 MontPer = null,
                 Objet = string.IsNullOrWhiteSpace(dto.Objet) ? null : dto.Objet.Trim(),
                 CreatedAt = DateTime.UtcNow
             };
-            if (mission.Statut is not (MissionStatuts.Brouillon or MissionStatuts.EnAttenteSignature))
-                mission.Validite = MissionStatuts.Brouillon;
 
             mission.Affectations = participations.Select(p => new Affectation
             {
@@ -196,65 +194,31 @@ public class MissionsService : IMissionsService
 
             _db.Missions.Add(mission);
             await _db.SaveChangesAsync();
-            _users.AddJournal("Missions", "création", $"Mission {mission.NumOrdre} créée");
+            _users.AddJournal("Missions", "création", $"Mission {mission.NumOrdre} créée et signée", userId);
+            _users.AddNotification("Mission signée", $"La mission {mission.NumOrdre} a été créée et signée.");
         }
         return ApiResultDto.Ok("Mission enregistrée.");
     }
 
-    /// <summary>Délègue l'écriture au chef adjoint de la mission.</summary>
-    public async Task<ApiResultDto> DeleguerEcritureAdjointAsync(string missionId, string? userId)
-    {
-        var m = await _db.Missions.Include(x => x.Affectations).ThenInclude(a => a.Agent)
-            .FirstOrDefaultAsync(x => x.Id == missionId);
-        if (m == null) return ApiResultDto.Fail("Mission introuvable.");
+    /// <summary>Délégation désactivée : seul le chef d'équipe écrit.</summary>
+    public Task<ApiResultDto> DeleguerEcritureAdjointAsync(string missionId, string? userId)
+        => Task.FromResult(ApiResultDto.Fail(
+            "La délégation d'écriture est désactivée : seul le chef d'équipe peut modifier la fiche et déposer le rapport."));
 
-        var scope = await _scope.GetAsync();
-        if (!IsChefEquipeAffecte(m.Affectations, scope.AgentId))
-            return ApiResultDto.Fail("Seul le chef d'équipe peut céder l'écriture.");
-
-        var adjoint = m.Affectations.FirstOrDefault(a => a.Fonction == RolesMissionCodes.ChefAdjoint);
-        if (adjoint == null)
-            return ApiResultDto.Fail("Aucun chef adjoint sur cette mission.");
-        if (adjoint.EcritureDeleguee)
-            return ApiResultDto.Ok("L'écriture est déjà déléguée à l'adjoint.");
-
-        adjoint.EcritureDeleguee = true;
-        await _db.SaveChangesAsync();
-        var nom = adjoint.Agent?.NomAgent ?? adjoint.MatrAgent;
-        _users.AddJournal(
-            "Missions",
-            "délégation écriture",
-            $"Mission {m.NumOrdre} — écriture cédée à l'adjoint {nom} ({adjoint.MatrAgent})",
-            userId);
-        return ApiResultDto.Ok("Droits d'écriture cédés au chef adjoint.");
-    }
-
-    /// <summary>Retire la délégation d'écriture du chef adjoint.</summary>
+    /// <summary>Nettoie toute délégation résiduelle (écriture réservée au chef d'équipe).</summary>
     public async Task<ApiResultDto> RetirerDelegationAdjointAsync(string missionId, string? userId)
     {
-        var m = await _db.Missions.Include(x => x.Affectations).ThenInclude(a => a.Agent)
-            .FirstOrDefaultAsync(x => x.Id == missionId);
+        var m = await _db.Missions.Include(x => x.Affectations).FirstOrDefaultAsync(x => x.Id == missionId);
         if (m == null) return ApiResultDto.Fail("Mission introuvable.");
-
-        var scope = await _scope.GetAsync();
-        if (!IsChefEquipeAffecte(m.Affectations, scope.AgentId))
-            return ApiResultDto.Fail("Seul le chef d'équipe peut retirer la délégation.");
-
-        var adjoint = m.Affectations.FirstOrDefault(a => a.Fonction == RolesMissionCodes.ChefAdjoint);
-        if (adjoint == null)
-            return ApiResultDto.Fail("Aucun chef adjoint sur cette mission.");
-        if (!adjoint.EcritureDeleguee)
-            return ApiResultDto.Ok("Aucune délégation active.");
-
-        adjoint.EcritureDeleguee = false;
-        await _db.SaveChangesAsync();
-        var nom = adjoint.Agent?.NomAgent ?? adjoint.MatrAgent;
-        _users.AddJournal(
-            "Missions",
-            "retrait délégation",
-            $"Mission {m.NumOrdre} — écriture retirée à l'adjoint {nom} ({adjoint.MatrAgent})",
-            userId);
-        return ApiResultDto.Ok("Délégation d'écriture retirée.");
+        var any = false;
+        foreach (var a in m.Affectations.Where(x => x.EcritureDeleguee))
+        {
+            a.EcritureDeleguee = false;
+            any = true;
+        }
+        if (any)
+            await _db.SaveChangesAsync();
+        return ApiResultDto.Ok("Aucune délégation active (seul le chef d'équipe écrit).");
     }
 
     /// <summary>Passe la mission de brouillon à en attente de signature.</summary>
@@ -339,12 +303,18 @@ public class MissionsService : IMissionsService
                     "Vous ne pouvez pas supprimer cette mission.",
                     "Seuls les responsables habilités de la mission (ou l'administration) peuvent retirer un ordre de mission du dossier.");
 
-            if (m.Statut is not (MissionStatuts.Brouillon or MissionStatuts.EnAttenteSignature))
+            if (m.Statut is MissionStatuts.Cloture or MissionStatuts.EnCours)
                 return ApiResultDto.FailBlocked(
                     "Suppression non autorisée",
                     "Cette mission ne peut plus être retirée.",
-                    "L'ordre de mission a déjà été signé ou est en cours d'exécution.\n\n" +
-                    "Seules les missions encore à l'état de brouillon ou en attente de signature peuvent être annulées.");
+                    "La mission est déjà en cours d'exécution ou clôturée.\n\n" +
+                    "Seules les missions signées sans fiche de contrôle peuvent encore être annulées.");
+
+            if (m.Statut is not (MissionStatuts.Brouillon or MissionStatuts.EnAttenteSignature or MissionStatuts.Signe))
+                return ApiResultDto.FailBlocked(
+                    "Suppression non autorisée",
+                    "Cette mission ne peut plus être retirée.",
+                    "L'ordre de mission n'est plus annulable dans cet état.");
 
             if (m.StatutFiche != null)
                 return ApiResultDto.FailBlocked(
@@ -376,10 +346,12 @@ public class MissionsService : IMissionsService
             DateEmission = m.DateDebut,
             FinValidite = m.DateFin,
             SigneLe = m.SigneLe,
+            OmEnvoyeLe = m.OmEnvoyeLe,
+            OmEnvoyeA = m.OmEnvoyeA,
             Objet = m.Objet,
             MontPer = m.MontPer,
             CanWrite = canWrite,
-            CanDeleguer = isChefEquipe && m.Affectations.Any(a => a.Fonction == RolesMissionCodes.ChefAdjoint),
+            CanDeleguer = false,
             Participations = m.Affectations.Select(p => new ParticipationListDto
             {
                 Id = p.IdAffectation.ToString(),
@@ -407,4 +379,85 @@ public class MissionsService : IMissionsService
     /// <summary>Génère un nouvel identifiant préfixé.</summary>
     private static string NewId(string prefix)
         => $"{prefix}-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}"[..32];
+
+    /// <summary>Génère le PDF de l'ordre de mission et l'envoie une seule fois au chef d'établissement.</summary>
+    public async Task<ApiResultDto> EnvoyerOrdreParMailAsync(string missionId, string? userId)
+    {
+        if (string.IsNullOrWhiteSpace(missionId))
+            return ApiResultDto.Fail("Mission invalide.");
+
+        var mission = await _db.Missions
+            .Include(m => m.Ecole)!.ThenInclude(e => e!.ChefEtablissement)
+            .Include(m => m.Affectations)
+            .FirstOrDefaultAsync(m => m.Id == missionId);
+        if (mission == null)
+            return ApiResultDto.Fail("Mission introuvable.");
+
+        var scope = await _scope.GetAsync();
+        if (!scope.Unrestricted)
+            return ApiResultDto.Fail("Seuls les administrateurs et le Directeur Provincial peuvent envoyer l'ordre de mission.");
+
+        if (mission.OmEnvoyeLe.HasValue)
+        {
+            var le = mission.OmEnvoyeLe.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+            var a = string.IsNullOrWhiteSpace(mission.OmEnvoyeA) ? "—" : mission.OmEnvoyeA.Trim();
+            return ApiResultDto.Fail($"L'ordre de mission a déjà été envoyé le {le} à {a}.");
+        }
+
+        var chefEmail = mission.Ecole?.ChefEtablissement?.Email?.Trim();
+        if (string.IsNullOrWhiteSpace(chefEmail))
+            return ApiResultDto.Fail("Le chef d'établissement n'a pas d'e-mail.");
+
+        byte[] pdf;
+        try
+        {
+            pdf = await _ordrePdf.GenerateAsync(missionId);
+        }
+        catch (Exception ex)
+        {
+            return ApiResultDto.Fail($"Impossible de générer le PDF : {ex.Message}");
+        }
+
+        if (pdf.Length == 0)
+            return ApiResultDto.Fail("Le PDF généré est vide.");
+
+        var fileName = _ordrePdf.BuildFileName(mission.NumOrdre);
+        var subject = $"Ordre de mission {mission.NumOrdre}";
+        var body =
+            $"<p>Bonjour,</p>" +
+            $"<p>Veuillez trouver ci-joint l'ordre de mission <strong>{mission.NumOrdre}</strong>" +
+            (string.IsNullOrWhiteSpace(mission.Ecole?.Denomination)
+                ? "."
+                : $" concernant l'établissement <strong>{mission.Ecole!.Denomination}</strong>.") +
+            "</p>" +
+            "<p>Cordialement,<br/>Inspect-San — Province Éducationnelle de Kinshasa Mont-Amba</p>";
+
+        var (ok, detail) = await _emailSender.TrySendAsync(
+            chefEmail,
+            subject,
+            body,
+            [new EmailAttachment(fileName, pdf, "application/pdf")]);
+
+        if (!ok)
+            return ApiResultDto.Fail(detail);
+
+        mission.OmEnvoyeLe = DateTime.UtcNow;
+        mission.OmEnvoyeA = chefEmail.Length > 200 ? chefEmail[..200] : chefEmail;
+        await _db.SaveChangesAsync();
+
+        _users.AddJournal(
+            "Missions",
+            "envoi OM",
+            $"Ordre de mission {mission.NumOrdre} envoyé à {chefEmail}",
+            userId);
+        _users.AddNotification(
+            "Ordre de mission envoyé",
+            $"L'OM {mission.NumOrdre} a été envoyé à {chefEmail}.");
+
+        return ApiResultDto.Ok(
+            string.IsNullOrWhiteSpace(detail)
+                ? $"Ordre de mission envoyé à {chefEmail}."
+                : detail);
+    }
 }
+

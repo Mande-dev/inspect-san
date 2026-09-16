@@ -65,6 +65,7 @@ public class MissionConfiguration : IEntityTypeConfiguration<Mission>
         builder.Property(x => x.NomEquipe).HasMaxLength(150);
         builder.Property(x => x.Objet).HasMaxLength(500);
         builder.Property(x => x.SignePar).HasMaxLength(64);
+        builder.Property(x => x.OmEnvoyeA).HasMaxLength(200);
         builder.Property(x => x.ProduitsAutres).HasMaxLength(200);
         builder.Property(x => x.OutilsAutres).HasMaxLength(200);
         builder.Property(x => x.RecommandationPreliminaire).HasMaxLength(100);
@@ -256,6 +257,12 @@ public class EcoleConfiguration : IEntityTypeConfiguration<Ecole>
             .HasForeignKey(e => e.CodeCategories)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne(e => e.SousProvince)
+            .WithMany()
+            .HasForeignKey(e => e.SousDivision)
+            .HasPrincipalKey(s => s.Code)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(e => e.ChefEtablissement)
             .WithMany(p => p.Ecoles)
             .HasForeignKey(e => e.MatriculeChef)
@@ -274,6 +281,7 @@ public class ChefEtablissementConfiguration : IEntityTypeConfiguration<Chef>
         builder.Property(x => x.Matricule).HasMaxLength(64);
         builder.Property(x => x.NomComplet).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Telephone).HasMaxLength(40);
+        builder.Property(x => x.Email).HasMaxLength(200);
         builder.HasIndex(x => x.NomComplet);
         builder.Ignore(x => x.Id);
     }
@@ -291,6 +299,7 @@ public class DecisionConfiguration : IEntityTypeConfiguration<Decision>
         builder.Property(d => d.DecisionFin).HasMaxLength(50).IsRequired();
         builder.Property(d => d.NumOrdre).HasMaxLength(80).IsRequired();
         builder.Property(d => d.NumAgrement).HasMaxLength(100).IsRequired();
+        builder.Property(d => d.LdEnvoyeA).HasMaxLength(200);
 
         builder.HasIndex(d => d.NumOrdre);
         builder.HasIndex(d => d.NumAgrement);

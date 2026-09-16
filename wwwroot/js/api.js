@@ -322,12 +322,50 @@
     return Promise.resolve(global.confirm(message || 'Confirmer ?'));
   }
 
+  /**
+   * Envoi e-mail avec modal de progression (PDF → SMTP → succès/échec).
+   * opts: { url, id, title, successTitle, confirmMessage, onSuccess }
+   */
+  async function postEmailWithProgress(opts) {
+    opts = opts || {};
+    if (opts.confirmMessage !== false) {
+      var okConfirm = await confirmAction(
+        opts.confirmMessage || 'Envoyer l\'e-mail au chef d\'établissement ?',
+        { title: opts.confirmTitle || 'Confirmation', confirmText: 'Envoyer' }
+      );
+      if (!okConfirm) return null;
+    }
+
+    var run = function () {
+      return post(opts.url, { id: opts.id });
+    };
+
+    var result;
+    if (global.IspAlert && typeof global.IspAlert.runEmailSend === 'function') {
+      result = await global.IspAlert.runEmailSend({
+        title: opts.title || 'Envoi de l\'e-mail',
+        successTitle: opts.successTitle || 'E-mail envoyé',
+        steps: opts.steps,
+        run: run
+      });
+    } else {
+      result = await run();
+      bindAjaxResult(result, opts.onSuccess);
+      return result;
+    }
+
+    var ok = result && (result.success !== undefined ? result.success : result.Success);
+    if (ok && typeof opts.onSuccess === 'function') opts.onSuccess(result);
+    return result;
+  }
+
   global.api = {
     get: get,
     post: post,
     showToast: showToast,
     confirm: confirmAction,
     withBusy: withBusy,
+    postEmailWithProgress: postEmailWithProgress,
     esc: esc,
     attr: attr,
     dataAttr: dataAttr,

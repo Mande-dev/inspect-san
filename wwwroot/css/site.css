@@ -894,6 +894,93 @@ html.collapsed .app-logo--sidebar .app-logo-svg--icon {
   text-align: left;
 }
 
+/* Progression envoi e-mail (OM / LD) */
+.isp-email-steps {
+  list-style: none;
+  margin: 0.35rem 0 0.85rem;
+  padding: 0;
+  text-align: left;
+}
+.isp-email-step {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.35rem 0;
+  color: #98a2b3;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  transition: color 0.2s ease;
+}
+.isp-email-step__mark {
+  flex: 0 0 1.55rem;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: 2px solid #d0d5dd;
+  color: #667085;
+  background: #fff;
+}
+.isp-email-step.is-pending .isp-email-step__label {
+  opacity: 0.75;
+}
+.isp-email-step.is-active {
+  color: #1a4b8b;
+  font-weight: 600;
+}
+.isp-email-step.is-active .isp-email-step__mark {
+  border-color: #1a4b8b;
+  background: #1a4b8b;
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(26, 75, 139, 0.15);
+  animation: isp-email-pulse 1.2s ease-in-out infinite;
+}
+.isp-email-step.is-done {
+  color: #027a48;
+}
+.isp-email-step.is-done .isp-email-step__mark {
+  border-color: #12b76a;
+  background: #12b76a;
+  color: #fff;
+}
+@keyframes isp-email-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(26, 75, 139, 0.12);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(26, 75, 139, 0.2);
+  }
+}
+
+[data-bs-theme='dark'] .isp-email-step {
+  color: #98a2b3;
+}
+[data-bs-theme='dark'] .isp-email-step__mark {
+  background: #1c252e;
+  border-color: #344054;
+  color: #98a2b3;
+}
+[data-bs-theme='dark'] .isp-email-step.is-active {
+  color: #84caff;
+}
+[data-bs-theme='dark'] .isp-email-step.is-active .isp-email-step__mark {
+  border-color: #2e90fa;
+  background: #2e90fa;
+  color: #fff;
+}
+[data-bs-theme='dark'] .isp-email-step.is-done {
+  color: #6ce9a6;
+}
+[data-bs-theme='dark'] .isp-email-step.is-done .isp-email-step__mark {
+  border-color: #12b76a;
+  background: #027a48;
+}
+
 .isp-swal-icon.swal2-icon {
   margin: 0.15rem auto 0.65rem !important;
   border-width: 3px !important;
@@ -1933,6 +2020,28 @@ html.isp-print-preview-open body {
   height: 100%;
   border: 0;
   background: transparent;
+  opacity: 1;
+  transition: opacity 0.15s ease;
+}
+
+.isp-print-preview-modal--loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: isp-preview-spin 0.7s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes isp-preview-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ========== Responsive — toutes tailles d’écran ========== */

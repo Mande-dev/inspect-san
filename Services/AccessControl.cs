@@ -32,17 +32,12 @@ public static class AccessControl
         ],
         ["Directeur Provincial"] =
         [
-            "dashboard", "ecoles", "chefs", "agents", "missions", "fiches",
-            "decisions", "statistiques", "rapport"
+            "dashboard", "ecoles", "chefs", "agents", "utilisateurs", "missions", "fiches",
+            "decisions", "statistiques", "rapport", "parametres", "journal"
         ],
         ["Contrôleur"] =
         [
             "dashboard", "missions", "fiches", "decisions", "rapport"
-        ],
-        ["Agent du Secrétariat"] =
-        [
-            "dashboard", "ecoles", "chefs", "agents", "missions", "fiches",
-            "decisions", "statistiques", "rapport", "parametres"
         ]
     };
 
@@ -59,16 +54,14 @@ public static class AccessControl
         ["Directeur Provincial"] =
         [
             AccessActions.GererMission, AccessActions.SignerMission,
-            AccessActions.CreerDecision
+            AccessActions.CreerFiche, AccessActions.ValiderFiche,
+            AccessActions.CreerDecision,
+            AccessActions.GererEcole, AccessActions.GererChefs, AccessActions.GererAgents,
+            AccessActions.GererUtilisateurs, AccessActions.GererParametres
         ],
         ["Contrôleur"] =
         [
             AccessActions.CreerFiche, AccessActions.ValiderFiche
-        ],
-        ["Agent du Secrétariat"] =
-        [
-            AccessActions.GererEcole, AccessActions.GererChefs,
-            AccessActions.GererAgents, AccessActions.GererParametres
         ]
     };
 

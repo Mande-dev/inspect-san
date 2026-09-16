@@ -124,9 +124,8 @@ public class EcolesService : IEcolesService
             return ApiResultDto.Fail("Régime invalide.");
         var sousCode = SousProvinceCatalog.CodeFromLegacyOrCode(dto.SousDivision)
                        ?? dto.SousDivision.Trim();
-        if (!await _db.SousProvinces.AnyAsync(s => s.Code == sousCode)
-            && !SousDivision.IsValid(sousCode))
-            return ApiResultDto.Fail("Sous-division invalide.");
+        if (!await _db.SousProvinces.AnyAsync(s => s.Code == sousCode))
+            return ApiResultDto.Fail("Sous-division invalide (référentiel SousProvince).");
         if (!await _db.Categories.AnyAsync(c => c.CodeCategories == dto.CodeCategories))
             return ApiResultDto.Fail("Catégorie invalide.");
 

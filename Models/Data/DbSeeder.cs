@@ -30,6 +30,10 @@ public static class DbSeeder
             await MigrateEcoleSousDivisionCodesAsync(db, ct);
     }
 
+    /// <summary>Insère les sous-provinces absentes depuis le catalogue (toujours sûr à appeler).</summary>
+    public static async Task EnsureSousProvincesAsync(InspectSanDbContext db, CancellationToken ct = default)
+        => await SeedSousProvincesAsync(db, ct);
+
     /// <summary>Insère les sous-provinces absentes depuis le catalogue.</summary>
     private static async Task SeedSousProvincesAsync(InspectSanDbContext db, CancellationToken ct)
     {

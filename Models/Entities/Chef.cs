@@ -7,6 +7,8 @@ public class Chef
     public string Matricule { get; set; } = "";
     public string NomComplet { get; set; } = "";
     public string Telephone { get; set; } = "";
+    /// <summary>Adresse e-mail de contact du chef d'établissement.</summary>
+    public string? Email { get; set; }
     /// <summary>Année de début d'activité (ex. 2018).</summary>
     public int? AnneeDebutActivite { get; set; }
 

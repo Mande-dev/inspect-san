@@ -31,6 +31,7 @@ public class HomeController : Controller
     private readonly INotificationsService _notifications;
     private readonly IMissionAccessService _missionAccess;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IAppEmailSender _emailSender;
 
     private UserDataScope? _scopeCache;
 
@@ -49,7 +50,8 @@ public class HomeController : Controller
         IJournalService journal,
         INotificationsService notifications,
         IMissionAccessService missionAccess,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        IAppEmailSender emailSender)
     {
         _dashboard = dashboard;
         _ecoles = ecoles;
@@ -65,6 +67,7 @@ public class HomeController : Controller
         _notifications = notifications;
         _missionAccess = missionAccess;
         _userManager = userManager;
+        _emailSender = emailSender;
     }
 
     private string Role => User.FindFirstValue(ClaimTypes.Role) ?? "";
@@ -383,6 +386,7 @@ public class HomeController : Controller
             Matricule = model.Matricule,
             NomComplet = model.NomComplet,
             Telephone = model.Telephone,
+            Email = model.Email,
             AnneeDebutActivite = model.AnneeDebutActivite
         });
         TempData["Toast"] = result.Message;
@@ -594,7 +598,7 @@ public class HomeController : Controller
             DateEmission = DateEmission,
             FinValidite = FinValidite,
             Participations = participations
-        })).Message;
+        }, UserId)).Message;
         return RedirectToAction(nameof(Missions));
     }
 
@@ -613,7 +617,7 @@ public class HomeController : Controller
         {
             return DenyScopeJson();
         }
-        return Json(await _missions.SaveAsync(dto));
+        return Json(await _missions.SaveAsync(dto, UserId));
     }
 
     /// <summary>Signe une mission via formulaire et redirige.</summary>
@@ -631,6 +635,14 @@ public class HomeController : Controller
     {
         if (TryDenyJson(AccessActions.SignerMission, out var denied)) return denied;
         return Json(await _missions.SignerAsync(dto.Id, UserId));
+    }
+
+    /// <summary>Génère le PDF de l'OM et l'envoie au chef d'établissement.</summary>
+    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("missions")]
+    public async Task<IActionResult> EnvoyerOrdreMissionJson([FromBody] IdRequest dto)
+    {
+        if (TryDenyJson(AccessActions.GererMission, out var denied)) return denied;
+        return Json(await _missions.EnvoyerOrdreParMailAsync(dto.Id, UserId));
     }
 
     /// <summary>Demande la signature d'une mission via API JSON.</summary>
@@ -1027,6 +1039,14 @@ public class HomeController : Controller
         return Json(await _decisions.DeleteAsync(dto.Id));
     }
 
+    /// <summary>Génère le PDF de la lettre de décision et l'envoie au chef d'établissement.</summary>
+    [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("decisions")]
+    public async Task<IActionResult> EnvoyerLettreDecisionJson([FromBody] IdRequest dto)
+    {
+        if (TryDenyJson(AccessActions.CreerDecision, out var denied)) return denied;
+        return Json(await _decisions.EnvoyerLettreParMailAsync(dto.Id, UserId));
+    }
+
     // ——— Statistiques ———
 
     /// <summary>Affiche le tableau de bord statistiques.</summary>
@@ -1090,9 +1110,8 @@ public class HomeController : Controller
         ViewBag.Sousproveds = sousproveds;
         ViewBag.Role = Role;
         ViewBag.CanDeposerEquipe = string.Equals(Role, DataScope.RoleControleur, StringComparison.Ordinal);
-        ViewBag.CanDeposerSecretariat = string.Equals(Role, DataScope.RoleSecretariat, StringComparison.Ordinal)
-                                        || string.Equals(Role, DataScope.RoleAdmin, StringComparison.Ordinal);
-        ViewBag.CanCloturer = ViewBag.CanDeposerSecretariat;
+        ViewBag.CanDeposerSecretariat = false;
+        ViewBag.CanCloturer = false;
         return View();
     }
 
@@ -1114,13 +1133,13 @@ public class HomeController : Controller
         return Json(await _statistiques.DeposerRapportEquipeAsync(dto.SousDivisionCode, UserId, scope.AgentId));
     }
 
-    /// <summary>Transfère le rapport du secrétariat au Directeur Provincial.</summary>
+    /// <summary>Transfère le rapport au Directeur Provincial (après dépôt équipe).</summary>
     [HttpPost, IgnoreAntiforgeryToken, RequirePageAccess("rapport")]
     public async Task<IActionResult> DeposerRapportSecretariatJson([FromBody] SousDivisionCodeRequest dto)
     {
-        if (!string.Equals(Role, DataScope.RoleSecretariat, StringComparison.Ordinal)
+        if (!string.Equals(Role, DataScope.RoleDp, StringComparison.Ordinal)
             && !string.Equals(Role, DataScope.RoleAdmin, StringComparison.Ordinal))
-            return Json(ApiResultDto.Fail("Seul le secrétariat (ou admin) peut transférer ce rapport au Directeur Provincial."));
+            return Json(ApiResultDto.Fail("Seul le Directeur Provincial (ou admin) peut enregistrer le transfert du rapport."));
         return Json(await _statistiques.DeposerRapportSecretariatAsync(dto.SousDivisionCode, UserId));
     }
 
@@ -1129,8 +1148,8 @@ public class HomeController : Controller
     public async Task<IActionResult> CloturerRapportJson([FromBody] SousDivisionCodeRequest dto)
     {
         var isAdmin = string.Equals(Role, DataScope.RoleAdmin, StringComparison.Ordinal);
-        if (!string.Equals(Role, DataScope.RoleSecretariat, StringComparison.Ordinal) && !isAdmin)
-            return Json(ApiResultDto.Fail("Seul le secrétariat (ou admin) peut clôturer."));
+        if (!string.Equals(Role, DataScope.RoleDp, StringComparison.Ordinal) && !isAdmin)
+            return Json(ApiResultDto.Fail("Seul le Directeur Provincial (ou admin) peut clôturer."));
         return Json(await _statistiques.CloturerRapportAsync(dto.SousDivisionCode, UserId, forceAdmin: isAdmin));
     }
     // ——— Paramètres ———
@@ -1160,6 +1179,9 @@ public class HomeController : Controller
         {
             Nom = model.Nom,
             Code = int.TryParse(model.Code, out var code) ? code : 0,
+            CodeText = string.IsNullOrWhiteSpace(model.Code) || int.TryParse(model.Code, out _)
+                ? Request.Form["CodeText"].ToString()
+                : model.Code,
             Libelle = model.Libelle
         })).Message;
         return RedirectToAction(nameof(Parametres), new { tab });
@@ -1188,6 +1210,29 @@ public class HomeController : Controller
     {
         if (TryDenyJson(AccessActions.GererParametres, out var denied)) return denied;
         return Json(await _parametres.DeleteAsync(tab, dto.Id));
+    }
+
+    /// <summary>
+    /// Test SMTP temporaire (admin uniquement) : GET /Home/TestEmail?to=adresse@exemple.com
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> TestEmail(string? to, CancellationToken ct)
+    {
+        if (!string.Equals(Role, DataScope.RoleAdmin, StringComparison.Ordinal))
+            return DenyScopeJson();
+
+        if (string.IsNullOrWhiteSpace(to))
+            return Json(ApiResultDto.Fail("Paramètre requis : ?to=adresse@exemple.com"));
+
+        var (ok, detail) = await _emailSender.TrySendAsync(
+            to.Trim(),
+            "Inspect-San SMTP OK",
+            "<p><strong>Inspect-San SMTP OK</strong></p><p>Ceci est un e-mail de test (sans PDF).</p>",
+            ct);
+
+        return Json(ok
+            ? ApiResultDto.Ok(detail)
+            : ApiResultDto.Fail(detail));
     }
 
     // ——— Journal ———

@@ -299,6 +299,18 @@
     }
   }
 
+  // Formate une date-heure pour les tooltips.
+  function fmtDateTimeLocal(v) {
+    if (!v) return '—';
+    try {
+      var d = new Date(v);
+      if (isNaN(d.getTime())) return String(v);
+      return d.toLocaleString('fr-FR');
+    } catch (e) {
+      return String(v);
+    }
+  }
+
   // Construit une ligne du tableau décisions.
   function rowHtml(d) {
     var id = d.id || d.Id || '';
@@ -309,6 +321,8 @@
     var ecoleId = d.ecoleId || d.EcoleId || '';
     var chefNom = d.chefNom || d.ChefNom || '';
     var ficheId = d.ficheControleId || d.FicheControleId || '';
+    var ldEnvoyeLe = d.ldEnvoyeLe || d.LdEnvoyeLe || null;
+    var ldEnvoyeA = (d.ldEnvoyeA || d.LdEnvoyeA || '').toString().trim();
     var data =
       ' data-id="' + api.attr(id) +
       '" data-numero="' + api.attr(numero) +
@@ -318,9 +332,28 @@
       '" data-chef-nom="' + api.attr(chefNom) +
       '" data-type="' + api.attr(typeCode) +
       '" data-type-label="' + api.attr(typeLabel) + '"';
+    var mailBtn = '';
+    if (canCreer) {
+      if (ldEnvoyeLe) {
+        var dejaTitle =
+          'Déjà envoyée le ' +
+          fmtDateTimeLocal(ldEnvoyeLe) +
+          (ldEnvoyeA ? ' à ' + ldEnvoyeA : '');
+        mailBtn =
+          '<button type="button" class="btn btn-sm btn-outline-secondary" disabled title="' +
+          api.attr(dejaTitle) +
+          '"><i class="ti ti-mail-check"></i></button> ';
+      } else {
+        mailBtn =
+          '<form class="d-inline js-envoyer-ld" data-id="' +
+          api.attr(id) +
+          '"><button type="submit" class="btn btn-sm btn-outline-info" title="Envoyer la lettre de décision par e-mail"><i class="ti ti-mail"></i></button></form> ';
+      }
+    }
     var actions =
       '<button type="button" class="btn btn-sm btn-outline-dark btn-print-decision"' + data +
       ' title="Imprimer la lettre de décision"><i class="ti ti-printer"></i></button> ' +
+      mailBtn +
       '<button type="button" class="btn btn-sm btn-outline-secondary btn-voir-decision"' + data +
       ' data-readonly="1" data-bs-toggle="modal" data-bs-target="#decisionModal" title="Voir"><i class="ti ti-eye"></i></button> ';
     if (canCreer) {
@@ -489,6 +522,25 @@
   });
 
   document.addEventListener('submit', async function (e) {
+    var envoyerLd = e.target.closest('.js-envoyer-ld');
+    if (envoyerLd) {
+      e.preventDefault();
+      try {
+        await api.postEmailWithProgress({
+          url: '/Home/EnvoyerLettreDecisionJson',
+          id: envoyerLd.getAttribute('data-id'),
+          title: 'Envoi de la lettre de décision',
+          successTitle: 'Lettre de décision envoyée',
+          confirmMessage: 'Envoyer la lettre de décision par e-mail au chef d\'établissement ?',
+          confirmTitle: 'Envoi de la lettre de décision',
+          onSuccess: loadList
+        });
+      } catch (err) {
+        api.showToast(err.message, 'danger');
+      }
+      return;
+    }
+
     var f = e.target.closest('.js-delete-decision');
     if (!f) return;
     e.preventDefault();

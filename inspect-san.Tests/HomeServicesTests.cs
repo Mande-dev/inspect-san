@@ -20,6 +20,7 @@ internal static class TestDb
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         var db = new InspectSanDbContext(options);
+        await DbSeeder.EnsureSousProvincesAsync(db);
         await DbSeeder.SeedAsync(db);
         return (db, new MockUserStore(db));
     }
@@ -111,6 +112,7 @@ public class EcolesServiceTests
     public async Task SaveAsync_Create_WithSousprovedAndAdresse_Succeeds()
     {
         var (db, users) = await TestDb.CreateSeededAsync();
+        await DbSeeder.EnsureSousProvincesAsync(db);
         var sut = new EcolesService(db, users);
         var regimeCode = RegGes.All.First();
         var sousCode = SousDivision.All.First();
@@ -170,6 +172,15 @@ public class EcolesServiceTests
 
 public class MissionsServiceTests
 {
+    private static List<SaveParticipationDto> EquipeComplete4()
+        =>
+        [
+            new SaveParticipationDto { AgentId = "agt-001", RoleMission = RolesMissionCodes.ChefEquipe },
+            new SaveParticipationDto { AgentId = "agt-002", RoleMission = RolesMissionCodes.ChefAdjoint },
+            new SaveParticipationDto { AgentId = "agt-003", RoleMission = RolesMissionCodes.Membre },
+            new SaveParticipationDto { AgentId = "agt-004", RoleMission = RolesMissionCodes.Membre }
+        ];
+
     [Fact]
     public async Task SaveAsync_Create_WithChefMission_Succeeds()
     {
@@ -180,21 +191,21 @@ public class MissionsServiceTests
         {
             EcoleId = "eco-001",
             Objet = "Contrôle test",
-            Participations =
-            [
-                new SaveParticipationDto { AgentId = "agt-001", RoleMission = RolesMissionCodes.ChefEquipe },
-                new SaveParticipationDto { AgentId = "agt-002", RoleMission = RolesMissionCodes.Membre }
-            ]
-        });
+            Participations = EquipeComplete4()
+        }, "admin-test");
 
         result.Success.Should().BeTrue(result.Message);
         var created = await db.Missions
             .Include(m => m.Affectations)
             .FirstAsync(m => m.Objet == "Contrôle test");
         created.NomEquipe.Should().Be($"Equipe-{created.Numero}");
-        created.Affectations.Should().HaveCount(2);
+        created.Affectations.Should().HaveCount(4);
         created.Affectations.Should().Contain(p => p.Fonction == RolesMissionCodes.ChefEquipe);
-        created.Statut.Should().Be(MissionStatuts.Brouillon);
+        created.Affectations.Should().Contain(p => p.Fonction == RolesMissionCodes.ChefAdjoint);
+        created.Affectations.Count(p => p.Fonction == RolesMissionCodes.Membre).Should().Be(2);
+        created.Statut.Should().Be(MissionStatuts.Signe);
+        created.SigneLe.Should().NotBeNull();
+        created.SignePar.Should().Be("admin-test");
         created.MontPer.Should().BeNull();
     }
 
@@ -208,10 +219,7 @@ public class MissionsServiceTests
         {
             EcoleId = "eco-001",
             Objet = "Mission sans montant UI",
-            Participations =
-            [
-                new SaveParticipationDto { AgentId = "agt-001", RoleMission = RolesMissionCodes.ChefEquipe }
-            ]
+            Participations = EquipeComplete4()
         });
 
         result.Success.Should().BeTrue(result.Message);
@@ -236,10 +244,7 @@ public class MissionsServiceTests
             Statut = mission.Statut,
             FinValidite = mission.FinValidite,
             Objet = "Maj sans toucher montant",
-            Participations =
-            [
-                new SaveParticipationDto { AgentId = "agt-001", RoleMission = RolesMissionCodes.ChefEquipe }
-            ]
+            Participations = EquipeComplete4()
         });
 
         result.Success.Should().BeTrue(result.Message);
@@ -264,10 +269,7 @@ public class MissionsServiceTests
             Statut = mission.Statut,
             FinValidite = mission.FinValidite,
             Objet = "Maj équipe auto",
-            Participations =
-            [
-                new SaveParticipationDto { AgentId = "agt-001", RoleMission = RolesMissionCodes.ChefEquipe }
-            ]
+            Participations = EquipeComplete4()
         });
 
         result.Success.Should().BeTrue(result.Message);
@@ -287,7 +289,10 @@ public class MissionsServiceTests
             EcoleId = "eco-001",
             Participations =
             [
-                new SaveParticipationDto { AgentId = "agt-001", RoleMission = RolesMissionCodes.Membre }
+                new SaveParticipationDto { AgentId = "agt-001", RoleMission = RolesMissionCodes.Membre },
+                new SaveParticipationDto { AgentId = "agt-002", RoleMission = RolesMissionCodes.Membre },
+                new SaveParticipationDto { AgentId = "agt-003", RoleMission = RolesMissionCodes.Membre },
+                new SaveParticipationDto { AgentId = "agt-004", RoleMission = RolesMissionCodes.Membre }
             ]
         });
 
@@ -322,6 +327,166 @@ public class MissionsServiceTests
         result.Success.Should().BeFalse();
         result.Message.Should().Contain("ne peut plus être retirée");
     }
+
+    [Fact]
+    public async Task EnvoyerOrdreParMail_WithoutChefEmail_Fails()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var recorder = new RecordingAppEmailSender();
+        var pdf = new FakeOrdreMissionPdfService();
+        var sut = new MissionsService(db, users, emailSender: recorder, ordrePdf: pdf);
+
+        var mission = await db.Missions.AsNoTracking()
+            .Include(m => m.Ecole)!.ThenInclude(e => e!.ChefEtablissement)
+            .FirstAsync(m => m.Validite == MissionStatuts.Signe);
+        if (mission.Ecole?.ChefEtablissement != null)
+        {
+            var chef = await db.ChefEtablissements.FirstAsync(c => c.Matricule == mission.Ecole.MatriculeChef);
+            chef.Email = null;
+            await db.SaveChangesAsync();
+        }
+
+        var result = await sut.EnvoyerOrdreParMailAsync(mission.Id, "admin-test");
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("n'a pas d'e-mail");
+        recorder.Sent.Should().BeEmpty();
+        var tracked = await db.Missions.AsNoTracking().FirstAsync(m => m.Id == mission.Id);
+        tracked.OmEnvoyeLe.Should().BeNull();
+        tracked.OmEnvoyeA.Should().BeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task EnvoyerOrdreParMail_WithChefEmail_SendsPdfAttachment_AndMarksSent()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var recorder = new RecordingAppEmailSender();
+        var pdf = new FakeOrdreMissionPdfService { PdfBytes = System.Text.Encoding.ASCII.GetBytes("%PDF-test-om") };
+        var sut = new MissionsService(db, users, emailSender: recorder, ordrePdf: pdf);
+
+        var mission = await db.Missions.AsNoTracking()
+            .Include(m => m.Ecole)
+            .FirstAsync(m => m.Validite == MissionStatuts.Signe && m.Ecole != null && m.Ecole.MatriculeChef != null);
+        var chef = await db.ChefEtablissements.FirstAsync(c => c.Matricule == mission.Ecole!.MatriculeChef);
+        chef.Email = "chef.test@example.com";
+        await db.SaveChangesAsync();
+
+        var result = await sut.EnvoyerOrdreParMailAsync(mission.Id, "admin-test");
+
+        result.Success.Should().BeTrue(result.Message);
+        recorder.Sent.Should().HaveCount(1);
+        var sent = recorder.Sent[0];
+        sent.To.Should().Be("chef.test@example.com");
+        sent.Subject.Should().Contain(mission.NumOrdre);
+        sent.Attachments.Should().HaveCount(1);
+        sent.Attachments[0].FileName.Should().StartWith("OM-");
+        sent.Attachments[0].Content.Should().BeEquivalentTo(pdf.PdfBytes);
+        sent.Attachments[0].ContentType.Should().Be("application/pdf");
+
+        var tracked = await db.Missions.AsNoTracking().FirstAsync(m => m.Id == mission.Id);
+        tracked.OmEnvoyeLe.Should().NotBeNull();
+        tracked.OmEnvoyeA.Should().Be("chef.test@example.com");
+    }
+
+    [Fact]
+    public async Task EnvoyerOrdreParMail_SecondSend_FailsAlreadySent()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var recorder = new RecordingAppEmailSender();
+        var pdf = new FakeOrdreMissionPdfService();
+        var sut = new MissionsService(db, users, emailSender: recorder, ordrePdf: pdf);
+
+        var mission = await db.Missions
+            .Include(m => m.Ecole)
+            .FirstAsync(m => m.Validite == MissionStatuts.Signe && m.Ecole != null && m.Ecole.MatriculeChef != null);
+        var chef = await db.ChefEtablissements.FirstAsync(c => c.Matricule == mission.Ecole!.MatriculeChef);
+        chef.Email = "chef.test@example.com";
+        await db.SaveChangesAsync();
+
+        (await sut.EnvoyerOrdreParMailAsync(mission.Id, "admin-test")).Success.Should().BeTrue();
+        recorder.Sent.Should().HaveCount(1);
+
+        var second = await sut.EnvoyerOrdreParMailAsync(mission.Id, "admin-test");
+        second.Success.Should().BeFalse();
+        second.Message.Should().Contain("déjà été envoyé");
+        second.Message.Should().Contain("chef.test@example.com");
+        recorder.Sent.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task EnvoyerOrdreParMail_SmtpFail_DoesNotMarkSent()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var recorder = new RecordingAppEmailSender { FailNext = true };
+        var pdf = new FakeOrdreMissionPdfService();
+        var sut = new MissionsService(db, users, emailSender: recorder, ordrePdf: pdf);
+
+        var mission = await db.Missions.AsNoTracking()
+            .Include(m => m.Ecole)
+            .FirstAsync(m => m.Validite == MissionStatuts.Signe && m.Ecole != null && m.Ecole.MatriculeChef != null);
+        var chef = await db.ChefEtablissements.FirstAsync(c => c.Matricule == mission.Ecole!.MatriculeChef);
+        chef.Email = "chef.test@example.com";
+        await db.SaveChangesAsync();
+
+        var result = await sut.EnvoyerOrdreParMailAsync(mission.Id, "admin-test");
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("SMTP");
+        recorder.Sent.Should().BeEmpty();
+        var tracked = await db.Missions.AsNoTracking().FirstAsync(m => m.Id == mission.Id);
+        tracked.OmEnvoyeLe.Should().BeNull();
+        tracked.OmEnvoyeA.Should().BeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task OrdreMissionPdf_Generate_ForSeedMission_IsNonEmpty()
+    {
+        var (db, _) = await TestDb.CreateSeededAsync();
+        var webRoot = FindWwwRoot();
+        var env = new PdfTestWebHostEnv(webRoot);
+        var sut = new OrdreMissionPdfService(db, env);
+        var mission = await db.Missions.AsNoTracking().FirstAsync(m => m.Validite == MissionStatuts.Signe);
+
+        var bytes = await sut.GenerateAsync(mission.Id);
+
+        bytes.Should().NotBeNullOrEmpty();
+        bytes.Length.Should().BeGreaterThan(100);
+        System.Text.Encoding.ASCII.GetString(bytes.AsSpan(0, 4)).Should().Be("%PDF");
+        sut.BuildFileName(mission.NumOrdre).Should().StartWith("OM-");
+    }
+
+    private static string FindWwwRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null)
+        {
+            var candidate = Path.Combine(dir.FullName, "wwwroot");
+            if (Directory.Exists(candidate)) return candidate;
+            dir = dir.Parent;
+        }
+        return Path.Combine(AppContext.BaseDirectory, "wwwroot");
+    }
+}
+
+file sealed class PdfTestWebHostEnv : Microsoft.AspNetCore.Hosting.IWebHostEnvironment
+{
+    public PdfTestWebHostEnv(string webRoot)
+    {
+        WebRootPath = webRoot;
+        ContentRootPath = webRoot;
+        EnvironmentName = "Development";
+        ApplicationName = "tests";
+        WebRootFileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
+            Directory.Exists(webRoot) ? webRoot : AppContext.BaseDirectory);
+        ContentRootFileProvider = WebRootFileProvider;
+    }
+
+    public string ApplicationName { get; set; }
+    public Microsoft.Extensions.FileProviders.IFileProvider WebRootFileProvider { get; set; }
+    public string WebRootPath { get; set; }
+    public string EnvironmentName { get; set; }
+    public string ContentRootPath { get; set; }
+    public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; }
 }
 
 public class FichesControleServiceTests
@@ -596,7 +761,7 @@ public class FichesControleServiceTests
 public class DecisionsServiceTests
 {
     [Fact]
-    public async Task SaveAsync_Refuse_SansTransfertSecretariat()
+    public async Task SaveAsync_Refuse_SansDepotEquipe()
     {
         var (db, users) = await TestDb.CreateSeededAsync();
         var sut = new DecisionsService(db, users);
@@ -620,11 +785,11 @@ public class DecisionsServiceTests
         }, "usr-002");
 
         result.Success.Should().BeFalse();
-        result.Message.Should().Contain("transféré");
+        result.Message.Should().Contain("déposer");
     }
 
     [Fact]
-    public async Task SaveAsync_Ok_ApresTransfertSecretariat()
+    public async Task SaveAsync_Ok_ApresDepotEquipe()
     {
         var (db, users) = await TestDb.CreateSeededAsync();
         var sut = new DecisionsService(db, users);
@@ -640,7 +805,7 @@ public class DecisionsServiceTests
     }
 
     [Fact]
-    public async Task FichesSansDecisionAsync_ExclutSansTransfert()
+    public async Task FichesSansDecisionAsync_ExclutSansDepotEquipe()
     {
         var (db, users) = await TestDb.CreateSeededAsync();
         var sut = new DecisionsService(db, users);
@@ -806,6 +971,142 @@ public class DecisionsServiceTests
         list.Should().OnlyContain(f => f.Statut == FicheStatuts.Validee);
         foreach (var f in list)
             (await db.Decisions.AnyAsync(d => d.NumOrdre == f.Numero)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task EnvoyerLettreParMail_WithoutChefEmail_Fails()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var recorder = new RecordingAppEmailSender();
+        var pdf = new FakeLettreDecisionPdfService();
+        var sut = new DecisionsService(db, users, emailSender: recorder, lettrePdf: pdf);
+
+        var decision = await db.Decisions.AsNoTracking()
+            .Include(d => d.Ecole)
+            .FirstAsync(d => d.Ecole != null && d.Ecole.MatriculeChef != null);
+        var chef = await db.ChefEtablissements.FirstAsync(c => c.Matricule == decision.Ecole!.MatriculeChef);
+        chef.Email = null;
+        await db.SaveChangesAsync();
+
+        var result = await sut.EnvoyerLettreParMailAsync(decision.NumDecision, "admin-test");
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("n'a pas d'e-mail");
+        recorder.Sent.Should().BeEmpty();
+        var tracked = await db.Decisions.AsNoTracking().FirstAsync(d => d.NumDecision == decision.NumDecision);
+        tracked.LdEnvoyeLe.Should().BeNull();
+        tracked.LdEnvoyeA.Should().BeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task EnvoyerLettreParMail_WithChefEmail_SendsPdf_AndMarksSent()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var recorder = new RecordingAppEmailSender();
+        var pdf = new FakeLettreDecisionPdfService { PdfBytes = System.Text.Encoding.ASCII.GetBytes("%PDF-test-ld") };
+        var sut = new DecisionsService(db, users, emailSender: recorder, lettrePdf: pdf);
+
+        var decision = await db.Decisions.AsNoTracking()
+            .Include(d => d.Ecole)
+            .FirstAsync(d => d.Ecole != null && d.Ecole.MatriculeChef != null);
+        var chef = await db.ChefEtablissements.FirstAsync(c => c.Matricule == decision.Ecole!.MatriculeChef);
+        chef.Email = "chef.ld@example.com";
+        await db.SaveChangesAsync();
+
+        var result = await sut.EnvoyerLettreParMailAsync(decision.NumDecision, "admin-test");
+
+        result.Success.Should().BeTrue(result.Message);
+        recorder.Sent.Should().HaveCount(1);
+        var sent = recorder.Sent[0];
+        sent.To.Should().Be("chef.ld@example.com");
+        sent.Subject.Should().Contain(decision.NumDecision);
+        sent.Attachments.Should().HaveCount(1);
+        sent.Attachments[0].FileName.Should().StartWith("LD-");
+        sent.Attachments[0].Content.Should().BeEquivalentTo(pdf.PdfBytes);
+        sent.Attachments[0].ContentType.Should().Be("application/pdf");
+
+        var tracked = await db.Decisions.AsNoTracking().FirstAsync(d => d.NumDecision == decision.NumDecision);
+        tracked.LdEnvoyeLe.Should().NotBeNull();
+        tracked.LdEnvoyeA.Should().Be("chef.ld@example.com");
+    }
+
+    [Fact]
+    public async Task EnvoyerLettreParMail_SecondSend_FailsAlreadySent()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var recorder = new RecordingAppEmailSender();
+        var pdf = new FakeLettreDecisionPdfService();
+        var sut = new DecisionsService(db, users, emailSender: recorder, lettrePdf: pdf);
+
+        var decision = await db.Decisions
+            .Include(d => d.Ecole)
+            .FirstAsync(d => d.Ecole != null && d.Ecole.MatriculeChef != null);
+        var chef = await db.ChefEtablissements.FirstAsync(c => c.Matricule == decision.Ecole!.MatriculeChef);
+        chef.Email = "chef.ld@example.com";
+        await db.SaveChangesAsync();
+
+        (await sut.EnvoyerLettreParMailAsync(decision.NumDecision, "admin-test")).Success.Should().BeTrue();
+        recorder.Sent.Should().HaveCount(1);
+
+        var second = await sut.EnvoyerLettreParMailAsync(decision.NumDecision, "admin-test");
+        second.Success.Should().BeFalse();
+        second.Message.Should().Contain("déjà été envoyée");
+        second.Message.Should().Contain("chef.ld@example.com");
+        recorder.Sent.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task EnvoyerLettreParMail_SmtpFail_DoesNotMarkSent()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var recorder = new RecordingAppEmailSender { FailNext = true };
+        var pdf = new FakeLettreDecisionPdfService();
+        var sut = new DecisionsService(db, users, emailSender: recorder, lettrePdf: pdf);
+
+        var decision = await db.Decisions.AsNoTracking()
+            .Include(d => d.Ecole)
+            .FirstAsync(d => d.Ecole != null && d.Ecole.MatriculeChef != null);
+        var chef = await db.ChefEtablissements.FirstAsync(c => c.Matricule == decision.Ecole!.MatriculeChef);
+        chef.Email = "chef.ld@example.com";
+        await db.SaveChangesAsync();
+
+        var result = await sut.EnvoyerLettreParMailAsync(decision.NumDecision, "admin-test");
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("SMTP");
+        recorder.Sent.Should().BeEmpty();
+        var tracked = await db.Decisions.AsNoTracking().FirstAsync(d => d.NumDecision == decision.NumDecision);
+        tracked.LdEnvoyeLe.Should().BeNull();
+        tracked.LdEnvoyeA.Should().BeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task LettreDecisionPdf_Generate_ForSeedDecision_IsNonEmpty()
+    {
+        var (db, _) = await TestDb.CreateSeededAsync();
+        var webRoot = FindDecisionWwwRoot();
+        var env = new PdfTestWebHostEnv(webRoot);
+        var sut = new LettreDecisionPdfService(db, env);
+        var decision = await db.Decisions.AsNoTracking().FirstAsync();
+
+        var bytes = await sut.GenerateAsync(decision.NumDecision);
+
+        bytes.Should().NotBeNullOrEmpty();
+        bytes.Length.Should().BeGreaterThan(100);
+        System.Text.Encoding.ASCII.GetString(bytes.AsSpan(0, 4)).Should().Be("%PDF");
+        sut.BuildFileName(decision.NumDecision).Should().StartWith("LD-");
+    }
+
+    private static string FindDecisionWwwRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null)
+        {
+            var candidate = Path.Combine(dir.FullName, "wwwroot");
+            if (Directory.Exists(candidate)) return candidate;
+            dir = dir.Parent;
+        }
+        return Path.Combine(AppContext.BaseDirectory, "wwwroot");
     }
 }
 
@@ -1008,25 +1309,25 @@ public class UtilisateursServiceTests
 
         var create = await sut.SaveAsync(new SaveUtilisateurDto
         {
-            Nom = "Secrétaire Persistant",
-            Contact = "sec.persist@inspect-san.cd",
-            Role = "Agent du Secrétariat",
+            Nom = "DP Persistant",
+            Contact = "dp.persist@inspect-san.cd",
+            Role = "Directeur Provincial",
             MotDePasse = "Secret@123",
             ConfirmationMotDePasse = "Secret@123",
             Statut = "actif"
         });
         create.Success.Should().BeTrue();
 
-        var before = await host.Users.FindByEmailAsync("sec.persist@inspect-san.cd");
+        var before = await host.Users.FindByEmailAsync("dp.persist@inspect-san.cd");
         before.Should().NotBeNull();
         var createdId = before!.Id;
 
         await IdentitySeeder.SeedAsync(host.Users, host.Roles);
 
-        var after = await host.Users.FindByEmailAsync("sec.persist@inspect-san.cd");
+        var after = await host.Users.FindByEmailAsync("dp.persist@inspect-san.cd");
         after.Should().NotBeNull();
         after!.Id.Should().Be(createdId);
-        after.Nom.Should().Be("Secrétaire Persistant");
+        after.Nom.Should().Be("DP Persistant");
 
         var admin = await host.Users.FindByEmailAsync(IdentitySeeder.AdminEmail);
         admin.Should().NotBeNull();
@@ -1042,7 +1343,7 @@ public class UtilisateursServiceTests
         {
             Nom = "Test User",
             Contact = "test.user@inspect-san.cd",
-            Role = "Agent du Secrétariat",
+            Role = "Directeur Provincial",
             MotDePasse = "Secret@123",
             ConfirmationMotDePasse = "Autre@123",
             Statut = "actif"
@@ -1060,18 +1361,39 @@ public class UtilisateursServiceTests
 
         var result = await sut.SaveAsync(new SaveUtilisateurDto
         {
-            Nom = "Secrétaire Test",
-            Contact = "sec.test@inspect-san.cd",
-            Role = "Agent du Secrétariat",
+            Nom = "DP Test",
+            Contact = "dp.test@inspect-san.cd",
+            Role = "Directeur Provincial",
             MotDePasse = "Secret@123",
             ConfirmationMotDePasse = "Secret@123",
             Statut = "actif"
         });
 
         result.Success.Should().BeTrue();
-        var created = await host.Users.FindByEmailAsync("sec.test@inspect-san.cd");
+        var created = await host.Users.FindByEmailAsync("dp.test@inspect-san.cd");
         created.Should().NotBeNull();
-        created!.UserName.Should().Be("sec.test@inspect-san.cd");
+        created!.UserName.Should().Be("dp.test@inspect-san.cd");
+    }
+
+    [Fact]
+    public async Task Save_RejectsRoleSecretariat()
+    {
+        await using var host = await TestDb.CreateIdentityHostAsync();
+        var sut = new UtilisateursService(host.Users, host.Roles, host.Db, host.Store);
+
+        var result = await sut.SaveAsync(new SaveUtilisateurDto
+        {
+            Nom = "Sec Legacy",
+            Contact = "sec.legacy@inspect-san.cd",
+            Role = "Agent du Secrétariat",
+            MotDePasse = "Secret@123",
+            ConfirmationMotDePasse = "Secret@123",
+            Statut = "actif"
+        });
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("Rôle invalide");
+        (await host.Users.FindByEmailAsync("sec.legacy@inspect-san.cd")).Should().BeNull();
     }
 
     [Fact]
@@ -1126,15 +1448,15 @@ public class UtilisateursServiceTests
 
         (await sut.CreateAsync(new SaveUtilisateurDto
         {
-            Nom = "Agent Toggle",
-            Contact = "agent.toggle@inspect-san.cd",
-            Role = "Agent du Secrétariat",
+            Nom = "DP Toggle",
+            Contact = "dp.toggle@inspect-san.cd",
+            Role = "Directeur Provincial",
             MotDePasse = "Secret@123",
             ConfirmationMotDePasse = "Secret@123",
             Statut = "actif"
         })).Success.Should().BeTrue();
 
-        var user = await host.Users.FindByEmailAsync("agent.toggle@inspect-san.cd");
+        var user = await host.Users.FindByEmailAsync("dp.toggle@inspect-san.cd");
         user.Should().NotBeNull();
 
         var off = await sut.SetStatutAsync(user!.Id, "inactif");
@@ -1156,7 +1478,7 @@ public class UtilisateursServiceTests
         {
             Nom = "Profil User",
             Contact = "profil.user@inspect-san.cd",
-            Role = "Agent du Secrétariat",
+            Role = "Directeur Provincial",
             MotDePasse = "Secret@123",
             ConfirmationMotDePasse = "Secret@123"
         })).Success.Should().BeTrue();
@@ -1175,7 +1497,7 @@ public class UtilisateursServiceTests
         updated.Email.Should().Be("profil.modifie@inspect-san.cd");
         updated.UserName.Should().Be("profil.modifie@inspect-san.cd");
         updated.Telephone.Should().Be("+243800000001");
-        updated.Role.Should().Be("Agent du Secrétariat");
+        updated.Role.Should().Be("Directeur Provincial");
     }
 
     [Fact]
@@ -1189,7 +1511,7 @@ public class UtilisateursServiceTests
         {
             Nom = "Autre User",
             Contact = "autre.user@inspect-san.cd",
-            Role = "Agent du Secrétariat",
+            Role = "Directeur Provincial",
             MotDePasse = "Secret@123",
             ConfirmationMotDePasse = "Secret@123"
         })).Success.Should().BeTrue();
@@ -1217,7 +1539,7 @@ public class UtilisateursServiceTests
         {
             Nom = "Pwd User",
             Contact = "pwd.user@inspect-san.cd",
-            Role = "Agent du Secrétariat",
+            Role = "Directeur Provincial",
             MotDePasse = "Secret@123",
             ConfirmationMotDePasse = "Secret@123"
         })).Success.Should().BeTrue();
@@ -1425,5 +1747,53 @@ public class CarnetCoverageTests
         entityAsm.GetType("inspect_san.Models.Entities.RoleMission").Should().BeNull();
         entityAsm.GetType("inspect_san.Models.Entities.Regime").Should().BeNull();
         entityAsm.GetType("inspect_san.Models.Entities.Sousproved").Should().BeNull();
+    }
+}
+
+public class ParametresServiceTests
+{
+    [Fact]
+    public async Task SousDivisions_ListCreateUpdateDelete_Works()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var sut = new ParametresService(db, users);
+
+        var list = await sut.ListAsync(RefCategories.SousDivisions);
+        list.Should().NotBeEmpty();
+        list.Should().OnlyContain(i => !string.IsNullOrWhiteSpace(i.CodeText));
+
+        var create = await sut.SaveAsync(RefCategories.SousDivisions, new SaveRefItemDto
+        {
+            Nom = "Sous-division test UI"
+        });
+        create.Success.Should().BeTrue(create.Message);
+
+        var created = await db.SousProvinces.AsNoTracking()
+            .FirstAsync(s => s.Libelle == "Sous-division test UI");
+        created.Code.Should().StartWith("SP");
+
+        var update = await sut.SaveAsync(RefCategories.SousDivisions, new SaveRefItemDto
+        {
+            CodeText = created.Code,
+            Nom = "Sous-division test UI (modifiée)"
+        });
+        update.Success.Should().BeTrue(update.Message);
+
+        var del = await sut.DeleteAsync(RefCategories.SousDivisions, created.Code);
+        del.Success.Should().BeTrue(del.Message);
+        (await db.SousProvinces.AnyAsync(s => s.Code == created.Code)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SousDivisions_Delete_WhenUsedByEcole_Fails()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var sut = new ParametresService(db, users);
+        var used = await db.Ecoles.AsNoTracking().Select(e => e.SousDivision).FirstAsync();
+
+        var result = await sut.DeleteAsync(RefCategories.SousDivisions, used);
+
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("ne peut pas être retirée");
     }
 }

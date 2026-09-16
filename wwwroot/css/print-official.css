@@ -749,9 +749,19 @@ body.isp-preview-screen {
   color: #000;
 }
 
+.isp-om-sign-img {
+  display: block;
+  margin: 8pt 0 2pt auto;
+  height: 78px;
+  width: auto;
+  max-width: 280px;
+  object-fit: contain;
+  background: #fff;
+}
+
 .isp-om-sign-nom {
   display: inline-block;
-  margin-top: 28pt;
+  margin-top: 4pt;
   font-weight: 400;
 }
 
@@ -879,6 +889,12 @@ body.isp-preview-screen {
 
 .isp-ld-sign-right {
   text-align: right;
+}
+
+.isp-ld-sign-right .isp-ld-sign-img,
+.isp-ld-sign-right .isp-om-sign-img {
+  margin-left: auto;
+  margin-right: 0;
 }
 
 .isp-ld-sign-space {

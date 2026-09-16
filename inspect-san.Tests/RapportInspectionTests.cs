@@ -120,7 +120,7 @@ public class RapportInspectionTests
     }
 
     [Fact]
-    public async Task TransfertSecretariat_Refuse_SansDepotEquipe()
+    public async Task TransfertSecretariat_EtapeRetiree()
     {
         var (db, _) = await TestDb.CreateSeededAsync();
         var mission = await db.Missions.Include(m => m.Ecole).Include(m => m.Affectations)
@@ -132,11 +132,38 @@ public class RapportInspectionTests
 
         var refused = await sut.DeposerRapportSecretariatAsync(sd, "usr-sec");
         refused.Success.Should().BeFalse();
-        refused.Message.Should().Contain("déposer");
+        refused.Message.Should().Contain("Étape retirée");
     }
 
     [Fact]
-    public async Task TransfertSecretariat_Ok_ApresDepot_PuisRefuseSiDeja()
+    public async Task DepotEquipe_PoseFlagsEtDebloqueDecision()
+    {
+        var (db, users) = await TestDb.CreateSeededAsync();
+        var mission = await db.Missions.Include(m => m.Ecole).Include(m => m.Affectations)
+            .FirstAsync(m => m.Affectations.Any(a => a.MatrAgent == "agt-001"));
+        SetValidee(mission);
+        db.Decisions.RemoveRange(await db.Decisions.Where(d => d.NumOrdre == mission.NumOrdre).ToListAsync());
+        await db.SaveChangesAsync();
+        var sd = mission.Ecole!.SousDivision;
+        var stats = new StatistiquesService(db);
+        var decisions = new DecisionsService(db, users);
+
+        (await stats.DeposerRapportEquipeAsync(sd, "usr-c", "agt-001")).Success.Should().BeTrue();
+        var reloaded = await db.Missions.AsNoTracking().FirstAsync(m => m.Id == mission.Id);
+        reloaded.RapportEquipeDeposeLe.Should().NotBeNull();
+        reloaded.RapportSecretariatDeposeLe.Should().NotBeNull();
+
+        var list = await decisions.FichesSansDecisionAsync();
+        list.Should().Contain(f => f.Id == mission.Id);
+        (await decisions.SaveAsync(new SaveDecisionDto
+        {
+            FicheControleId = mission.Id,
+            TypeDecision = DecisionTypes.SuspensionTemporaireChef
+        }, "usr-002")).Success.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task TransfertEtCloture_EtapesRetirees_ApresDepot()
     {
         var (db, _) = await TestDb.CreateSeededAsync();
         var mission = await db.Missions.Include(m => m.Ecole).Include(m => m.Affectations)
@@ -147,40 +174,22 @@ public class RapportInspectionTests
         var sut = new StatistiquesService(db);
 
         (await sut.DeposerRapportEquipeAsync(sd, "usr-c", "agt-001")).Success.Should().BeTrue();
-        var ok = await sut.DeposerRapportSecretariatAsync(sd, "usr-sec");
-        ok.Success.Should().BeTrue(ok.Message);
-        ok.Message.Should().Contain("transféré");
         (await sut.DeposerRapportSecretariatAsync(sd, "usr-sec")).Success.Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task Secretariat_DeposeApresEquipe_PuisClose_BloqueNouveauxDepots()
-    {
-        var (db, _) = await TestDb.CreateSeededAsync();
-        var mission = await db.Missions.Include(m => m.Ecole).Include(m => m.Affectations)
-            .FirstAsync(m => m.Affectations.Any(a => a.MatrAgent == "agt-001"));
-        SetValidee(mission);
-        await db.SaveChangesAsync();
-        var sd = mission.Ecole!.SousDivision;
-        var sut = new StatistiquesService(db);
-
-        (await sut.DeposerRapportEquipeAsync(sd, "usr-c", "agt-001")).Success.Should().BeTrue();
-        (await sut.DeposerRapportSecretariatAsync(sd, "usr-sec")).Success.Should().BeTrue();
-        (await sut.DeposerRapportSecretariatAsync(sd, "usr-sec")).Success.Should().BeFalse();
-        (await sut.CloturerRapportAsync(sd, "usr-sec")).Success.Should().BeTrue();
+        (await sut.CloturerRapportAsync(sd, "usr-sec")).Success.Should().BeFalse();
         (await sut.DeposerRapportEquipeAsync(sd, "usr-c", "agt-001")).Success.Should().BeFalse();
-        (await sut.DeposerRapportSecretariatAsync(sd, "usr-sec")).Success.Should().BeFalse();
     }
 
     [Fact]
-    public async Task Cloturer_SansDepotSecretariat_Refuse()
+    public async Task Cloturer_EtapeRetiree()
     {
         var (db, _) = await TestDb.CreateSeededAsync();
         var mission = await db.Missions.Include(m => m.Ecole).FirstAsync();
         SetValidee(mission);
         await db.SaveChangesAsync();
         var sut = new StatistiquesService(db);
-        (await sut.CloturerRapportAsync(mission.Ecole!.SousDivision, "usr-sec")).Success.Should().BeFalse();
+        var result = await sut.CloturerRapportAsync(mission.Ecole!.SousDivision, "usr-sec");
+        result.Success.Should().BeFalse();
+        result.Message.Should().Contain("Étape retirée");
     }
 
     [Fact]

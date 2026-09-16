@@ -2,7 +2,7 @@ namespace inspect_san.Services;
 
 /// <summary>
 /// Périmètre données (couche 2, distincte du RBAC CanAccess/CanDo).
-/// Admin / DP / Secrétariat : non restreint.
+/// Admin / Directeur Provincial : non restreint.
 /// Contrôleur = compte agent → filtre AgentId (missions où il participe).
 /// </summary>
 public sealed class UserDataScope
@@ -59,10 +59,13 @@ public static class DataScope
     public const string RoleAdmin = "Administrateur système";
     public const string RoleDp = "Directeur Provincial";
     public const string RoleControleur = "Contrôleur";
-    public const string RoleSecretariat = "Agent du Secrétariat";
 
     /// <summary>Ancien rôle de connexion — conservé uniquement pour compat / détection legacy.</summary>
     public const string RoleChef = "Chef d'établissement";
+
+    /// <summary>Ancien rôle secrétariat — plus attribué ; droits repris par le Directeur Provincial.</summary>
+    [Obsolete("Rôle retiré : droits transférés au Directeur Provincial.")]
+    public const string RoleSecretariat = "Agent du Secrétariat";
 
     /// <summary>Construit le périmètre de données à partir du rôle et des liens utilisateur.</summary>
     public static UserDataScope Resolve(string? role, string? userId, string? userEcoleId = null, string? userAgentId = null)
@@ -72,7 +75,7 @@ public static class DataScope
 
         return role switch
         {
-            RoleAdmin or RoleDp or RoleSecretariat => new UserDataScope { Unrestricted = true },
+            RoleAdmin or RoleDp => new UserDataScope { Unrestricted = true },
             RoleControleur => new UserDataScope
             {
                 AgentId = string.IsNullOrWhiteSpace(userAgentId) ? null : userAgentId

@@ -185,8 +185,6 @@ public class StatistiquesService : IStatistiquesService
         };
 
         var isControleur = string.Equals(role, DataScope.RoleControleur, StringComparison.Ordinal);
-        var isSecretariatLike = string.Equals(role, DataScope.RoleSecretariat, StringComparison.Ordinal)
-                                || string.Equals(role, DataScope.RoleAdmin, StringComparison.Ordinal);
 
         response.CanDeposerEquipe = isControleur
             && !string.IsNullOrWhiteSpace(agentId)
@@ -195,18 +193,14 @@ public class StatistiquesService : IStatistiquesService
                                && m.Affectations.Any(a =>
                                    string.Equals(a.MatrAgent, agentId, StringComparison.Ordinal)
                                    && a.Fonction == RolesMissionCodes.ChefEquipe));
-        // Transfert secrétariat : uniquement après dépôt équipe.
-        response.CanDeposerSecretariat = isSecretariatLike
-            && fiches.Any(m => !m.RapportClos
-                               && m.RapportEquipeDeposeLe != null
-                               && m.RapportSecretariatDeposeLe == null);
-        response.CanCloturer = isSecretariatLike
-            && fiches.Any(m => !m.RapportClos && m.RapportSecretariatDeposeLe != null);
+        // Transfert / clôture retirés de l'UI : le dépôt contrôleur suffit pour le DP.
+        response.CanDeposerSecretariat = false;
+        response.CanCloturer = false;
 
         return response;
     }
 
-    /// <summary>Dépose le rapport côté équipe pour une sous-division.</summary>
+    /// <summary>Dépose le rapport côté équipe pour une sous-division (débloque immédiatement les décisions DP).</summary>
     public async Task<ApiResultDto> DeposerRapportEquipeAsync(string sousDivisionCode, string? userId, string? agentId)
     {
         var sdCode = SousProvinceCatalog.CodeFromLegacyOrCode(sousDivisionCode);
@@ -230,90 +224,32 @@ public class StatistiquesService : IStatistiquesService
         var deja = missions.Where(m => !m.RapportClos && m.RapportEquipeDeposeLe != null).ToList();
         var aDeposer = missions.Where(m => !m.RapportClos && m.RapportEquipeDeposeLe == null).ToList();
         if (aDeposer.Count == 0)
-            return ApiResultDto.Fail("Le rapport a déjà été déposé au secrétariat pour ces missions.");
+            return ApiResultDto.Fail("Le rapport a déjà été déposé pour ces missions.");
 
         var now = DateTime.UtcNow;
         foreach (var m in aDeposer)
         {
             m.RapportEquipeDeposeLe = now;
             m.RapportEquipeDeposePar = userId;
-        }
-        await _db.SaveChangesAsync();
-        return ApiResultDto.Ok(
-            $"Rapport déposé au secrétariat ({aDeposer.Count} mission(s))."
-            + (deja.Count > 0 ? $" {deja.Count} déjà déposée(s) ignorée(s)." : ""));
-    }
-
-    /// <summary>Dépose le rapport côté secrétariat pour une sous-division.</summary>
-    public async Task<ApiResultDto> DeposerRapportSecretariatAsync(string sousDivisionCode, string? userId)
-    {
-        var sdCode = SousProvinceCatalog.CodeFromLegacyOrCode(sousDivisionCode);
-        if (string.IsNullOrWhiteSpace(sdCode))
-            return ApiResultDto.Fail("Sous-division invalide.");
-
-        var missions = await LoadMissionsForSousDivisionAsync(sdCode);
-        if (missions.Count == 0)
-            return ApiResultDto.Fail("Aucune fiche validée pour cette sous-division.");
-
-        if (missions.All(m => m.RapportClos))
-            return ApiResultDto.Fail("Rapport déjà clôturé.");
-
-        var sansDepotEquipe = missions
-            .Where(m => !m.RapportClos && m.RapportEquipeDeposeLe == null)
-            .ToList();
-        var aTransferer = missions
-            .Where(m => !m.RapportClos
-                        && m.RapportEquipeDeposeLe != null
-                        && m.RapportSecretariatDeposeLe == null)
-            .ToList();
-        if (aTransferer.Count == 0)
-        {
-            if (sansDepotEquipe.Count > 0)
-                return ApiResultDto.Fail(
-                    "Transfert impossible : le chef d'équipe doit d'abord déposer le rapport au secrétariat.");
-            return ApiResultDto.Fail("Le rapport a déjà été transféré au Directeur Provincial pour ces missions.");
-        }
-
-        var now = DateTime.UtcNow;
-        foreach (var m in aTransferer)
-        {
+            // Compatibilité historique : le dépôt contrôleur remplace le transfert secrétariat.
             m.RapportSecretariatDeposeLe = now;
             m.RapportSecretariatDeposePar = userId;
         }
         await _db.SaveChangesAsync();
         return ApiResultDto.Ok(
-            $"Rapport transféré au Directeur Provincial ({aTransferer.Count} mission(s)).");
+            $"Rapport déposé — le Directeur Provincial peut prendre les décisions ({aDeposer.Count} mission(s))."
+            + (deja.Count > 0 ? $" {deja.Count} déjà déposée(s) ignorée(s)." : ""));
     }
 
-    /// <summary>Clôture le rapport d'une sous-division.</summary>
-    public async Task<ApiResultDto> CloturerRapportAsync(string sousDivisionCode, string? userId, bool forceAdmin = false)
-    {
-        var sdCode = SousProvinceCatalog.CodeFromLegacyOrCode(sousDivisionCode);
-        if (string.IsNullOrWhiteSpace(sdCode))
-            return ApiResultDto.Fail("Sous-division invalide.");
+    /// <summary>Étape retirée : le dépôt contrôleur suffit.</summary>
+    public Task<ApiResultDto> DeposerRapportSecretariatAsync(string sousDivisionCode, string? userId)
+        => Task.FromResult(ApiResultDto.Fail(
+            "Étape retirée : le dépôt du rapport par le contrôleur (chef d'équipe) suffit pour que le Directeur Provincial décide."));
 
-        var missions = await LoadMissionsForSousDivisionAsync(sdCode);
-        if (missions.Count == 0)
-            return ApiResultDto.Fail("Aucune fiche validée pour cette sous-division.");
-
-        var aCloturer = missions.Where(m => !m.RapportClos).ToList();
-        if (aCloturer.Count == 0)
-            return ApiResultDto.Ok("Rapport déjà clôturé.");
-
-        if (!forceAdmin && aCloturer.Any(m => m.RapportSecretariatDeposeLe == null))
-            return ApiResultDto.Fail(
-                "Transférez d'abord le rapport au Directeur Provincial avant de clôturer.");
-
-        var now = DateTime.UtcNow;
-        foreach (var m in aCloturer)
-        {
-            m.RapportClos = true;
-            m.RapportClosLe = now;
-            m.RapportClosPar = userId;
-        }
-        await _db.SaveChangesAsync();
-        return ApiResultDto.Ok($"Rapport clôturé ({aCloturer.Count} mission(s)).");
-    }
+    /// <summary>Étape retirée : plus de clôture manuelle du rapport.</summary>
+    public Task<ApiResultDto> CloturerRapportAsync(string sousDivisionCode, string? userId, bool forceAdmin = false)
+        => Task.FromResult(ApiResultDto.Fail(
+            "Étape retirée : la clôture manuelle du rapport n'est plus utilisée."));
 
     /// <summary>Charge les missions d'une sous-division.</summary>
     private async Task<List<Mission>> LoadMissionsForSousDivisionAsync(string sdCode)

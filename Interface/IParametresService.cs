@@ -3,7 +3,7 @@ using inspect_san.Models.Entities;
 
 namespace inspect_san.Interface;
 
-/// <summary>CRUD des référentiels de paramètres (catégories, produits, outils).</summary>
+/// <summary>CRUD des référentiels de paramètres (catégories, produits, outils, sous-divisions).</summary>
 public interface IParametresService
 {
     /// <summary>Liste les éléments du référentiel pour un onglet donné.</summary>

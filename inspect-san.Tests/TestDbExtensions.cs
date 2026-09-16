@@ -47,8 +47,8 @@ internal static class TestDbExtensions
     }
 
     /// <summary>
-    /// Marque le circuit rapport comme déposé puis transféré (colonnes existantes, sans migration).
-    /// Prérequis pour qu'une décision puisse être créée.
+    /// Marque le rapport comme déposé par le contrôleur (débloque les décisions DP).
+    /// Pose aussi le flag secrétariat pour compatibilité historique.
     /// </summary>
     public static void MarkRapportTransfereAuDp(Mission m, DateTime? when = null)
     {

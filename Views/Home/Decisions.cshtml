@@ -31,7 +31,7 @@
 <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4 isp-page-head">
     <div>
         <h2 class="mb-1">Décisions</h2>
-        <p class="text-secondary mb-0">@(canCreer ? "Une décision par fiche validée, après transfert du rapport par le secrétariat. Consultez la fiche avant de décider." : "Suivi des décisions concernant votre établissement.")</p>
+        <p class="text-secondary mb-0">@(canCreer ? "Une décision par fiche validée, après dépôt du rapport par le contrôleur. Consultez la fiche avant de décider." : "Suivi des décisions concernant votre établissement.")</p>
     </div>
     @if (canCreer)
     {
@@ -67,7 +67,7 @@
 <div class="card card-lg">
     <div class="table-responsive">
         <table class="table table-hover mb-0 js-paginated-table" id="decisionsTable" data-can-creer="@(canCreer ? "1" : "0")">
-            <thead class="table-light"><tr><th>N°</th><th>Type</th><th>École</th><th>Fiche</th><th></th></tr></thead>
+            <thead class="table-light"><tr><th>@DictionnaireDonnees.Label("Num_Déc")</th><th>@DictionnaireDonnees.Label("Décision_Fin")</th><th>@DictionnaireDonnees.Label("Dénomination")</th><th>Fiche</th><th></th></tr></thead>
             <tbody id="decisionsTbody">
             @foreach (var d in Model)
             {
@@ -95,6 +95,25 @@
                                 data-type="@d.TypeDecision"
                                 data-type-label="@typeLabel"
                                 title="Imprimer la lettre de décision"><i class="ti ti-printer"></i></button>
+                        @if (canCreer)
+                        {
+                            if (d.LdEnvoyeLe.HasValue)
+                            {
+                                var ldLe = d.LdEnvoyeLe.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+                                var ldA = string.IsNullOrWhiteSpace(d.LdEnvoyeA) ? "" : $" à {d.LdEnvoyeA.Trim()}";
+                                <button type="button" class="btn btn-sm btn-outline-secondary" disabled
+                                        title="Déjà envoyée le @ldLe@ldA"><i class="ti ti-mail-check"></i></button>
+                            }
+                            else
+                            {
+                                <form class="d-inline js-envoyer-ld" data-id="@d.Id">
+                                    <button type="submit" class="btn btn-sm btn-outline-info"
+                                            title="Envoyer la lettre de décision par e-mail">
+                                        <i class="ti ti-mail"></i>
+                                    </button>
+                                </form>
+                            }
+                        }
                         <button type="button" class="btn btn-sm btn-outline-secondary btn-voir-decision"
                                 data-id="@d.Id" data-fiche="@d.FicheControleId" data-ecole="@d.EcoleId"
                                 data-ecole-nom="@(eco?.Denomination ?? "")"
@@ -160,12 +179,12 @@
                         <div class="form-text">Consultez la fiche avant d’enregistrer. Création : fiches validées déjà transférées au DP, sans décision.</div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">École (issue de la fiche)</label>
+                        <label class="form-label">@DictionnaireDonnees.Label("Dénomination") (issue de la fiche)</label>
                         <input type="hidden" name="EcoleId" id="decEcole" />
                         <input type="text" id="decEcoleLabel" class="form-control" readonly tabindex="-1" placeholder="Sélectionnez une fiche" />
                     </div>
                     <div class="mb-0">
-                        <label class="form-label">Type de décision</label>
+                        <label class="form-label">@DictionnaireDonnees.Label("Décision_Fin")</label>
                         <select name="TypeDecision" id="decType" class="form-select" required>
                             @foreach (var t in types) { <option value="@t.Key">@t.Value</option> }
                         </select>

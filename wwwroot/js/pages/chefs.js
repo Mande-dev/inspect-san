@@ -7,7 +7,7 @@
   var table = document.getElementById('chefsTable') || (tbody && tbody.closest('table'));
   var form = document.getElementById('chefForm');
   var canGerer = table && table.getAttribute('data-can-gerer') === '1';
-  var fields = ['chefMatricule', 'chefNom', 'chefTel', 'chefAnneeDebut'];
+  var fields = ['chefMatricule', 'chefNom', 'chefTel', 'chefEmail', 'chefAnneeDebut'];
 
   // Construit une ligne du tableau chefs.
   function rowHtml(c) {
@@ -17,6 +17,7 @@
       Matricule: id,
       NomComplet: c.nomComplet || c.NomComplet || '',
       Telephone: c.telephone || c.Telephone || '',
+      Email: c.email || c.Email || '',
       AnneeDebutActivite: c.anneeDebutActivite ?? c.AnneeDebutActivite ?? null
     };
     var json = api.attr(JSON.stringify(payload));
@@ -38,6 +39,7 @@
       '<td class="font-monospace">' + api.esc(payload.Matricule) + '</td>' +
       '<td class="fw-semibold">' + api.esc(payload.NomComplet) + '</td>' +
       '<td>' + api.esc(payload.Telephone) + '</td>' +
+      '<td class="small">' + api.esc(payload.Email || '—') + '</td>' +
       '<td>' + api.esc(c.ecoleNom || c.EcoleNom || '—') + '</td>' +
       '<td class="small">' + api.esc(payload.AnneeDebutActivite != null ? String(payload.AnneeDebutActivite) : '—') + '</td>' +
       '<td class="text-end text-nowrap">' +
@@ -94,6 +96,7 @@
     document.getElementById('chefMatricule').value = c.Matricule || c.matricule || c.Id || c.id || '';
     document.getElementById('chefNom').value = c.NomComplet || c.nomComplet || '';
     document.getElementById('chefTel').value = c.Telephone || c.telephone || '';
+    document.getElementById('chefEmail').value = c.Email || c.email || '';
     document.getElementById('chefAnneeDebut').value =
       c.AnneeDebutActivite != null ? c.AnneeDebutActivite : c.anneeDebutActivite != null ? c.anneeDebutActivite : '';
     document.getElementById('chefModalTitle').textContent = viewing ? 'Détail du chef' : 'Modifier le chef';
@@ -148,6 +151,7 @@
           matricule: document.getElementById('chefMatricule').value,
           nomComplet: document.getElementById('chefNom').value,
           telephone: document.getElementById('chefTel').value,
+          email: document.getElementById('chefEmail').value || null,
           anneeDebutActivite: anneeRaw ? parseInt(anneeRaw, 10) : null
         };
         var result = await api.post('/Home/SaveChefJson', body);

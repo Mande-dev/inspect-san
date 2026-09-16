@@ -10,8 +10,8 @@ public interface IMissionsService
     Task<IReadOnlyList<MissionListDto>> ListAsync(MissionFilterDto filter);
     /// <summary>Retourne les entités mission correspondant au filtre.</summary>
     Task<List<Mission>> QueryEntitiesAsync(MissionFilterDto filter);
-    /// <summary>Crée ou met à jour une mission.</summary>
-    Task<ApiResultDto> SaveAsync(SaveMissionDto dto);
+    /// <summary>Crée ou met à jour une mission (création = directement signée).</summary>
+    Task<ApiResultDto> SaveAsync(SaveMissionDto dto, string? userId = null);
     /// <summary>brouillon → en_attente_signature</summary>
     Task<ApiResultDto> DemanderSignatureAsync(string id, string? userId);
     /// <summary>brouillon | en_attente_signature → signe</summary>
@@ -26,4 +26,6 @@ public interface IMissionsService
     Task<ApiResultDto> DeleguerEcritureAdjointAsync(string missionId, string? userId);
     /// <summary>Retire la délégation d'écriture du chef adjoint.</summary>
     Task<ApiResultDto> RetirerDelegationAdjointAsync(string missionId, string? userId);
+    /// <summary>Génère le PDF de l'OM et l'envoie au chef d'établissement.</summary>
+    Task<ApiResultDto> EnvoyerOrdreParMailAsync(string missionId, string? userId);
 }

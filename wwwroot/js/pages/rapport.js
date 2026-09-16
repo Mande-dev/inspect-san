@@ -5,8 +5,6 @@
   var lastDto = null;
   var page = document.getElementById('rapportPage');
   var canEquipeUi = page?.getAttribute('data-can-equipe') === '1';
-  var canSecUi = page?.getAttribute('data-can-secretariat') === '1';
-  var canCloturerUi = page?.getAttribute('data-can-cloturer') === '1';
 
   // Lit une propriété camelCase ou PascalCase.
   function pick(obj, camel, pascal) {
@@ -71,14 +69,6 @@
       'btnDeposerEquipe',
       canEquipeUi && hasSd && !!pick(dto, 'canDeposerEquipe', 'CanDeposerEquipe')
     );
-    setBtn(
-      'btnDeposerSecretariat',
-      canSecUi && hasSd && !!pick(dto, 'canDeposerSecretariat', 'CanDeposerSecretariat')
-    );
-    setBtn(
-      'btnCloturerRapport',
-      canCloturerUi && hasSd && !!pick(dto, 'canCloturer', 'CanCloturer')
-    );
 
     var status = document.getElementById('rapportStatus');
     if (!status) return;
@@ -87,25 +77,16 @@
       return;
     }
     var eq = pick(dto, 'equipeDeposeCount', 'EquipeDeposeCount') || 0;
-    var sec = pick(dto, 'secretariatDeposeCount', 'SecretariatDeposeCount') || 0;
-    var clos = pick(dto, 'closCount', 'ClosCount') || 0;
     var total = pick(dto, 'missionsEligiblesCount', 'MissionsEligiblesCount') || 0;
     status.classList.remove('d-none');
     status.textContent =
       'Missions : ' +
       total +
-      ' — Déposé secrétariat : ' +
+      ' — Rapport déposé : ' +
       eq +
       '/' +
       total +
-      ' — Transféré DP : ' +
-      sec +
-      '/' +
-      total +
-      ' — Clôturées : ' +
-      clos +
-      '/' +
-      total;
+      (eq > 0 && eq >= total ? ' (DP peut décider)' : '');
   }
 
   // Rend le tableau HTML des lignes de fiche.
@@ -124,7 +105,6 @@
     lignes.forEach(function (l) {
       var flags = [];
       if (l.rapportEquipeDepose || l.RapportEquipeDepose) flags.push('Déposé');
-      if (l.rapportSecretariatDepose || l.RapportSecretariatDepose) flags.push('Transféré DP');
       if (l.rapportClos || l.RapportClos) flags.push('Clos');
       html +=
         '<tr>' +
@@ -254,27 +234,10 @@
   document.getElementById('btnDeposerEquipe')?.addEventListener('click', function () {
     postAction(
       '/Home/DeposerRapportEquipeJson',
-      'Déposer ce rapport au secrétariat pour cette sous-division ?'
+      'Déposer ce rapport pour que le Directeur Provincial puisse décider ?'
     ).catch(function (err) {
       api.showToast(err.message, 'danger');
     });
-  });
-
-  document.getElementById('btnDeposerSecretariat')?.addEventListener('click', function () {
-    postAction(
-      '/Home/DeposerRapportSecretariatJson',
-      'Transférer ce rapport au Directeur Provincial ?'
-    ).catch(function (err) {
-      api.showToast(err.message, 'danger');
-    });
-  });
-
-  document.getElementById('btnCloturerRapport')?.addEventListener('click', function () {
-    postAction('/Home/CloturerRapportJson', 'Clôturer définitivement le rapport de cette sous-division ?').catch(
-      function (err) {
-        api.showToast(err.message, 'danger');
-      }
-    );
   });
 
   document.getElementById('btnPrintRapport')?.addEventListener('click', function () {
@@ -298,12 +261,12 @@
       window.print();
     }
 
-    // Après impression : proposer le dépôt au secrétariat si le chef d'équipe peut le faire.
+    // Après impression : proposer le dépôt si le chef d'équipe peut le faire.
     var canDepositNow = canEquipeUi && !!pick(lastDto, 'canDeposerEquipe', 'CanDeposerEquipe');
     if (!canDepositNow) return;
     api
       .confirm(
-        'Impression lancée. Déposer maintenant ce rapport au secrétariat dans le système ?'
+        'Impression lancée. Déposer maintenant ce rapport pour le Directeur Provincial ?'
       )
       .then(function (ok) {
         if (!ok) return;

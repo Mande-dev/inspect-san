@@ -246,7 +246,78 @@ window.closePrintPreview = function () {
   }
 };
 
-/** Aperçu / impression — même rendu, dans un modal de la page. */
+/** Cache mémoire des CSS d’aperçu (évite FOUC + re-fetch à chaque ouverture). */
+var _ispPrintCssCache = Object.create(null);
+
+function loadPrintCssText(path) {
+  if (_ispPrintCssCache[path]) return Promise.resolve(_ispPrintCssCache[path]);
+  return fetch(path, { credentials: 'same-origin', cache: 'force-cache' })
+    .then(function (res) {
+      if (!res.ok) throw new Error('CSS ' + path + ' (' + res.status + ')');
+      return res.text();
+    })
+    .then(function (text) {
+      _ispPrintCssCache[path] = text;
+      return text;
+    });
+}
+
+/** Réécrit les url() relatives de fonts.css pour un <style> inline dans l’iframe. */
+function rewriteFontsCssUrls(cssText) {
+  return String(cssText || '').replace(/url\(\s*(['"]?)\.\.\/fonts\//g, 'url($1/fonts/');
+}
+
+function waitPreviewStylesheets(doc) {
+  var links = Array.prototype.slice.call(doc.querySelectorAll('link[rel="stylesheet"]'));
+  if (!links.length) return Promise.resolve();
+  return Promise.all(
+    links.map(function (link) {
+      return new Promise(function (resolve) {
+        if (link.sheet) {
+          resolve();
+          return;
+        }
+        link.addEventListener('load', resolve, { once: true });
+        link.addEventListener('error', resolve, { once: true });
+      });
+    })
+  );
+}
+
+function waitPreviewImages(doc) {
+  var imgs = Array.prototype.slice.call(doc.images || []);
+  if (!imgs.length) return Promise.resolve();
+  return Promise.all(
+    imgs.map(function (img) {
+      if (img.complete) return Promise.resolve();
+      return new Promise(function (resolve) {
+        img.addEventListener('load', resolve, { once: true });
+        img.addEventListener('error', resolve, { once: true });
+      });
+    })
+  );
+}
+
+function waitPreviewFonts(doc) {
+  if (doc.fonts && doc.fonts.ready) {
+    return doc.fonts.ready.then(
+      function () {},
+      function () {}
+    );
+  }
+  return Promise.resolve();
+}
+
+/** Attend CSS / polices / images critiques avant d’afficher l’iframe. */
+function waitPreviewReady(doc) {
+  return Promise.all([
+    waitPreviewStylesheets(doc),
+    waitPreviewFonts(doc),
+    waitPreviewImages(doc)
+  ]);
+}
+
+/** Aperçu / impression — même rendu, dans un modal de la page (sans FOUC). */
 window.openPrintPreview = function (title, htmlBody) {
   window.closePrintPreview();
   var isOfficial = htmlBody && String(htmlBody).indexOf('isp-print-doc') !== -1;
@@ -256,7 +327,6 @@ window.openPrintPreview = function (title, htmlBody) {
     (document.getElementById('pageContainer')
       ? document.getElementById('pageContainer').innerHTML
       : document.body.innerHTML);
-  var cssHref = '/css/print-official.css?v=' + Date.now();
   var docTitle = isOfficial ? '\u00A0' : title || 'Inspect-San';
   var label = (title || 'Document officiel').toString();
   var pageStyle = isRapportLandscape
@@ -299,12 +369,15 @@ window.openPrintPreview = function (title, htmlBody) {
 
   var modal = document.createElement('div');
   modal.id = 'ispPrintPreviewModal';
-  modal.className = 'isp-print-preview-modal';
+  modal.className = 'isp-print-preview-modal isp-print-preview-modal--loading';
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
   modal.setAttribute('aria-label', label);
   var iframe = document.createElement('iframe');
   iframe.title = label;
+  iframe.setAttribute('aria-busy', 'true');
+  iframe.style.opacity = '0';
+  iframe.style.visibility = 'hidden';
   modal.appendChild(iframe);
   document.body.appendChild(modal);
   document.documentElement.classList.add('isp-print-preview-open');
@@ -321,28 +394,87 @@ window.openPrintPreview = function (title, htmlBody) {
     window.print();
     return;
   }
-  w.document.write(
-    '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">' +
-      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
-      '<title>' +
-      esc(docTitle) +
-      '</title>' +
+
+  function revealPreview() {
+    if (!document.getElementById('ispPrintPreviewModal')) return;
+    modal.classList.remove('isp-print-preview-modal--loading');
+    iframe.style.visibility = 'visible';
+    iframe.style.opacity = '1';
+    iframe.removeAttribute('aria-busy');
+    try {
+      if (isOfficial) w.document.title = '';
+    } catch (e) {}
+  }
+
+  function writePreviewHtml(headExtra) {
+    w.document.open();
+    w.document.write(
+      '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">' +
+        '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+        '<title>' +
+        esc(docTitle) +
+        '</title>' +
+        (headExtra || '') +
+        pageStyle +
+        '</head><body class="' +
+        (isOfficial ? 'isp-preview-screen' : '') +
+        '">' +
+        toolbar +
+        '</body></html>'
+    );
+    w.document.close();
+    var timeout = setTimeout(revealPreview, 4000);
+    waitPreviewReady(w.document)
+      .then(function () {
+        clearTimeout(timeout);
+        // Court délai pour peindre le layout stylé avant reveal.
+        requestAnimationFrame(function () {
+          requestAnimationFrame(revealPreview);
+        });
+      })
+      .catch(function () {
+        clearTimeout(timeout);
+        revealPreview();
+      });
+  }
+
+  if (isOfficial) {
+    Promise.all([
+      loadPrintCssText('/css/fonts.css'),
+      loadPrintCssText('/css/print-official.css')
+    ])
+      .then(function (parts) {
+        var fontsCss = rewriteFontsCssUrls(parts[0]);
+        var printCss = parts[1] || '';
+        writePreviewHtml(
+          '<style id="isp-preview-fonts">\n' +
+            fontsCss +
+            '\n</style>' +
+            '<style id="isp-preview-print-official">\n' +
+            printCss +
+            '\n</style>' +
+            '<link rel="stylesheet" href="/assets/libs/@tabler/icons-webfont/tabler-icons.min.css">'
+        );
+      })
+      .catch(function () {
+        // Repli : liens externes + reveal après chargement.
+        writePreviewHtml(
+          '<link rel="stylesheet" href="/css/fonts.css">' +
+            '<link rel="stylesheet" href="/assets/libs/@tabler/icons-webfont/tabler-icons.min.css">' +
+            '<link rel="stylesheet" href="/css/print-official.css?v=' +
+            Date.now() +
+            '">'
+        );
+      });
+  } else {
+    writePreviewHtml(
       '<link rel="stylesheet" href="/css/fonts.css">' +
-      '<link rel="stylesheet" href="/assets/libs/@tabler/icons-webfont/tabler-icons.min.css">' +
-      '<link rel="stylesheet" href="' +
-      cssHref +
-      '">' +
-      pageStyle +
-      '</head><body class="' +
-      (isOfficial ? 'isp-preview-screen' : '') +
-      '">' +
-      toolbar +
-      '</body></html>'
-  );
-  w.document.close();
-  try {
-    if (isOfficial) w.document.title = '';
-  } catch (e) {}
+        '<link rel="stylesheet" href="/assets/libs/@tabler/icons-webfont/tabler-icons.min.css">' +
+        '<link rel="stylesheet" href="/css/print-official.css?v=' +
+        Date.now() +
+        '">'
+    );
+  }
 };
 
 /** Export texte / CSV (équivalent downloadText Vite). */
@@ -697,6 +829,7 @@ window.buildOrdrePrintHtml = window.buildMissionPrintHtml = function (o, ecole, 
     '<li>Les autorités tant civiles, militaires ainsi que la Police Nationale Congolaise sont priées d\'apporter toute leur aide et assistance aux porteurs de la présente.</li>' +
     '</ul>' +
     '<p class="isp-om-sign">DIRECTEUR PROVINCIAL' +
+    '<br /><img class="isp-om-sign-img" src="/assets/images/signatures/directeur-provincial.png" alt="Signature du Directeur Provincial" />' +
     (signataireNom ? '<br /><span class="isp-om-sign-nom">' + esc(signataireNom) + '</span>' : '') +
     '</p>' +
     '</div>' +
@@ -812,8 +945,7 @@ window.buildDecisionPrintHtml = function (d, ecole, ctx) {
     '<div class="isp-ld-sign-col isp-ld-sign-right">' +
     '<p class="isp-ld-sign-head">Pour la Direction Provinciale Kinshasa Mont-Amba :</p>' +
     '<p><strong>Le Directeur Provincial</strong></p>' +
-    '<p class="isp-ld-sign-space">&nbsp;</p>' +
-    '<p>Signature &amp; Sceau Administratif</p>' +
+    '<img class="isp-om-sign-img isp-ld-sign-img" src="/assets/images/signatures/directeur-provincial.png" alt="Signature du Directeur Provincial" />' +
     '</div>' +
     '</div>' +
     '</div>' +

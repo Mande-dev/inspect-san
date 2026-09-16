@@ -15,7 +15,6 @@ public class FichesControleService : IFichesControleService
     private readonly InspectSanDbContext _db;
     private readonly MockUserStore _users;
     private readonly IFileStorageService? _files;
-    private readonly IDomainEmailNotifier _email;
     private readonly ICurrentUserScope _scope;
     private readonly IMissionsService? _missions;
     private readonly IMissionAccessService _access;
@@ -25,7 +24,6 @@ public class FichesControleService : IFichesControleService
         InspectSanDbContext db,
         MockUserStore users,
         IFileStorageService? files = null,
-        IDomainEmailNotifier? email = null,
         ICurrentUserScope? scope = null,
         IMissionsService? missions = null,
         IMissionAccessService? access = null)
@@ -33,7 +31,6 @@ public class FichesControleService : IFichesControleService
         _db = db;
         _users = users;
         _files = files;
-        _email = email ?? NullDomainEmailNotifier.Instance;
         _scope = scope ?? UnrestrictedUserScope.Instance;
         _missions = missions;
         _access = access ?? new MissionAccessService(db);
@@ -129,7 +126,7 @@ public class FichesControleService : IFichesControleService
         if (!scope.Unrestricted && !scope.AllowsFiche(agentIds, ecoleId, null, mission.Id))
             return ApiResultDto.Fail("Accès refusé pour cette fiche / périmètre.");
         if (!_access.CanWriteFromAffectations(mission.Affectations, scope.AgentId, scope.Unrestricted))
-            return ApiResultDto.Fail("Vous n'avez pas le droit d'écrire sur cette mission (chef d'équipe ou adjoint délégué).");
+            return ApiResultDto.Fail("Vous n'avez pas le droit d'écrire sur cette mission (seul le chef d'équipe).");
 
         var photos = new List<Photo>();
         if (!string.IsNullOrWhiteSpace(dto.PhotosJson))
@@ -379,10 +376,6 @@ public class FichesControleService : IFichesControleService
             $"La fiche {f.NumOrdre} attend le « Lu et approuvé » du chef d'établissement (circuit tablette).");
         _users.AddJournal("Fiches", "soumission",
             $"Fiche {f.NumOrdre} soumise pour validation chef (tablette) — agent {userId}", userId);
-        await _email.NotifyAsync(
-            $"Fiche à valider — {f.NumOrdre}",
-            $"<p>La fiche <strong>{f.NumOrdre}</strong> attend le « Lu et approuvé » du chef d'établissement.</p>",
-            toRole: DataScope.RoleControleur);
         return ApiResultDto.Ok("Fiche prête pour validation par le chef d'établissement (tablette).");
     }
 
@@ -399,7 +392,7 @@ public class FichesControleService : IFichesControleService
 
         var scope = await _scope.GetAsync();
         if (!_access.CanWriteFromAffectations(f.Affectations, scope.AgentId, scope.Unrestricted))
-            return ApiResultDto.Fail("Accès refusé : seul le chef d'équipe (ou adjoint délégué) peut enregistrer la validation tablette.");
+            return ApiResultDto.Fail("Accès refusé : seul le chef d'équipe peut enregistrer la validation tablette.");
 
         var chefNom = f.Ecole?.ChefEtablissement?.NomComplet ?? "chef d'établissement";
         f.StatutFiche = FicheStatuts.Validee;
@@ -409,10 +402,6 @@ public class FichesControleService : IFichesControleService
         _users.AddNotification("Fiche validée", $"La fiche {f.NumOrdre} a été validée (Lu et approuvé) — {chefNom}.");
         _users.AddJournal("Fiches", "validation tablette",
             $"Fiche {f.NumOrdre} — Lu et approuvé par {chefNom} (enregistré par agent {userId})", userId);
-        await _email.NotifyAsync(
-            $"Fiche validée — {f.NumOrdre}",
-            $"<p>La fiche <strong>{f.NumOrdre}</strong> a été validée (Lu et approuvé).</p>",
-            toRole: DataScope.RoleControleur);
         return ApiResultDto.Ok("Fiche validée : Lu et approuvé.");
     }
 

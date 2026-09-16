@@ -154,6 +154,181 @@
     });
   }
 
+  /**
+   * Affiche le modal de progression, exécute l'envoi, puis succès ou erreur.
+   * opts: { title, steps, run, successTitle }
+   * Important : fermer le loader (Swal.close) avant le Swal final, sinon SweetAlert2
+   * met le 2e popup en file et l'UI reste bloquée.
+   */
+  function runEmailSend(opts) {
+    opts = opts || {};
+    var Swal = resolveSwal();
+    var steps = opts.steps || [
+      'Préparation du document PDF…',
+      'Connexion au serveur mail…',
+      'Envoi de l\'e-mail en cours…',
+      'Confirmation SMTP…'
+    ];
+    var title = opts.title || 'Envoi de l\'e-mail';
+    var stepIndex = 0;
+    var timer = null;
+
+    function stepsHtml(activeIndex) {
+      var items = steps
+        .map(function (label, i) {
+          var state =
+            i < activeIndex ? 'is-done' : i === activeIndex ? 'is-active' : 'is-pending';
+          var mark = i < activeIndex ? '✓' : String(i + 1);
+          return (
+            '<li class="isp-email-step ' +
+            state +
+            '">' +
+            '<span class="isp-email-step__mark" aria-hidden="true">' +
+            mark +
+            '</span>' +
+            '<span class="isp-email-step__label">' +
+            escapeHtml(label) +
+            '</span>' +
+            '</li>'
+          );
+        })
+        .join('');
+      return (
+        '<ul class="isp-email-steps" id="ispEmailProgressSteps">' +
+        items +
+        '</ul>' +
+        '<p class="isp-swal-msg isp-swal-msg--detail">Veuillez patienter, ne fermez pas cette fenêtre.</p>'
+      );
+    }
+
+    function paintSteps(activeIndex) {
+      var root = document.getElementById('ispEmailProgressSteps');
+      if (!root) return;
+      var items = root.querySelectorAll('.isp-email-step');
+      for (var i = 0; i < items.length; i++) {
+        items[i].classList.remove('is-done', 'is-active', 'is-pending');
+        if (i < activeIndex) items[i].classList.add('is-done');
+        else if (i === activeIndex) items[i].classList.add('is-active');
+        else items[i].classList.add('is-pending');
+        var mark = items[i].querySelector('.isp-email-step__mark');
+        if (mark) mark.textContent = i < activeIndex ? '✓' : String(i + 1);
+      }
+    }
+
+    function stopProgress() {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    }
+
+    /** Ferme le loader pour débloquer la file SweetAlert2 avant succès/erreur. */
+    function closeLoader() {
+      stopProgress();
+      if (!Swal) return;
+      try {
+        if (typeof Swal.isVisible === 'function' && Swal.isVisible()) {
+          Swal.close();
+        }
+      } catch (e) {
+        /* ignore */
+      }
+    }
+
+    function openLoading() {
+      if (!Swal) return;
+      Swal.fire({
+        title: title,
+        html: stepsHtml(0),
+        position: 'center',
+        backdrop: true,
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        showCancelButton: false,
+        heightAuto: true,
+        showClass: { popup: 'swal2-show isp-swal-enter' },
+        customClass: {
+          container: 'isp-swal-container',
+          popup: 'isp-swal-popup isp-swal-popup--info isp-swal-popup--loading',
+          title: 'isp-swal-title',
+          htmlContainer: 'isp-swal-html',
+          actions: 'isp-swal-actions'
+        },
+        didOpen: function () {
+          Swal.showLoading();
+          timer = setInterval(function () {
+            if (stepIndex < steps.length - 1) {
+              stepIndex += 1;
+              paintSteps(stepIndex);
+            }
+          }, 1600);
+        }
+      });
+    }
+
+    function fireResult(kind, resultTitle, htmlMsg) {
+      closeLoader();
+      if (!Swal) return Promise.resolve();
+      var isOk = kind === 'success';
+      return Swal.fire({
+        icon: isOk ? 'success' : 'error',
+        title: resultTitle,
+        html: '<p class="isp-swal-msg">' + escapeHtml(htmlMsg) + '</p>',
+        position: 'center',
+        backdrop: true,
+        allowOutsideClick: true,
+        showConfirmButton: true,
+        confirmButtonText: isOk ? 'OK' : 'Fermer',
+        buttonsStyling: false,
+        customClass: {
+          container: 'isp-swal-container',
+          popup: 'isp-swal-popup isp-swal-popup--' + (isOk ? 'success' : 'error'),
+          title: 'isp-swal-title',
+          htmlContainer: 'isp-swal-html',
+          icon: 'isp-swal-icon',
+          actions: 'isp-swal-actions',
+          confirmButton: 'isp-swal-btn isp-swal-btn--' + (isOk ? 'success' : 'danger')
+        }
+      });
+    }
+
+    if (Swal) {
+      openLoading();
+    }
+
+    return Promise.resolve()
+      .then(function () {
+        return typeof opts.run === 'function' ? opts.run() : null;
+      })
+      .then(function (result) {
+        var ok = result && (result.success !== undefined ? result.success : result.Success);
+        var msg = (result && (result.message || result.Message)) || '';
+        if (ok) {
+          return fireResult(
+            'success',
+            opts.successTitle || 'E-mail envoyé',
+            msg || 'Envoi réussi.'
+          ).then(function () {
+            return result;
+          });
+        }
+        return fireResult(
+          'error',
+          'Échec de l\'envoi',
+          msg || 'L\'e-mail n\'a pas pu être envoyé.'
+        ).then(function () {
+          return result;
+        });
+      })
+      .catch(function (err) {
+        var errMsg = (err && err.message) || 'Erreur réseau pendant l\'envoi.';
+        return fireResult('error', 'Échec de l\'envoi', errMsg).then(function () {
+          throw err;
+        });
+      });
+  }
+
   // Lie la confirmation SweetAlert aux formulaires concernés.
   function bindConfirmForms(root) {
     root = root || document;
@@ -214,6 +389,7 @@
     notify: notify,
     blocked: blocked,
     confirm: confirm,
+    runEmailSend: runEmailSend,
     alertSuccess: success,
     alertError: error,
     alertWarning: warning,

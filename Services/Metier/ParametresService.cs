@@ -27,6 +27,7 @@ public class ParametresService : IParametresService
         RefCategories.Categories or "categories" => RefCategories.Categories,
         RefCategories.Produits or "produits" => RefCategories.Produits,
         RefCategories.Outils or "outils" => RefCategories.Outils,
+        RefCategories.SousDivisions or "sous_divisions" or "sousdivisions" => RefCategories.SousDivisions,
         _ => tab
     };
 
@@ -63,6 +64,15 @@ public class ParametresService : IParametresService
                     Nom = x.LibelleOutile,
                     Libelle = x.LibelleOutile
                 }).ToListAsync(),
+            RefCategories.SousDivisions => await _db.SousProvinces.AsNoTracking()
+                .OrderBy(x => x.Code)
+                .Select(x => new RefItem
+                {
+                    Code = x.Code,
+                    Categorie = RefCategories.SousDivisions,
+                    Nom = x.Libelle,
+                    Libelle = x.Libelle
+                }).ToListAsync(),
             _ => []
         };
     }
@@ -71,12 +81,17 @@ public class ParametresService : IParametresService
     public async Task<IReadOnlyList<RefItemDto>> ListAsync(string tab)
     {
         var list = await QueryEntitiesAsync(tab);
-        return list.Select(i => new RefItemDto
+        return list.Select(i =>
         {
-            Code = int.TryParse(i.Code, out var c) ? c : 0,
-            Categorie = i.Categorie,
-            Nom = i.Nom,
-            Libelle = i.Libelle
+            var isNumeric = int.TryParse(i.Code, out var c);
+            return new RefItemDto
+            {
+                Code = isNumeric ? c : 0,
+                CodeText = isNumeric ? null : i.Code,
+                Categorie = i.Categorie,
+                Nom = i.Nom,
+                Libelle = i.Libelle
+            };
         }).ToList();
     }
 
@@ -89,6 +104,7 @@ public class ParametresService : IParametresService
             RefCategories.Categories => await SaveCategorieAsync(dto),
             RefCategories.Produits => await SaveProduitAsync(dto),
             RefCategories.Outils => await SaveOutilAsync(dto),
+            RefCategories.SousDivisions => await SaveSousDivisionAsync(dto),
             _ => ApiResultDto.Fail("Onglet paramètres inconnu.")
         };
     }
@@ -168,10 +184,64 @@ public class ParametresService : IParametresService
         return ApiResultDto.Ok("Référence enregistrée.");
     }
 
+    /// <summary>Enregistre une sous-division (table SousProvince).</summary>
+    private async Task<ApiResultDto> SaveSousDivisionAsync(SaveRefItemDto dto)
+    {
+        var libelle = (dto.Nom ?? dto.Libelle ?? "").Trim();
+        if (string.IsNullOrEmpty(libelle))
+            return ApiResultDto.Fail("Libellé obligatoire.");
+
+        var codeText = (dto.CodeText ?? "").Trim().ToUpperInvariant();
+        var isEdit = !string.IsNullOrEmpty(codeText);
+
+        if (await _db.SousProvinces.AnyAsync(s =>
+                s.Libelle == libelle && (!isEdit || s.Code != codeText)))
+            return ApiResultDto.Fail("Ce libellé de sous-division existe déjà.");
+
+        if (isEdit)
+        {
+            var existing = await _db.SousProvinces.FirstOrDefaultAsync(s => s.Code == codeText);
+            if (existing == null)
+                return ApiResultDto.Fail("Sous-division introuvable.");
+            existing.Libelle = libelle;
+            await _db.SaveChangesAsync();
+            _users.AddJournal("Paramètres", "modification", $"Sous-division {existing.Code} — {libelle}");
+        }
+        else
+        {
+            var code = await NextSousProvinceCodeAsync();
+            if (code.Length > 10)
+                return ApiResultDto.Fail("Impossible de générer un nouveau code SP.");
+            _db.SousProvinces.Add(new SousProvince { Code = code, Libelle = libelle });
+            await _db.SaveChangesAsync();
+            _users.AddJournal("Paramètres", "création", $"Sous-division {code} — {libelle}");
+        }
+        return ApiResultDto.Ok("Référence enregistrée.");
+    }
+
+    /// <summary>Calcule le prochain code SP00x disponible.</summary>
+    private async Task<string> NextSousProvinceCodeAsync()
+    {
+        var codes = await _db.SousProvinces.AsNoTracking().Select(s => s.Code).ToListAsync();
+        var max = 0;
+        foreach (var c in codes)
+        {
+            if (c.Length > 2
+                && c.StartsWith("SP", StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(c.AsSpan(2), out var n)
+                && n > max)
+                max = n;
+        }
+        return $"SP{(max + 1):D3}";
+    }
+
     /// <summary>Supprime un élément de référentiel s'il n'est plus utilisé.</summary>
     public async Task<ApiResultDto> DeleteAsync(string tab, string id)
     {
         var cat = NormalizeTab(tab);
+        if (cat == RefCategories.SousDivisions)
+            return await DeleteSousDivisionAsync(id);
+
         if (!int.TryParse(id.Trim(), out var code) || code <= 0)
             return ApiResultDto.Fail("Identifiant invalide.");
 
@@ -233,6 +303,30 @@ public class ParametresService : IParametresService
             default:
                 return ApiResultDto.Fail("Onglet paramètres inconnu.");
         }
+        return ApiResultDto.Ok("Référence supprimée.");
+    }
+
+    /// <summary>Supprime une sous-division si aucun établissement ne l'utilise.</summary>
+    private async Task<ApiResultDto> DeleteSousDivisionAsync(string id)
+    {
+        var code = (id ?? "").Trim().ToUpperInvariant();
+        if (string.IsNullOrEmpty(code))
+            return ApiResultDto.Fail("Identifiant invalide.");
+
+        var item = await _db.SousProvinces.FirstOrDefaultAsync(s => s.Code == code);
+        if (item == null)
+            return ApiResultDto.Ok("Référence supprimée.");
+
+        if (await _db.Ecoles.AnyAsync(e => e.SousDivision == code))
+            return ApiResultDto.FailBlocked(
+                "Suppression non autorisée",
+                "Cette sous-division ne peut pas être retirée.",
+                "Elle est encore utilisée par un ou plusieurs établissements scolaires.\n\n" +
+                "Modifiez d'abord la sous-division de ces établissements, puis réessayez.");
+
+        _db.SousProvinces.Remove(item);
+        await _db.SaveChangesAsync();
+        _users.AddJournal("Paramètres", "suppression", $"Sous-division {code} supprimée");
         return ApiResultDto.Ok("Référence supprimée.");
     }
 }

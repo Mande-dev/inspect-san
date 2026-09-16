@@ -6,12 +6,35 @@
     var items = (List<RefItem>)ViewBag.Items;
     var canGerer = ViewBag.CanGererParametres as bool? == true;
     var tabs = new[] {
-        ("categories", "Catégories"),
-        ("produits", "Produits utilisés"),
-        ("outils", "Outils utilisés")
+        ("categories", DictionnaireDonnees.Label("Dési_Cat")),
+        ("produits", DictionnaireDonnees.Label("Dési_Prod_Net")),
+        ("outils", DictionnaireDonnees.Label("Dési_Out_Net")),
+        ("sous-divisions", DictionnaireDonnees.Label("Lib_Sous"))
+    };
+    var codeLabel = tab switch
+    {
+        "sous-divisions" => DictionnaireDonnees.Label("code_Sous"),
+        "categories" => DictionnaireDonnees.Label("Code_Cat"),
+        _ => "Code"
+    };
+    var libelleLabel = tab switch
+    {
+        "categories" => DictionnaireDonnees.Label("Dési_Cat"),
+        "produits" => DictionnaireDonnees.Label("Dési_Prod_Net"),
+        "outils" => DictionnaireDonnees.Label("Dési_Out_Net"),
+        "sous-divisions" => DictionnaireDonnees.Label("Lib_Sous"),
+        _ => "Libellé"
     };
 }
-<div id="parametresPage" data-tab="@tab" data-can-gerer="@(canGerer ? "1" : "0")">
+<div id="parametresPage"
+     data-tab="@tab"
+     data-can-gerer="@(canGerer ? "1" : "0")"
+     data-label-code-cat="@DictionnaireDonnees.Label("Code_Cat")"
+     data-label-desi-cat="@DictionnaireDonnees.Label("Dési_Cat")"
+     data-label-desi-prod="@DictionnaireDonnees.Label("Dési_Prod_Net")"
+     data-label-desi-outil="@DictionnaireDonnees.Label("Dési_Out_Net")"
+     data-label-code-sous="@DictionnaireDonnees.Label("code_Sous")"
+     data-label-lib-sous="@DictionnaireDonnees.Label("Lib_Sous")">
     <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4 isp-page-head">
         <div>
             <h2 class="mb-1">Paramètres</h2>
@@ -42,8 +65,8 @@
             <table class="table table-hover mb-0 js-paginated-table" id="parametresTable">
                 <thead class="table-light" id="parametresThead">
                     <tr>
-                        <th style="width:5rem">Code</th>
-                        <th>Libellé</th>
+                        <th style="width:5rem">@codeLabel</th>
+                        <th>@libelleLabel</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -80,18 +103,19 @@
             @Html.AntiForgeryToken()
             <input type="hidden" name="tab" id="refTab" value="@tab" />
             <input type="hidden" name="Code" id="refCode" value="0" />
+            <input type="hidden" name="CodeText" id="refCodeText" value="" />
             <div class="modal-header">
                 <h5 class="modal-title" id="refTitle">Ajouter</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3" id="refCodeGroup" hidden>
-                    <label class="form-label" for="refCodeDisplay">Code</label>
+                    <label class="form-label" for="refCodeDisplay">@codeLabel</label>
                     <input type="text" id="refCodeDisplay" class="form-control" readonly tabindex="-1" />
-                    <div class="form-text">Code technique auto-incrémenté (non modifiable).</div>
+                    <div class="form-text" id="refCodeHelp">Code technique auto-incrémenté (non modifiable).</div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label" for="refNom">Libellé</label>
+                    <label class="form-label" for="refNom">@libelleLabel</label>
                     <input name="Nom" id="refNom" class="form-control" required />
                 </div>
             </div>

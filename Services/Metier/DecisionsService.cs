@@ -15,6 +15,8 @@ public class DecisionsService : IDecisionsService
     private readonly InspectSanDbContext _db;
     private readonly MockUserStore _users;
     private readonly IDomainEmailNotifier _email;
+    private readonly IAppEmailSender _emailSender;
+    private readonly ILettreDecisionPdfService _lettrePdf;
     private readonly ICurrentUserScope _scope;
 
     /// <summary>Initialise le service décisions avec ses dépendances.</summary>
@@ -22,11 +24,15 @@ public class DecisionsService : IDecisionsService
         InspectSanDbContext db,
         MockUserStore users,
         IDomainEmailNotifier? email = null,
+        IAppEmailSender? emailSender = null,
+        ILettreDecisionPdfService? lettrePdf = null,
         ICurrentUserScope? scope = null)
     {
         _db = db;
         _users = users;
         _email = email ?? NullDomainEmailNotifier.Instance;
+        _emailSender = emailSender ?? NullAppEmailSender.Instance;
+        _lettrePdf = lettrePdf ?? NullLettreDecisionPdfService.Instance;
         _scope = scope ?? UnrestrictedUserScope.Instance;
     }
 
@@ -63,7 +69,9 @@ public class DecisionsService : IDecisionsService
             EcoleNom = d.Ecole?.Denomination,
             ChefNom = d.Ecole?.ChefEtablissement?.NomComplet,
             Type = DecisionTypes.LabelOf(d.DecisionFin),
-            TypeDecision = d.DecisionFin
+            TypeDecision = d.DecisionFin,
+            LdEnvoyeLe = d.LdEnvoyeLe,
+            LdEnvoyeA = d.LdEnvoyeA
         }).ToList();
     }
 
@@ -71,14 +79,14 @@ public class DecisionsService : IDecisionsService
     public async Task<List<FicheControle>> QueryFichesSansDecisionAsync()
     {
         var decided = await _db.Decisions.AsNoTracking().Select(d => d.NumOrdre).ToListAsync();
-        // Décision uniquement après transfert secrétariat → DP (RapportSecretariatDeposeLe).
+        // Décision dès dépôt du rapport par le contrôleur (chef d'équipe).
         var missions = await _db.Missions.AsNoTracking()
             .Include(m => m.Ecole)
             .Include(m => m.MissionProduits)
             .Include(m => m.MissionOutils)
             .Include(m => m.Photos)
             .Where(m => m.StatutFiche == FicheStatuts.Validee
-                        && m.RapportSecretariatDeposeLe != null
+                        && m.RapportEquipeDeposeLe != null
                         && !decided.Contains(m.NumOrdre))
             .ToListAsync();
         return missions.Select(m => FicheControle.FromMission(m, m.Ecole?.Id)).ToList();
@@ -177,17 +185,17 @@ public class DecisionsService : IDecisionsService
                 return ApiResultDto.Fail("Une décision ne peut être prise que sur une fiche validée.");
             if (await _db.Decisions.AnyAsync(d => d.NumOrdre == mission.NumOrdre))
                 return ApiResultDto.Fail("Cette fiche a déjà une décision.");
-            if (mission.RapportSecretariatDeposeLe == null)
+            if (mission.RapportEquipeDeposeLe == null)
                 return ApiResultDto.Fail(
-                    "Décision impossible : le rapport d'inspection doit d'abord être transféré au Directeur Provincial par le secrétariat.");
+                    "Décision impossible : le contrôleur (chef d'équipe) doit d'abord déposer le rapport d'inspection.");
         }
         else
         {
             var existing = await _db.Decisions.FirstOrDefaultAsync(d => d.NumDecision == dto.Id);
             if (existing == null) return ApiResultDto.Fail("Décision introuvable.");
-            if (mission.RapportSecretariatDeposeLe == null)
+            if (mission.RapportEquipeDeposeLe == null)
                 return ApiResultDto.Fail(
-                    "Décision impossible : le rapport d'inspection doit d'abord être transféré au Directeur Provincial par le secrétariat.");
+                    "Décision impossible : le contrôleur (chef d'équipe) doit d'abord déposer le rapport d'inspection.");
             existing.DecisionFin = typeCode;
             await _db.SaveChangesAsync();
             _users.AddJournal("Décisions", "modification", $"Décision {existing.NumDecision} modifiée", userId);
@@ -243,5 +251,87 @@ public class DecisionsService : IDecisionsService
         await _db.SaveChangesAsync();
         _users.AddJournal("Décisions", "suppression", $"Décision {id} supprimée");
         return ApiResultDto.Ok("Décision supprimée.");
+    }
+
+    /// <summary>Génère le PDF de la lettre de décision et l'envoie une seule fois au chef d'établissement.</summary>
+    public async Task<ApiResultDto> EnvoyerLettreParMailAsync(string decisionId, string? userId)
+    {
+        if (string.IsNullOrWhiteSpace(decisionId))
+            return ApiResultDto.Fail("Décision invalide.");
+
+        var decision = await _db.Decisions
+            .Include(d => d.Ecole)!.ThenInclude(e => e!.ChefEtablissement)
+            .FirstOrDefaultAsync(d => d.NumDecision == decisionId);
+        if (decision == null)
+            return ApiResultDto.Fail("Décision introuvable.");
+
+        var ecoleId = decision.Ecole?.Id ?? "";
+        var scope = await _scope.GetAsync();
+        if (!scope.Unrestricted && !scope.AllowsDecision(ecoleId))
+            return ApiResultDto.Fail("Accès refusé pour cette décision / périmètre.");
+
+        if (decision.LdEnvoyeLe.HasValue)
+        {
+            var le = decision.LdEnvoyeLe.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm");
+            var a = string.IsNullOrWhiteSpace(decision.LdEnvoyeA) ? "—" : decision.LdEnvoyeA.Trim();
+            return ApiResultDto.Fail($"La lettre de décision a déjà été envoyée le {le} à {a}.");
+        }
+
+        var chefEmail = decision.Ecole?.ChefEtablissement?.Email?.Trim();
+        if (string.IsNullOrWhiteSpace(chefEmail))
+            return ApiResultDto.Fail("Le chef d'établissement n'a pas d'e-mail.");
+
+        byte[] pdf;
+        try
+        {
+            pdf = await _lettrePdf.GenerateAsync(decisionId);
+        }
+        catch (Exception ex)
+        {
+            return ApiResultDto.Fail($"Impossible de générer le PDF : {ex.Message}");
+        }
+
+        if (pdf.Length == 0)
+            return ApiResultDto.Fail("Le PDF généré est vide.");
+
+        var fileName = _lettrePdf.BuildFileName(decision.NumDecision);
+        var subject = $"Lettre de décision {decision.NumDecision}";
+        var typeNom = DecisionTypes.LabelOf(decision.DecisionFin);
+        var body =
+            $"<p>Bonjour,</p>" +
+            $"<p>Veuillez trouver ci-jointe la lettre de décision <strong>{decision.NumDecision}</strong>" +
+            (string.IsNullOrWhiteSpace(typeNom) ? "" : $" ({typeNom})") +
+            (string.IsNullOrWhiteSpace(decision.Ecole?.Denomination)
+                ? "."
+                : $" concernant l'établissement <strong>{decision.Ecole!.Denomination}</strong>.") +
+            "</p>" +
+            "<p>Cordialement,<br/>Inspect-San — Province Éducationnelle de Kinshasa Mont-Amba</p>";
+
+        var (ok, detail) = await _emailSender.TrySendAsync(
+            chefEmail,
+            subject,
+            body,
+            [new EmailAttachment(fileName, pdf, "application/pdf")]);
+
+        if (!ok)
+            return ApiResultDto.Fail(detail);
+
+        decision.LdEnvoyeLe = DateTime.UtcNow;
+        decision.LdEnvoyeA = chefEmail.Length > 200 ? chefEmail[..200] : chefEmail;
+        await _db.SaveChangesAsync();
+
+        _users.AddJournal(
+            "Décisions",
+            "envoi LD",
+            $"Lettre de décision {decision.NumDecision} envoyée à {chefEmail}",
+            userId);
+        _users.AddNotification(
+            "Lettre de décision envoyée",
+            $"La LD {decision.NumDecision} a été envoyée à {chefEmail}.");
+
+        return ApiResultDto.Ok(
+            string.IsNullOrWhiteSpace(detail)
+                ? $"Lettre de décision envoyée à {chefEmail}."
+                : detail);
     }
 }

@@ -85,6 +85,7 @@ public class ChefListDto
     public string Id { get; set; } = "";
     public string NomComplet { get; set; } = "";
     public string Telephone { get; set; } = "";
+    public string? Email { get; set; }
     public string? EcoleNom { get; set; }
     public int? AnneeDebutActivite { get; set; }
 }
@@ -165,6 +166,10 @@ public class MissionListDto
     public DateTime? DateEmission { get; set; }
     public DateTime? FinValidite { get; set; }
     public DateTime? SigneLe { get; set; }
+    /// <summary>1er envoi OM réussi (UTC).</summary>
+    public DateTime? OmEnvoyeLe { get; set; }
+    /// <summary>Destinataire du 1er envoi OM.</summary>
+    public string? OmEnvoyeA { get; set; }
     public string? Objet { get; set; }
     public decimal? MontPer { get; set; }
     public List<ParticipationListDto> Participations { get; set; } = new();
@@ -251,6 +256,10 @@ public class DecisionListDto
     public string? ChefNom { get; set; }
     public string Type { get; set; } = "";
     public string TypeDecision { get; set; } = "";
+    /// <summary>1er envoi LD réussi (UTC).</summary>
+    public DateTime? LdEnvoyeLe { get; set; }
+    /// <summary>Destinataire du 1er envoi LD.</summary>
+    public string? LdEnvoyeA { get; set; }
 }
 
 public class StatistiquesFilterDto
@@ -361,8 +370,10 @@ public class SousDivisionCodeRequest
 
 public class SaveRefItemDto
 {
-    /// <summary>Code auto-incrémenté (0 = création).</summary>
+    /// <summary>Code auto-incrémenté (0 = création) pour catégories / produits / outils.</summary>
     public int Code { get; set; }
+    /// <summary>Code texte (ex. SP001) pour les sous-divisions.</summary>
+    public string? CodeText { get; set; }
     public string Nom { get; set; } = "";
     public string? Libelle { get; set; }
 }
@@ -370,6 +381,8 @@ public class SaveRefItemDto
 public class RefItemDto
 {
     public int Code { get; set; }
+    /// <summary>Code texte affiché (ex. SP001) ; prioritaire sur <see cref="Code"/> côté UI.</summary>
+    public string? CodeText { get; set; }
     public string Categorie { get; set; } = "";
     public string Nom { get; set; } = "";
     public string? Libelle { get; set; }

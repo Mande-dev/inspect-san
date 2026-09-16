@@ -10,7 +10,7 @@ public class Ecole
     public string Denomination { get; set; } = "";
     /// <summary>Code constante <see cref="Constants.RegGes"/>.</summary>
     public string RegGes { get; set; } = "";
-    /// <summary>Code sous-province (<c>SP001</c>…, table <c>SousProvince</c>).</summary>
+    /// <summary>FK → SousProvince.Code.</summary>
     public string SousDivision { get; set; } = "";
     public string IdDinacope { get; set; } = "";
     public string? NumNotification { get; set; }
@@ -21,6 +21,7 @@ public class Ecole
 
     public Categorie? Categorie { get; set; }
     public Chef? ChefEtablissement { get; set; }
+    public SousProvince? SousProvince { get; set; }
     public ICollection<Mission> Missions { get; set; } = new List<Mission>();
     public ICollection<Decision> Decisions { get; set; } = new List<Decision>();
 }

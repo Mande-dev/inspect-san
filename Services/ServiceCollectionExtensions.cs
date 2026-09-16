@@ -21,6 +21,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAgentsService, AgentsService>();
         services.AddScoped<IUtilisateursService, UtilisateursService>();
         services.AddScoped<IMissionAccessService, MissionAccessService>();
+        services.AddScoped<IOrdreMissionPdfService, OrdreMissionPdfService>();
+        services.AddScoped<ILettreDecisionPdfService, LettreDecisionPdfService>();
         services.AddScoped<IMissionsService, MissionsService>();
         services.AddScoped<IFichesControleService, FichesControleService>();
         services.AddScoped<IDecisionsService, DecisionsService>();
